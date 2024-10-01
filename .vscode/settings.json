@@ -8,5 +8,9 @@
     "terminal.integrated.env.windows": {
       "PYTHONPATH": "${workspaceFolder}",
     },
-    "python.envFile": "${workspaceFolder}/.env"
+    "python.envFile": "${workspaceFolder}/.env",
+    "files.exclude": {
+      "**/*.pyc": {"when": "$(basename).py"}, 
+      "**/__pycache__": true,
+    }
   }
