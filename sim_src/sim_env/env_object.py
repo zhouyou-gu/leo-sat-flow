@@ -1,6 +1,6 @@
 from collections import deque
 from typing import Deque, List
-
+import time
 import numpy as np
 
 from random import shuffle
@@ -17,9 +17,13 @@ class EnvObject():
 class EnvObjectRunnable(EnvObject):
     def __init__(self) -> None:
         EnvObject.env.process(self.run())
-    
+        self.init_time_us = time.time()/1e-6
+        
     def run(self):
         pass
+    
+    def get_run_time_us(self):
+        return time.time()/1e-6 - self.init_time_us
 
 if __name__ == "__main__":
     class Parent(EnvObjectRunnable):

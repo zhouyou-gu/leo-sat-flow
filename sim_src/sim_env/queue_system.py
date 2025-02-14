@@ -28,11 +28,12 @@ class Packet():
         assert self.hops_addr[-1] == addr
         self.hops_depart_time_us[-1] = cur_time_us
         
-    def get_last_hop_arr_time(self):
+    def end(self,cur_time_us):
+        self.end_time_us = cur_time_us
+        return self.get_tot_time_us()
+        
+    def get_last_hop_arr_time_us(self):
         return self.hops_arrive_time_us[-1]
-    
-    def get_last_hop_que_time(self, cur_time_us):
-        return cur_time_us - self.hops_arrive_time_us[-1]
     
     def get_gen_time_us(self):
         return self.gen_time_us
@@ -40,16 +41,6 @@ class Packet():
     def get_tot_time_us(self):
         assert self.end_time_us >= 0
         return self.end_time_us - self.gen_time_us
-    
-    def get_liv_time_us(self, cur_time_us):
-        return cur_time_us - self.gen_time_us
-    
-    def end(self,cur_time_us):
-        self.end_time_us = cur_time_us
-        print(self.gen_time_us,self.end_time_us)
-
-        return self.get_tot_time_us()
-    
     
 class P2PLinkInterfaceRx():
     def push(self, packets):
@@ -63,13 +54,13 @@ class Queue(P2PLinkInterfaceRx):
 
     def get_hol_vs_hop(self, cur_time_us):
         if self.queue:
-            return cur_time_us - self.queue[0].get_last_hop_que_time(self, cur_time_us)
+            return self.queue[0].get_last_hop_arr_time_us(self)
         else:
             return 0
 
     def get_hol_vs_src(self, cur_time_us):
         if self.queue:
-            return cur_time_us - self.queue[0].liv_time_us(self, cur_time_us)
+            return cur_time_us - self.queue[0].get_gen_time_us(self)
         else:
             return 0
     
@@ -111,7 +102,6 @@ class PacketSrc(EnvObjectRunnable):
         self.packet_generation_interval_us = packet_generation_interval_us
 
         self.to_node = to_node
-
 
     def set_packet_rate_per_interval(self,packet_rate_per_interval):
         self.packet_rate_per_interval = packet_rate_per_interval
@@ -165,15 +155,9 @@ class P2PLinkDirtTo(EnvObject,P2PLinkInterfaceRx):
         yield self.env.timeout(self.delay_us + tx_time_us)
         self.to_node.push([p])
         self.current_load_bits -= p.length_bits
-    
-    def push_a_packet(self, p:Packet, tx_time_us):
-        self.current_load_bits += p.length_bits
-        yield self.env.timeout(self.delay_us + tx_time_us)
-        self.to_node.push([p])
-        self.current_load_bits -= p.length_bits  
 
 class NodeWithLocalPacketSrcDst_Base(EnvObjectRunnable,P2PLinkInterfaceRx):
-    def __init__(self, id = 0, queue_size=10, packet_rate_per_ms = 5):
+    def __init__(self, id = 0, queue_size=10, packet_rate_per_ms = 5, packet_pop_interval_us = 1000):
         super().__init__()
         self.id = id
         self.packet_src = PacketSrc(to_node=self)
@@ -181,18 +165,20 @@ class NodeWithLocalPacketSrcDst_Base(EnvObjectRunnable,P2PLinkInterfaceRx):
         self.packet_que = Queue(max_size=queue_size)
         
         self.packet_rate_per_ms = packet_rate_per_ms
+        self.packet_pop_interval_us = packet_pop_interval_us
         self.p2plink_to_neighbor = []
 
     def run(self):
         self.env.process(self.queueing())
-        yield env.event()
+        yield self.env.event()
+
 
     def queueing(self):
         while True:
-            print(self.packet_dst.packet_counter,self.packet_dst.pdelay_counter,self.packet_dst.pdelay_counter/(self.packet_dst.packet_counter+1))
-            yield self.env.timeout(1000)
+            # print(self.packet_dst.packet_counter,self.packet_dst.pdelay_counter,self.packet_dst.pdelay_counter/(self.packet_dst.packet_counter+1))
+            yield self.env.timeout(self.packet_pop_interval_us)
             self.packet_dst.push(self.packet_que.pop(self.packet_rate_per_ms))
-    
+
     def push(self, packets):
         pass
 
@@ -211,6 +197,7 @@ if __name__ == "__main__":
     n_b = NodeWithLocalPacketSrcDst_BaseTest()
     n_a.p2plink_to_neighbor.append(P2PLinkDirtTo(n_b))
     env.run(until=1000000)
-    
+    print(env.now,n_b.get_run_time_us())
+
     print(n_b.packet_dst.packet_counter)
     
