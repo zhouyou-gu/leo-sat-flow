@@ -1,4 +1,5 @@
 from collections import deque
+import math
 from typing import Deque, List
 import time
 import numpy as np
@@ -10,20 +11,26 @@ import simpy
 
 class EnvObject():
     env = None
+    start_time = - math.inf
+    def init_env():
+        EnvObject.env = simpy.Environment()
+    
     @classmethod
-    def set_env(cls,env):
-        cls.env = env
-
+    def run(cls,until=None):
+        cls.start_time = time.time()/1e-6
+        cls.env.run(until=until)
+    
+    @classmethod 
+    def get_run_time_us(cls):
+        return time.time()/1e-6 - cls.start_time
+            
 class EnvObjectRunnable(EnvObject):
     def __init__(self) -> None:
         EnvObject.env.process(self.run())
-        self.init_time_us = time.time()/1e-6
         
     def run(self):
         pass
-    
-    def get_run_time_us(self):
-        return time.time()/1e-6 - self.init_time_us
+
 
 if __name__ == "__main__":
     class Parent(EnvObjectRunnable):
@@ -57,9 +64,11 @@ if __name__ == "__main__":
             self.counter += 1
             print("child hello +",self.env.now,a,self.counter)
             yield self.env.timeout(a)
+            print("child hello run time",self.get_run_time_us())
             print("child hello -",self.env.now,a,self.counter)
-            
-    env = simpy.Environment()
-    EnvObject.set_env(env=env)
+    
+    EnvObject.init_env()
+    
     p = Parent(Child())
-    env.run(until=10)
+        
+    EnvObject.run(until=10)

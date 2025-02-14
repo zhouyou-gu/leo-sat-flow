@@ -190,12 +190,11 @@ if __name__ == "__main__":
     
     time_to_run_us = 1000000
     # SimPy environment setup
-    env = simpy.Environment()
-    EnvObject.set_env(env=env)
+    EnvObject.init_env()
     n_a = NodeWithLocalPacketSrcDst_BaseTest(0)
     n_b = NodeWithLocalPacketSrcDst_BaseTest(1)
     n_a.p2plink_to_neighbor.append(P2PLinkDirtTo(n_b))
-    env.run(until=time_to_run_us)
-    print(env.now,n_b.get_run_time_us())
+    EnvObject.run(until=time_to_run_us)
+    print(EnvObject.get_run_time_us())
     print(n_b.packet_dst.packet_counter)
     
