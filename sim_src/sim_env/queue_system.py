@@ -190,13 +190,14 @@ if __name__ == "__main__":
             for i in self.p2plink_to_neighbor:
                 i.push(packets)        
     
+    time_to_run_us = 1000000
     # SimPy environment setup
     env = simpy.Environment()
     EnvObject.set_env(env=env)
     n_a = NodeWithLocalPacketSrcDst_BaseTest()
     n_b = NodeWithLocalPacketSrcDst_BaseTest()
     n_a.p2plink_to_neighbor.append(P2PLinkDirtTo(n_b))
-    env.run(until=1000000)
+    env.run(until=time_to_run_us)
     print(env.now,n_b.get_run_time_us())
 
     print(n_b.packet_dst.packet_counter)
