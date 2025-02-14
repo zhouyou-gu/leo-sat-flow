@@ -140,7 +140,6 @@ class P2PLinkDirtTo(EnvObject,P2PLinkInterfaceRx):
         self.current_load_bits = 0 
         
     def push(self, packets):
-        self.current_load_bits
         for p in packets:
             tx_time_us = p.length_bits / self.bits_per_us
             if self.current_load_bits + p.length_bits > self.bits_per_us * tx_time_us:
@@ -174,7 +173,7 @@ class NodeWithLocalPacketSrcDst_Base(EnvObjectRunnable,P2PLinkInterfaceRx):
 
     def queueing(self):
         while True:
-            # print(self.packet_dst.packet_counter,self.packet_dst.pdelay_counter,self.packet_dst.pdelay_counter/(self.packet_dst.packet_counter+1))
+            print(self.id,self.packet_dst.packet_counter,self.packet_dst.pdelay_counter,self.packet_dst.pdelay_counter/(self.packet_dst.packet_counter+1))
             yield self.env.timeout(self.packet_pop_interval_us)
             self.packet_dst.push(self.packet_que.pop(self.packet_rate_per_ms))
 
@@ -193,11 +192,10 @@ if __name__ == "__main__":
     # SimPy environment setup
     env = simpy.Environment()
     EnvObject.set_env(env=env)
-    n_a = NodeWithLocalPacketSrcDst_BaseTest()
-    n_b = NodeWithLocalPacketSrcDst_BaseTest()
+    n_a = NodeWithLocalPacketSrcDst_BaseTest(0)
+    n_b = NodeWithLocalPacketSrcDst_BaseTest(1)
     n_a.p2plink_to_neighbor.append(P2PLinkDirtTo(n_b))
     env.run(until=time_to_run_us)
     print(env.now,n_b.get_run_time_us())
-
     print(n_b.packet_dst.packet_counter)
     
