@@ -34,12 +34,13 @@ if __name__ == "__main__":
         def run(self):
             self.c.hello_out()
             yield self.env.timeout(1)
-            print("Parent run",env.now)
+            print("Parent run",self.env.now)
 
-    class Child(EnvObject):
+    class Child(EnvObjectRunnable):
         def __init__(self) -> None:
             super().__init__()
             self.counter = 0
+            
         def run(self):
             pass
             while True:
@@ -57,3 +58,8 @@ if __name__ == "__main__":
             print("child hello +",self.env.now,a,self.counter)
             yield self.env.timeout(a)
             print("child hello -",self.env.now,a,self.counter)
+            
+    env = simpy.Environment()
+    EnvObject.set_env(env=env)
+    p = Parent(Child())
+    env.run(until=10)
