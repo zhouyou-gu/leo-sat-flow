@@ -141,7 +141,6 @@ class P2PLinkDirtTo(EnvObject,P2PLinkInterfaceRx):
         
     def push(self, packets):
         self.current_load_bits
-        
         for p in packets:
             tx_time_us = p.length_bits / self.bits_per_us
             if self.current_load_bits + p.length_bits > self.bits_per_us * tx_time_us:
