@@ -7,7 +7,7 @@ from random import shuffle
 
 import simpy
 
-from sim_src.sim_env.env_object import *
+from sim_src.core.env_object import *
 
 class Packet():
     def __init__(self, length_bits, gen_time_us):

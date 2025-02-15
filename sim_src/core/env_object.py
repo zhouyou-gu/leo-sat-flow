@@ -7,18 +7,32 @@ import numpy as np
 from random import shuffle
 
 import simpy
+import simpy.rt
 
 
 class EnvObject():
     env = None
     start_time = - math.inf
-    def init_env():
-        EnvObject.env = simpy.Environment()
+    is_start = False
+    is_end = False
     
+    time_scaling_on_one_second = 1e-6
+    def init_env():
+        EnvObject.env = simpy.rt.RealtimeEnvironment(factor=EnvObject.time_scaling_on_one_second, strict=False)
+
     @classmethod
     def run(cls,until=None):
         cls.start_time = time.time()/1e-6
+        cls.is_start = True
+        print("EnvObject run")
         cls.env.run(until=until)
+        print("EnvObject end",cls.get_run_time_us())
+        cls.is_end = True
+
+    @staticmethod
+    def run_process(until=None):
+        yield EnvObject.env.timeout(until)
+        EnvObject.is_end = True
     
     @classmethod 
     def get_run_time_us(cls):
@@ -26,6 +40,7 @@ class EnvObject():
             
 class EnvObjectRunnable(EnvObject):
     def __init__(self) -> None:
+        super().__init__()
         EnvObject.env.process(self.run())
         
     def run(self):
@@ -52,6 +67,7 @@ if __name__ == "__main__":
             pass
             while True:
                 yield self.env.timeout(1)
+                time.sleep(0.1)
                 print("Child run")
         
         def hello_out(self):
@@ -71,4 +87,4 @@ if __name__ == "__main__":
     
     p = Parent(Child())
         
-    EnvObject.run(until=10)
+    EnvObject.run(until=10000)
