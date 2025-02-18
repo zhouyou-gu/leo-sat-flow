@@ -105,9 +105,13 @@ class earth(EnvObjectRunnable,VisObject):
     earth_update_interval_us = 1000000
     def __init__(self):
         super().__init__()
-        self.angle = np.pi/2
+        self.angle = 0
         self.land_texture = np.array(Image.open("land_sea_texture_bw.png"))
-
+        self.cities = np.loadtxt("cities.csv",delimiter=",")
+        # x, y, z = lat_lon_to_xyz(np.radians(self.cities[:,0]),np.radians(self.cities[:,1])+self.angle)
+        # for i in range(100):
+        #     plot_obj = sphere(pos=vector(x[i],y[i],z[i]), radius=0.01,color=color.blue)
+            
     def run(self):
         while True:
             yield self.env.timeout(self.earth_update_interval_us)
