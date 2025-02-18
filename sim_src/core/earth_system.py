@@ -105,7 +105,7 @@ class earth(EnvObjectRunnable,VisObject):
     earth_update_interval_us = 1000000
     def __init__(self):
         super().__init__()
-        self.angle = 0
+        self.angle = np.pi/2
         self.land_texture = np.array(Image.open("land_sea_texture_bw.png"))
 
     def run(self):
@@ -127,16 +127,20 @@ class earth(EnvObjectRunnable,VisObject):
             
     def query_random_binary_points(self, latitude, longitude, angle, num_samples=20):
         lat, lon = generate_random_lat_lon_np(np.radians(latitude),np.radians(longitude),np.radians(angle),num_samples=num_samples)
-        x, y, z = lat_lon_to_xyz(lat, lon, r=1.1)
-        for i in range(num_samples):
-            plot_obj = sphere(pos=vector(*(x[i],y[i],z[i])), radius=0.01,color=color.red)
+        # x, y, z = lat_lon_to_xyz(lat, lon, r=1.1)
+        # for i in range(num_samples):
+        #     plot_obj = arrow(pos=vector(0, 0, 0), axis=vector(*(x[i],y[i],z[i]))*1.2, color=color.black,shaftwidth = 0.01)
+        #     plot_obj.rotate(angle=self.angle, axis=vector(0, 1, 0))
+            
         pix_y, pix_x = lat_lon_to_pixel(lat,lon,self.land_texture)
         pix = self.land_texture[pix_y,pix_x]
-
-    def query_random_binary_points_at_cor(self, pos, angle, num_samples=20):
+        print(np.mean(pix))
+   
+    def query_random_binary_points_at_abs_cor(self, pos, angle, num_samples=20):
+        # plot_obj = sphere(pos=vector(*(pos*1.1)), radius=0.2,color=color.blue)
         pos = np.reshape(pos, (-1, 3))
         lat, lon, r = xyz_to_lat_lon(pos[:,0],pos[:,1],pos[:,2])
-        self.query_random_binary_points(np.degrees(lat),np.degrees(lon),angle,num_samples)
+        self.query_random_binary_points(np.degrees(lat),np.degrees(lon-self.angle),angle,num_samples)
             
 if __name__ == "__main__":
     h = earth.ROTAION_PERIOD/60/60
@@ -163,7 +167,7 @@ if __name__ == "__main__":
                     color=vector(*c))
     
     # et.query_random_binary_points(0,0,15,100)
-    et.query_random_binary_points_at_cor(np.array([1,1,1]),30,100)
+    et.query_random_binary_points_at_abs_cor(np.array([0,-1,0]),1,100)
     # to = orbit()   
     vs = visual_system()
     EnvObject.run(until=2000000000000)
