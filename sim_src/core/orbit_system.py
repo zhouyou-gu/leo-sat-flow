@@ -1,14 +1,14 @@
 import math
 import time
 import numpy as np
-import numba
+from numba import njit
 from sim_src.core.earth_system import earth
 from sim_src.core.env_object import EnvObjectRunnable, EnvObject
 from sim_src.core.visual_system import VisObject
 from vpython import sphere, vector, color, arrow
 
 
-@numba.jit
+@njit
 def rotate_vector(pos, L, omega, t_us):
     # Normalize the angular momentum vector
     t = t_us/1e6
