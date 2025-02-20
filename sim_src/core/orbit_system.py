@@ -223,16 +223,19 @@ class orbit_system(EnvObjectRunnable,VisObject):
             yield self.env.timeout(self.orbit_update_interval_us)
             self.pos = rotate_vectors(self.pos, self.amv, self.angspd_rs,np.ones_like(self.angspd_rs)*self.orbit_update_interval_us)
             tic = time.time()
-            self.tree = cKDTree(self.pos)
+            self.reset_tree()
             print(time.time()-tic)
+            
     def get_loc(self, idx):
         return self.pos[idx]
 
+    def reset_tree(self):
+        self.tree = cKDTree(self.pos)
 
 
 if __name__ == "__main__":
     from sim_src.core.visual_system import visual_system
-    EnvObject.init_env(RT=True)
+    EnvObject.init_env(RT=True,scaling=100)
     et = earth()
     for i in [-1, 0, 1]:
         for j in [-1, 0, 1]:
@@ -259,6 +262,7 @@ if __name__ == "__main__":
     #     to = orbit(altitude=np.random.rand()*10000+350, inclination_deg=np.random.rand()*45,raan_deg=np.random.rand()*360,init_period_offset_pct=np.random.rand())   
     os = orbit_system()
     os.add_rand_orbits(500)
+    os.reset_tree()
     vs = visual_system()
-    EnvObject.run(until=10)
+    EnvObject.run(until=20000000000)
     
