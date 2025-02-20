@@ -37,12 +37,12 @@ class VisObject(EnvObject):
             yield self.env.timeout(self.vis_update_interval_us)
             elapsed = time.time()
             time_us_per_tic = (elapsed - start)*1e6/self.vis_update_interval_us
-            # print("time_us_per_tic",time_us_per_tic)
+            print("time_us_per_tic",time_us_per_tic)
             self.vis_update_interval_us = int ((1 / self.FRAME_RATE)*1e6 / time_us_per_tic)
             self.vis_update_interval_us = max(1,self.vis_update_interval_us)
-            self.vis_update_interval_us = min(int ((1 / self.FRAME_RATE)*1e6),self.vis_update_interval_us)
-            # print("vis_update_interval_us",self.vis_update_interval_us)
-            # print("vis_update_counter",self.vis_update_counter,self.vis_update_counter/EnvObject.get_run_time_us()*1e6)
+            # self.vis_update_interval_us = min(int ((1 / self.FRAME_RATE)*1e6),self.vis_update_interval_us)
+            print("vis_update_interval_us",self.vis_update_interval_us)
+            print("vis_update_counter",self.vis_update_counter,self.vis_update_counter/EnvObject.get_run_time_us()*1e6)
 
 class visual_system(EnvObject,threading.Thread):
     frame_rate = 30
