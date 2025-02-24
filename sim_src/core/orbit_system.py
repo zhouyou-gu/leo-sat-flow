@@ -164,7 +164,7 @@ class orbit_system(EnvObjectRunnable,VisObject):
         self.angspd_rs = np.vstack([self.angspd_rs, angular_speed])
         self.orb_group.append(orbit_group)
         
-        v_arrow = arrow(pos=vector(0, 0, 0), axis=vector(*angular_momentum_vector)*1.2, color=color.black,shaftwidth = 0.01)
+        # v_arrow = arrow(pos=vector(0, 0, 0), axis=vector(*angular_momentum_vector)*1.2, color=color.black,shaftwidth = 0.01)
         pos = np.array([radius * math.sin(np.radians(raan_deg)), 0, radius * math.cos(np.radians(raan_deg))])
         ## TODO: update the position of the satellite based on the period offset
         pos = rotate_a_vector(pos, angular_momentum_vector, angular_speed, period_us * init_period_offset_pct)
@@ -185,11 +185,23 @@ class orbit_system(EnvObjectRunnable,VisObject):
     
     def add_rand_orbits(self, n=100):
         ret = []
+        altitude = 350
+        inclination_deg = np.random.uniform(0, 90)
+        raan_deg = np.random.uniform(-180, 180)
         for i in range(n):
-            altitude = np.random.uniform(350, 1000)
-            inclination_deg = np.random.uniform(0, 90)
-            raan_deg = np.random.uniform(-180, 180)
             init_period_offset_pct = np.random.uniform(0, 1)
+            idx = self.add_orbit(altitude=altitude, inclination_deg=inclination_deg, raan_deg=raan_deg, init_period_offset_pct=init_period_offset_pct)
+            ret.append(idx)
+        return ret
+
+    def add_unif_orbits(self, raan_deg):
+        ret = []
+        altitude = 350
+        inclination_deg = 50
+        # raan_deg = np.arange(-180, 180, 15)
+        init_period_offset_pct_list = np.arange(0, 1, 0.02).tolist()
+        for i in init_period_offset_pct_list:
+            init_period_offset_pct = i
             idx = self.add_orbit(altitude=altitude, inclination_deg=inclination_deg, raan_deg=raan_deg, init_period_offset_pct=init_period_offset_pct)
             ret.append(idx)
         return ret
@@ -224,7 +236,7 @@ class orbit_system(EnvObjectRunnable,VisObject):
             self.pos = rotate_vectors(self.pos, self.amv, self.angspd_rs,np.ones_like(self.angspd_rs)*self.orbit_update_interval_us)
             tic = time.time()
             self.reset_tree()
-            print(time.time()-tic)
+            # print(time.time()-tic)
             
     def get_loc(self, idx):
         return self.pos[idx]
@@ -236,33 +248,33 @@ class orbit_system(EnvObjectRunnable,VisObject):
 if __name__ == "__main__":
     from sim_src.core.visual_system import visual_system
     EnvObject.init_env(RT=True,scaling=100)
-    et = earth()
-    for i in [-1, 0, 1]:
-        for j in [-1, 0, 1]:
-            for k in [-1, 0, 1]:
-                # Skip the zero vector to avoid creating an arrow with no length
-                if i == 0 and j == 0 and k == 0:
-                    continue
-                v = np.array([i,j,k])
-                c = np.abs(v)
-                if np.sum(c) >=3:
-                    continue
-                v_norm = v/np.linalg.norm(v)
-                # Create an arrow from the origin in the direction of the vector (i, j, k)
-                arrow(pos=vector(0, 0, 0),
-                    axis=vector(*v_norm)*1.2,
-                    shaftwidth=0.05,
-                    color=vector(*c))
-    # x_arrow = arrow(pos=vector(0, 0, 0), axis=vector(1,0,0)*1.2, color=color.blue,shaftwidth = 0.01)
-    # y_arrow = arrow(pos=vector(0, 0, 0), axis=vector(0,1,0)*1.2, color=color.green,shaftwidth = 0.01)
-    # z_arrow = arrow(pos=vector(0, 0, 0), axis=vector(0,0,1)*1.2, color=color.yellow,shaftwidth = 0.01)
-    # zx_ar = arrow(pos=vector(0, 0, 0), axis=vector(1,0,1)*1.2, color=color.yellow,shaftwidth = 0.01)
+    # for i in [-1, 0, 1]:
+    #     for j in [-1, 0, 1]:
+    #         for k in [-1, 0, 1]:
+    #             # Skip the zero vector to avoid creating an arrow with no length
+    #             if i == 0 and j == 0 and k == 0:
+    #                 continue
+    #             v = np.array([i,j,k])
+    #             c = np.abs(v)
+    #             if np.sum(c) >=3:
+    #                 continue
+    #             v_norm = v/np.linalg.norm(v)
+    #             # Create an arrow from the origin in the direction of the vector (i, j, k)
+    #             arrow(pos=vector(0, 0, 0),
+    #                 axis=vector(*v_norm)*1.2,
+    #                 shaftwidth=0.05,
+    #                 color=vector(*c))
+    
+
     # for i in range(1000):
     #     # to = orbit(inclination_deg=45,raan_deg=45,init_period_offset_pct=0.5)   
     #     to = orbit(altitude=np.random.rand()*10000+350, inclination_deg=np.random.rand()*45,raan_deg=np.random.rand()*360,init_period_offset_pct=np.random.rand())   
     os = orbit_system()
-    os.add_rand_orbits(500)
+    for i in range(24):
+        os.add_unif_orbits(raan_deg=15*i)
     os.reset_tree()
+    et = earth(orbit_system=os)
+
     vs = visual_system()
     EnvObject.run(until=20000000000)
     

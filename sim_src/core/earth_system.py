@@ -5,7 +5,7 @@ from PIL import Image
 import numpy as np
 from sim_src.core.env_object import EnvObjectRunnable, EnvObject
 from sim_src.core.visual_system import VisObject
-from vpython import sphere, vector, color, arrow
+from vpython import sphere, vector, color, arrow, cylinder
 
 @njit
 def generate_random_lat_lon_np(center_lat, center_lon, angular_radius, num_samples=100):
@@ -103,19 +103,51 @@ def lat_lon_to_pixel(lat, lon, image):
 class earth(EnvObjectRunnable,VisObject):
     ROTAION_PERIOD = 86164.0905
     earth_update_interval_us = 1000000
-    def __init__(self):
+    def __init__(self, orbit_system=None):
         super().__init__()
         self.angle = 0
         self.land_texture = np.array(Image.open("land_sea_texture_bw.png"))
-        self.cities = np.loadtxt("cities.csv",delimiter=",")
-        # x, y, z = lat_lon_to_xyz(np.radians(self.cities[:,0]),np.radians(self.cities[:,1])+self.angle)
-        # for i in range(100):
-        #     plot_obj = sphere(pos=vector(x[i],y[i],z[i]), radius=0.01,color=color.blue)
-            
+        self.cities = np.loadtxt("cities.csv",delimiter=",")        
+        self.orbit_system = orbit_system
+
+        
+        self.gw_plot_object = []
+        x, y, z = lat_lon_to_xyz(np.radians(self.cities[:,0]),np.radians(self.cities[:,1])+self.angle,r=1)
+        for i in range(self.cities.shape[0]):
+            plot_obj = sphere(pos=vector(x[i],y[i],z[i]), radius=0.01,color=color.green)
+            self.gw_plot_object.append(plot_obj)
+        
+        lc = np.vstack([x,y,z]).T
+        if self.orbit_system:
+            distances, indices = self.orbit_system.tree.query(lc, k=2)
+            self.links = []
+            for i in range(self.cities.shape[0]):
+                j = indices[i,-1]
+                j_pos = self.orbit_system.pos[j]
+                link = cylinder(pos=vector(x[i],y[i],z[i]), 
+                            axis=(vector(*j_pos) - vector(x[i],y[i],z[i])), 
+                            radius=0.005, 
+                            color=color.yellow)
+                self.links.append(link)
+                
+                
     def run(self):
         while True:
             yield self.env.timeout(self.earth_update_interval_us)
             self.angle += 2*math.pi/self.ROTAION_PERIOD/1e6 * self.earth_update_interval_us
+            x, y, z = lat_lon_to_xyz(np.radians(self.cities[:,0]),np.radians(self.cities[:,1])+self.angle,r=1)
+            for i in range(self.cities.shape[0]):
+                self.gw_plot_object[i].pos = vector(x[i],y[i],z[i])
+            
+            lc = np.vstack([x,y,z]).T
+            if self.orbit_system:
+                distances, indices = self.orbit_system.tree.query(lc, k=2)            
+                for i in range(self.cities.shape[0]):
+                    j = indices[i,-1]
+                    j_pos = self.orbit_system.pos[j]
+                    self.links[i].pos=vector(x[i],y[i],z[i])
+                    self.links[i].axis=(vector(*j_pos) - vector(x[i],y[i],z[i]))
+
 
     def upd_vis_object(self):
         if not self.plot_obj:
