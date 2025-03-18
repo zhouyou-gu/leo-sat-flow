@@ -83,8 +83,8 @@ B_init = coe2rv(a_B, e_B, i_B, raan_B, argp_B, nu_B)
 #------------------------------------------------------------------------------
 # 2. True State Propagation using Two-Body Dynamics (RK4 Integration)
 #------------------------------------------------------------------------------
-DT = 0.001    # Time step [s]
-N  = 200000   # Number of simulation steps
+DT = 1    # Time step [s]
+N  = 20000   # Number of simulation steps
 
 @njit
 def two_body_acceleration(state, mu=MU_EARTH):
