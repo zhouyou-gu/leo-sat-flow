@@ -184,7 +184,7 @@ class LayerRingGraph(spp_graph):
         self.num_layers = num_layers
         self.num_nodes_per_layer = num_nodes_per_layer
         if weight_in_layers is None:
-            weight_in_layers = [i+1 for i in range(num_layers)]
+            weight_in_layers = [i*2+1 for i in range(num_layers)]
         
         assert len(weight_in_layers) == num_layers, "Number of layers and weights do not match."
         assert isinstance(weight_between_layers, (int, float)), "Inter-layer weights must be a single value."
