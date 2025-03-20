@@ -246,7 +246,7 @@ class orbit_system(EnvObjectRunnable,VisObject):
 
 
 if __name__ == "__main__":
-    from sim_src.core.visual_system import visual_system
+    from sim_src.core.visual_system import VisualSystem
     EnvObject.init_env(RT=True,scaling=100)
     # for i in [-1, 0, 1]:
     #     for j in [-1, 0, 1]:
@@ -271,10 +271,11 @@ if __name__ == "__main__":
     #     to = orbit(altitude=np.random.rand()*10000+350, inclination_deg=np.random.rand()*45,raan_deg=np.random.rand()*360,init_period_offset_pct=np.random.rand())   
     os = orbit_system()
     for i in range(24):
-        os.add_unif_orbits(raan_deg=15*i)
+        # os.add_unif_orbits(raan_deg=15*i)
+        os.add_rand_orbits(n=100)
     os.reset_tree()
     et = earth(orbit_system=os)
 
-    vs = visual_system()
+    vs = VisualSystem()
     EnvObject.run(until=20000000000)
     

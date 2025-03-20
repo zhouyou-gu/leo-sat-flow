@@ -17,7 +17,7 @@ class EnvObject():
     is_end = False
     
     time_scaling_on_one_second = 1e-6
-    def init_env(RT=True,scaling=10):
+    def init_env(RT=True,scaling=100):
         if RT:
             EnvObject.env = simpy.rt.RealtimeEnvironment(factor=EnvObject.time_scaling_on_one_second/scaling, strict=False)
         else:
