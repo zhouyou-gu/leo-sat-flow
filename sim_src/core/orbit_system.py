@@ -270,12 +270,12 @@ if __name__ == "__main__":
     #     # to = orbit(inclination_deg=45,raan_deg=45,init_period_offset_pct=0.5)   
     #     to = orbit(altitude=np.random.rand()*10000+350, inclination_deg=np.random.rand()*45,raan_deg=np.random.rand()*360,init_period_offset_pct=np.random.rand())   
     os = orbit_system()
-    for i in range(24):
+    for i in range(20):
         # os.add_unif_orbits(raan_deg=15*i)
-        os.add_rand_orbits(n=100)
+        os.add_rand_orbits(n=30)
     os.reset_tree()
     et = earth(orbit_system=os)
 
     vs = VisualSystem()
-    EnvObject.run(until=20000000000)
+    EnvObject.run(until=2000000000000)
     
