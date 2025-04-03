@@ -9,6 +9,7 @@ import cProfile
 import pstats
 from PIL import Image
 from vispy.visuals.filters import TextureFilter
+from itertools import combinations
 
 # ----- Simulation Code (SimPy) -----
 class MovingObjects3D:
@@ -44,35 +45,55 @@ scatter = scene.visuals.Markers()
 view.add(scatter)
 
 
-def compute_texcoords(vertices):
-    texcoords = []
+def compute_face_coor(vertices):
+    result = any(p[0] < 0 and q[0] < 0 and p[1] * q[1] < 0 for p, q in combinations(vertices, 2))  
+    texcoords = []      
     for v in vertices:
         x, y, z = v
         theta = np.arctan2(y, x)
         phi = np.arccos(z / np.linalg.norm(v))
-        u = (theta + np.pi) / (2 * np.pi)
+        if result and theta < 0:
+            theta += 2 * np.pi
+        u = (theta + np.pi) / (2 * np.pi)/2
         v = phi / np.pi
         texcoords.append([u, v])
+    return texcoords
+
+def compute_texcoords(vertices):
+    texcoords = []
+    for v in vertices:
+        co = compute_face_coor(v)
+        texcoords.extend(co)
     texcoords = np.array(texcoords)
-    print(texcoords.max(axis=0))
-    print(texcoords)
     return texcoords
 
 texture_path = "land_sea_texture.png" # Replace with your texture path
 texture_image = Image.open(texture_path)
 texture = np.array(texture_image)
-# texture = np.hstack([texture, texture])
+texture = np.hstack([texture, texture])
 print(texture.shape)
-# sphere = scene.visuals.Sphere(radius=100.0, method='latitude', cols=19, rows=20, edge_color='black')
+sphere_object = scene.visuals.Sphere(radius=100.0, method='latitude', cols=19, rows=20, edge_color='black')
 sphere = create_sphere(rows=20,cols=40,radius=100,method='latitude',offset=False)
-vertices = sphere.get_vertices()
+vertices = sphere.get_vertices(indexed='faces')
+normals = sphere.get_vertex_normals()
+print(vertices.shape,"vertices")
+
 texcoords = compute_texcoords(vertices)
-mesh_data = MeshData(vertices=vertices, faces=sphere.get_faces())
+# texture = np.flipud(texture)
+print(texture.shape)
+# # Compute UV coordinates for the sphere
+# u = 0.5 + np.arctan2(normals[:, 2], normals[:, 0]) / (2 * np.pi)
+# v = 0.5 - np.arcsin(normals[:, 1]) / np.pi
+# texcoords = np.column_stack([u, v])
+
+
+mesh_data = MeshData(vertices=vertices)
 texture_filter = TextureFilter(texture, texcoords)
 
-sphere_visual = scene.visuals.Mesh(meshdata=sphere, shading=None)
+sphere_visual = scene.visuals.Mesh(meshdata=mesh_data)
 sphere_visual.attach(texture_filter)
 view.add(sphere_visual)
+# view.add(sphere_object)
 view.add(sphere)
 
 # vertices = sphere.mesh_data.get_vertices()
