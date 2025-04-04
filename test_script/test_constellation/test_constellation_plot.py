@@ -199,7 +199,7 @@ class Simulation:
         t_now = self.ts.now()
         gmst_hours = t_now.gmst
         rotation_angle_deg = gmst_hours * 15  # 24h -> 360° (15° per hour)
-        logger.info("GMST: %.2f hours, Rotation angle: %.2f degrees", gmst_hours, rotation_angle_deg)
+        logger.debug("GMST: %.2f hours, Rotation angle: %.2f degrees", gmst_hours, rotation_angle_deg)
         return rotation_angle_deg
 
     def update(self, event):
@@ -223,12 +223,12 @@ class Simulation:
             R_icrs_to_teme = TEME.rotation_at(current_time)
             R_teme_to_icrs = R_icrs_to_teme.T
             positions = positions @ R_teme_to_icrs
-
-            self.scatter.set_data(positions, face_color='red', size=5)
+            color = np.abs(positions)/2
+            self.scatter.set_data(positions, face_color=color, size=7, edge_width=0)
 
             # Reset and apply rotation transformation to the Earth sphere.
             self.sphere_visual.transform.reset()
-            self.sphere_visual.transform.rotate(self.angle, (0, 0, 1))
+            self.sphere_visual.transform.rotate(self.compute_initial_rotation(), (0, 0, 1))
         except simpy.core.EmptySchedule as e:
             logger.warning("Empty schedule encountered during update: %s", e)
         except Exception as e:

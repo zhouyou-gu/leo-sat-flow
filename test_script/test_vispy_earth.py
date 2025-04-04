@@ -30,9 +30,9 @@ class MovingObjects3D:
             self.positions += self.velocities * dt
             # Wrap positions to remain within the 100×100×100 cube.
             self.positions %= 100
-            self.positions = self.positions[0:int(self.n/2)]
-            self.velocities = self.velocities[0:int(self.n/2)]
-            self.n = int(self.n/2)
+            # self.positions = self.positions[0:int(self.n/2)]
+            # self.velocities = self.velocities[0:int(self.n/2)]
+            # self.n = int(self.n/2)
             yield self.env.timeout(dt)
 
 # ----- Visualization Code (Vispy) -----
