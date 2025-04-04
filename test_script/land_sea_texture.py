@@ -15,8 +15,8 @@ ax.set_global()
 ax.set_axis_off()
 
 # Add simple features:
-ax.add_feature(cfeature.OCEAN, facecolor='black')
-ax.add_feature(cfeature.LAND, facecolor='white')
+ax.add_feature(cfeature.OCEAN, facecolor='white')
+ax.add_feature(cfeature.LAND, facecolor='gray')
 
 # latitudes = np.arange(-90, 91, 30)
 # longitudes = np.arange(-180, 181, 30)
@@ -31,7 +31,7 @@ ax.add_feature(cfeature.LAND, facecolor='white')
 # Save the figure to a PNG file with no margins.
 
 temp_filename = 'land_sea_texture.png'
-plt.savefig(temp_filename, dpi=300, bbox_inches='tight', pad_inches=0)
+plt.savefig(temp_filename, dpi=600, bbox_inches='tight', pad_inches=0)
 plt.close(fig)
 
 # --- Step 2: Force the saved image to be strictly black and white ---
@@ -45,4 +45,4 @@ bw_img = img.convert('1')
 final_filename = 'land_sea_texture_bw.png'
 bw_img.save(final_filename)
 
-print("Texture image saved as simple_earth_texture.png")
+print("Texture image saved as land_sea_texture.png")
