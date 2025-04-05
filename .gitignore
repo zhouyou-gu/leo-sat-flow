@@ -1,3 +1,4 @@
+gp*.php*
 /controller/ns3gym
 *-ail
 .idea/*

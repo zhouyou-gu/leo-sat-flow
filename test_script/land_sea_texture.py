@@ -31,7 +31,7 @@ ax.add_feature(cfeature.LAND, facecolor='gray')
 # Save the figure to a PNG file with no margins.
 
 temp_filename = 'land_sea_texture.png'
-plt.savefig(temp_filename, dpi=600, bbox_inches='tight', pad_inches=0)
+plt.savefig(temp_filename, dpi=2000, bbox_inches='tight', pad_inches=0)
 plt.close(fig)
 
 # --- Step 2: Force the saved image to be strictly black and white ---
