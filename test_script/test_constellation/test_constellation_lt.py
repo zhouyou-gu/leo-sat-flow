@@ -346,28 +346,28 @@ class Simulation:
             
             # self.scatter.set_data(positions, face_color=np.abs(positions)/2, size=7, edge_width=0)
             self.scatter.set_data(positions, face_color=[0,0,0,0.5], size=10, edge_width=0)
+            if True:
+                # Create lines for the satellite LT directions.
+                front = velocities/np.linalg.norm(velocities, axis=1)[:, np.newaxis] 
+                back  = -front
+                down  = positions/np.linalg.norm(positions, axis=1)[:, np.newaxis]
+                right = np.cross(down,front)        
+                left = -right
+                
+                a_from = np.tile(positions, (4,1))
+                a_to = np.concatenate((front, back, right, left), axis=0)*0.01 + a_from
+                
+                a_data = np.concatenate((a_from, a_to), axis=1)
+                a_data = a_data.reshape(-1, 3)
 
-            # Create lines for the satellite LT directions.
-            front = velocities/np.linalg.norm(velocities, axis=1)[:, np.newaxis] 
-            back  = -front
-            down  = positions/np.linalg.norm(positions, axis=1)[:, np.newaxis]
-            right = np.cross(down,front)        
-            left = -right
-            
-            a_from = np.tile(positions, (4,1))
-            a_to = np.concatenate((front, back, right, left), axis=0)*0.01 + a_from
-            
-            a_data = np.concatenate((a_from, a_to), axis=1)
-            a_data = a_data.reshape(-1, 3)
-
-            rows = positions.shape[0]*8
-            arrow_color = np.zeros((rows, 4))
-            arrow_color[0:rows // 4, :] = self.FRONT_COLOR
-            arrow_color[rows // 4:rows // 2, :] = self.BACK_COLOR
-            arrow_color[rows // 2:3 * rows // 4, :] = self.RIGHT_COLOR
-            arrow_color[3 * rows // 4:, :] = self.LEFT_COLOR
-            self.arrow.set_data(pos=a_data, \
-                                color=arrow_color, width=5,connect='segments')
+                rows = positions.shape[0]*8
+                arrow_color = np.zeros((rows, 4))
+                arrow_color[0:rows // 4, :] = self.FRONT_COLOR
+                arrow_color[rows // 4:rows // 2, :] = self.BACK_COLOR
+                arrow_color[rows // 2:3 * rows // 4, :] = self.RIGHT_COLOR
+                arrow_color[3 * rows // 4:, :] = self.LEFT_COLOR
+                self.arrow.set_data(pos=a_data, \
+                                    color=arrow_color, width=5,connect='segments')
             
             if True:
                 tree_time = time.perf_counter()
@@ -419,7 +419,7 @@ class Simulation:
                 edges_color_from = np.concatenate((edges_color[expanded_edges_from], edges_color[expanded_edges_from]), axis=1).reshape(-1, 4)
                 edges_color_to = np.concatenate((edges_color[expanded_edges_to], edges_color[expanded_edges_to]), axis=1).reshape(-1, 4)
                 edges_color_data = np.concatenate((edges_color_from, edges_color_to), axis=0)            
-                edges_color_data[:, 3] = 0.005
+                edges_color_data[:, 3] = 0.1
                 
                 p_from = positions[repeated_edges[:,0]]
                 p_to = positions[repeated_edges[:,1]]
