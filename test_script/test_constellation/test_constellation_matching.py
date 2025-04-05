@@ -37,6 +37,83 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+import cProfile, pstats, io
+from contextlib import contextmanager
+
+@contextmanager
+def cprofile_context():
+    profiler = cProfile.Profile()
+    profiler.enable()
+    try:
+        yield
+    finally:
+        profiler.disable()
+        s = io.StringIO()
+        ps = pstats.Stats(profiler, stream=s).sort_stats('cumulative')
+        ps.print_stats()
+        print(s.getvalue())
+
+def expand_edges_with_original(edges: np.ndarray, repeat_per_node: int = 4) -> tuple:
+    """
+    Expand edges by duplicating each edge in a grid fashion.
+
+    Parameters:
+        edges (np.ndarray): Array of edges.
+        repeat_per_node (int): Number of repetitions per node.
+
+    Returns:
+        tuple: (repeated_original, expanded_edges)
+    """
+    grid = np.stack(np.meshgrid(np.arange(repeat_per_node), np.arange(repeat_per_node),
+                                indexing='ij'), axis=-1).reshape(-1, 2)
+    expanded_edges = (edges[:, None, :] * repeat_per_node + grid[None, :, :]).reshape(-1, 2)
+    repeated_original = np.repeat(edges, repeat_per_node * repeat_per_node, axis=0)
+    return repeated_original, expanded_edges
+
+@njit
+def expand_edges_with_original_numba(edges, repeat_per_node=4):
+    """
+    Expand edges by duplicating each edge in a grid fashion.
+    
+    Parameters:
+        edges (np.ndarray): 2D array of shape (num_edges, num_columns) where each row represents an edge.
+        repeat_per_node (int): Number of repetitions per node.
+    
+    Returns:
+        tuple: (repeated_original, expanded_edges)
+            repeated_original: 2D array with each original edge repeated.
+            expanded_edges: 2D array with each edge expanded by grid offsets.
+    """
+    num_edges = edges.shape[0]
+    num_cols = edges.shape[1]
+    num_grid = repeat_per_node * repeat_per_node
+
+    # Create grid manually: an array of shape (num_grid, 2)
+    grid = np.empty((num_grid, 2), dtype=edges.dtype)
+    idx = 0
+    for i in range(repeat_per_node):
+        for j in range(repeat_per_node):
+            grid[idx, 0] = i
+            grid[idx, 1] = j
+            idx += 1
+
+    # Allocate output arrays.
+    repeated_original = np.empty((num_edges * num_grid, num_cols), dtype=edges.dtype)
+    expanded_edges = np.empty((num_edges * num_grid, num_cols), dtype=edges.dtype)
+
+    idx = 0
+    for e in range(num_edges):
+        for g in range(num_grid):
+            for k in range(num_cols):
+                # Calculate the expanded edge:
+                # expanded_edges = (edge * repeat_per_node) + grid offset
+                expanded_edges[idx, k] = edges[e, k] * repeat_per_node + grid[g, k]
+                # repeated_original simply stores the original edge value.
+                repeated_original[idx, k] = edges[e, k]
+            idx += 1
+
+    return repeated_original, expanded_edges
+
 @njit
 def greedy_max_weight_matching(E: np.ndarray) -> list:
     """
@@ -248,26 +325,9 @@ def setup_visualization() -> dict:
     }
 
 
-def expand_edges_with_original(edges: np.ndarray, repeat_per_node: int = 4) -> tuple:
-    """
-    Expand edges by duplicating each edge in a grid fashion.
-
-    Parameters:
-        edges (np.ndarray): Array of edges.
-        repeat_per_node (int): Number of repetitions per node.
-
-    Returns:
-        tuple: (repeated_original, expanded_edges)
-    """
-    grid = np.stack(np.meshgrid(np.arange(repeat_per_node), np.arange(repeat_per_node),
-                                indexing='ij'), axis=-1).reshape(-1, 2)
-    expanded_edges = (edges[:, None, :] * repeat_per_node + grid[None, :, :]).reshape(-1, 2)
-    repeated_original = np.repeat(edges, repeat_per_node * repeat_per_node, axis=0)
-    return repeated_original, expanded_edges
-
 
 class Simulation:
-    FOR_THETA: float = 15.0  # Angle in degrees for the satellite LT direction.
+    FOR_THETA: float = 30.0  # Angle in degrees for the satellite LT direction.
     LISL_MAX_DISTANCE: float = 3000.0  # Maximum distance for LISL in km.
     TIME_SCALE: float = 10.0
     EARTH_RADIUS: float = 6371.0  # Earth's radius in km.
@@ -398,56 +458,70 @@ class Simulation:
 
         # Compute the potential LISL edges.
         p_lisl_start = time.perf_counter()
+        
+        with cprofile_context():
+ 
+            
+            # Precompute cosine threshold once.
+            cos_threshold = math.cos(math.radians(self.FOR_THETA))
 
-        sat_p_i = self.positions[edges[:, 0]]
-        sat_p_j = self.positions[edges[:, 1]]
-        direction = sat_p_j - sat_p_i
-        direction /= np.linalg.norm(direction, axis=1)[:, None]
+            # Compute normalized direction for each edge.
+            sat_p_i = self.positions[edges[:, 0]]
+            sat_p_j = self.positions[edges[:, 1]]
+            direction = sat_p_j - sat_p_i
+            direction /= np.linalg.norm(direction, axis=1, keepdims=True)
 
-        view_from_stack = np.concatenate((
-            np.einsum('ij,ij->i', self.front[edges[:, 0]], direction)[:, None],
-            np.einsum('ij,ij->i', self.back[edges[:, 0]], direction)[:, None],
-            np.einsum('ij,ij->i', self.right[edges[:, 0]], direction)[:, None],
-            np.einsum('ij,ij->i', self.left[edges[:, 0]], direction)[:, None]
-        ), axis=1)
-        i_j_indicator = view_from_stack > math.cos(math.radians(self.FOR_THETA))
-        i_j_binary = i_j_indicator.sum(axis=1) > 0
+            # Compute dot products for the source side using np.stack.
+            view_from_stack = np.stack([
+                np.einsum('ij,ij->i', arr[edges[:, 0]], direction)
+                for arr in (self.front, self.back, self.right, self.left)
+            ], axis=1)
 
-        view_to_stack = np.concatenate((
-            np.einsum('ij,ij->i', self.front[edges[:, 1]], -direction)[:, None],
-            np.einsum('ij,ij->i', self.back[edges[:, 1]], -direction)[:, None],
-            np.einsum('ij,ij->i', self.right[edges[:, 1]], -direction)[:, None],
-            np.einsum('ij,ij->i', self.left[edges[:, 1]], -direction)[:, None]
-        ), axis=1)
-        j_i_indicator = view_to_stack > math.cos(math.radians(self.FOR_THETA))
-        j_i_binary = j_i_indicator.sum(axis=1) > 0
+            # Compute dot products for the destination side.
+            view_to_stack = np.stack([
+                np.einsum('ij,ij->i', arr[edges[:, 1]], -direction)
+                for arr in (self.front, self.back, self.right, self.left)
+            ], axis=1)
 
-        final_indicator = np.logical_and(i_j_binary, j_i_binary)
-        possible_edges = edges[final_indicator]
+            # Generate boolean indicators using the precomputed threshold.
+            i_j_indicator = view_from_stack > cos_threshold
+            j_i_indicator = view_to_stack > cos_threshold
 
-        p_lisl_LT_pair = np.einsum('ij,ik->ijk', i_j_indicator[final_indicator],
-                                    j_i_indicator[final_indicator]).reshape(-1)
-        view_from_stack = view_from_stack[final_indicator]
-        view_to_stack = view_to_stack[final_indicator]
-        view_LT_pair = np.minimum(view_from_stack[:, :, None], view_to_stack[:, None, :]).reshape(-1)
-        view_LT_pair = view_LT_pair[p_lisl_LT_pair].reshape(-1, 1)
+            # Use np.any to obtain binary indicators.
+            i_j_binary = np.any(i_j_indicator, axis=1)
+            j_i_binary = np.any(j_i_indicator, axis=1)
 
-        repeated_edges, expanded_edges = expand_edges_with_original(possible_edges)
-        repeated_edges = repeated_edges[p_lisl_LT_pair]
-        expanded_edges = expanded_edges[p_lisl_LT_pair]
+            # Select edges passing the threshold for both endpoints.
+            final_indicator = i_j_binary & j_i_binary
+            possible_edges = edges[final_indicator]
 
-        edges_color = np.concatenate((
-            self.FRONT_COLOR[np.newaxis],
-            self.BACK_COLOR[np.newaxis],
-            self.RIGHT_COLOR[np.newaxis],
-            self.LEFT_COLOR[np.newaxis]
-        ), axis=0)
-        expanded_from = expanded_edges[:, 0] % 4
-        expanded_to = expanded_edges[:, 1] % 4
-        edges_color_from = np.concatenate((edges_color[expanded_from], edges_color[expanded_from]), axis=1).reshape(-1, 4)
-        edges_color_to = np.concatenate((edges_color[expanded_to], edges_color[expanded_to]), axis=1).reshape(-1, 4)
-        edges_color_data = np.concatenate((edges_color_from, edges_color_to), axis=0)
-        edges_color_data[:, 3] = 0.1
+            # Compute the outer product of boolean indicators for each valid edge.
+            ij_bin = i_j_indicator[final_indicator][:, :, None] & j_i_indicator[final_indicator][:, None, :]
+            p_lisl_LT_pair = ij_bin.reshape(-1)
+
+            # Filter view stacks for valid edges and compute pairwise minimum.
+            view_from_stack = view_from_stack[final_indicator]
+            view_to_stack = view_to_stack[final_indicator]
+            view_LT_pair = np.minimum(view_from_stack[:, :, None], view_to_stack[:, None, :]).reshape(-1)
+            view_LT_pair = view_LT_pair[p_lisl_LT_pair].reshape(-1, 1)
+
+            # Expand edges and filter using the computed pair indicator.
+            repeated_edges, expanded_edges = expand_edges_with_original_numba(possible_edges)
+            repeated_edges = repeated_edges[p_lisl_LT_pair]
+            expanded_edges = expanded_edges[p_lisl_LT_pair]
+
+            # Build the color array using np.array for clarity.
+            edges_color = np.array([self.FRONT_COLOR, self.BACK_COLOR, self.RIGHT_COLOR, self.LEFT_COLOR])
+            expanded_from = expanded_edges[:, 0] % 4
+            expanded_to = expanded_edges[:, 1] % 4
+
+            # Retrieve and duplicate the colors.
+            color_from = edges_color[expanded_from]
+            color_to = edges_color[expanded_to]
+            color_from_repeated = np.repeat(color_from, 2, axis=0)
+            color_to_repeated = np.repeat(color_to, 2, axis=0)
+            edges_color_data = np.vstack([color_from_repeated, color_to_repeated])
+            edges_color_data[:, 3] = 0.1
 
         if self.PLOT_POTENTIAL_LISL:
             p_from = self.positions[repeated_edges[:, 0]]
@@ -514,6 +588,7 @@ class Simulation:
         text += f"T-dat: {self.get_simulation_time().utc_strftime('%Y-%m-%d %H:%M:%S')}\n"
         
         self.viz['text_bot'].text = text
+                
     def update(self, event):
         """
         Update function called on each timer tick to update the simulation.
@@ -536,6 +611,7 @@ class Simulation:
         self.update_count += 1
         self.accumulated_update_time += elapsed
         self.average_update_time = 0.9 * self.average_update_time + 0.1 * elapsed
+
 
 def main():
     # Load Starlink data.
