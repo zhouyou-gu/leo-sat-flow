@@ -15,7 +15,7 @@ from itertools import combinations
 
 import psutil
 import numpy as np
-from numba import njit
+from numba import njit, prange
 from PIL import Image
 from scipy.spatial import cKDTree
 from scipy.sparse import coo_matrix, csr_matrix
@@ -50,8 +50,8 @@ def cprofile_context():
         profiler.disable()
         s = io.StringIO()
         ps = pstats.Stats(profiler, stream=s).sort_stats('cumulative')
-        ps.print_stats()
-        print(s.getvalue())
+        ps.print_stats(10)  # shows top 20 lines
+        logger.debug("++",s.getvalue())
 
 def expand_edges_with_original(edges: np.ndarray, repeat_per_node: int = 4) -> tuple:
     """
@@ -70,51 +70,82 @@ def expand_edges_with_original(edges: np.ndarray, repeat_per_node: int = 4) -> t
     repeated_original = np.repeat(edges, repeat_per_node * repeat_per_node, axis=0)
     return repeated_original, expanded_edges
 
-@njit
+@njit(parallel=True,cache=True)
 def expand_edges_with_original_numba(edges, repeat_per_node=4):
     """
-    Expand edges by duplicating each edge in a grid fashion.
+    Expand each edge by duplicating it in a grid fashion.
     
     Parameters:
-        edges (np.ndarray): 2D array of shape (num_edges, num_columns) where each row represents an edge.
+        edges (np.ndarray): 2D array of shape (num_edges, 2) where each row represents an edge.
         repeat_per_node (int): Number of repetitions per node.
     
     Returns:
         tuple: (repeated_original, expanded_edges)
-            repeated_original: 2D array with each original edge repeated.
-            expanded_edges: 2D array with each edge expanded by grid offsets.
+            repeated_original: Array with each original edge repeated.
+            expanded_edges: Array with each edge expanded by grid offsets.
     """
     num_edges = edges.shape[0]
-    num_cols = edges.shape[1]
     num_grid = repeat_per_node * repeat_per_node
-
-    # Create grid manually: an array of shape (num_grid, 2)
-    grid = np.empty((num_grid, 2), dtype=edges.dtype)
-    idx = 0
-    for i in range(repeat_per_node):
-        for j in range(repeat_per_node):
-            grid[idx, 0] = i
-            grid[idx, 1] = j
-            idx += 1
-
-    # Allocate output arrays.
-    repeated_original = np.empty((num_edges * num_grid, num_cols), dtype=edges.dtype)
-    expanded_edges = np.empty((num_edges * num_grid, num_cols), dtype=edges.dtype)
-
-    idx = 0
-    for e in range(num_edges):
+    # Allocate output arrays
+    repeated_original = np.empty((num_edges * num_grid, 2), dtype=edges.dtype)
+    expanded_edges = np.empty((num_edges * num_grid, 2), dtype=edges.dtype)
+    
+    for e in prange(num_edges):
         for g in range(num_grid):
-            for k in range(num_cols):
-                # Calculate the expanded edge:
-                # expanded_edges = (edge * repeat_per_node) + grid offset
-                expanded_edges[idx, k] = edges[e, k] * repeat_per_node + grid[g, k]
-                # repeated_original simply stores the original edge value.
-                repeated_original[idx, k] = edges[e, k]
-            idx += 1
-
+            idx = e * num_grid + g
+            # Compute grid offsets manually:
+            offset0 = g // repeat_per_node  # row offset
+            offset1 = g % repeat_per_node   # column offset
+            # Copy the original edge
+            repeated_original[idx, 0] = edges[e, 0]
+            repeated_original[idx, 1] = edges[e, 1]
+            # Expand edge: multiply by repeat_per_node and add the grid offset
+            expanded_edges[idx, 0] = edges[e, 0] * repeat_per_node + offset0
+            expanded_edges[idx, 1] = edges[e, 1] * repeat_per_node + offset1
+            
     return repeated_original, expanded_edges
 
-@njit
+@njit(parallel=True,cache=True)
+def compute_view_stacks(front, back, right, left, edges, direction):
+    """
+    Compute dot products for source and destination sides in parallel.
+
+    Parameters:
+        front, back, right, left (np.ndarray): Arrays of shape (N, 3) representing direction vectors.
+        edges (np.ndarray): Array of shape (num_edges, 2) containing indices.
+        direction (np.ndarray): Array of shape (num_edges, 3) representing normalized directions.
+
+    Returns:
+        tuple: Two arrays of shape (num_edges, 4) for view_from_stack and view_to_stack.
+    """
+    num_edges = edges.shape[0]
+    # Pre-allocate output arrays.
+    view_from_stack = np.empty((num_edges, 4), dtype=direction.dtype)
+    view_to_stack = np.empty((num_edges, 4), dtype=direction.dtype)
+    
+    for i in prange(num_edges):
+        # Get the source and destination indices for this edge.
+        src = edges[i, 0]
+        dst = edges[i, 1]
+        d0 = direction[i, 0]
+        d1 = direction[i, 1]
+        d2 = direction[i, 2]
+        
+        # Compute dot products for source side.
+        view_from_stack[i, 0] = front[src, 0]*d0 + front[src, 1]*d1 + front[src, 2]*d2
+        view_from_stack[i, 1] = back[src, 0]*d0 + back[src, 1]*d1 + back[src, 2]*d2
+        view_from_stack[i, 2] = right[src, 0]*d0 + right[src, 1]*d1 + right[src, 2]*d2
+        view_from_stack[i, 3] = left[src, 0]*d0 + left[src, 1]*d1 + left[src, 2]*d2
+
+        # Compute dot products for destination side with -direction.
+        view_to_stack[i, 0] = front[dst, 0]*(-d0) + front[dst, 1]*(-d1) + front[dst, 2]*(-d2)
+        view_to_stack[i, 1] = back[dst, 0]*(-d0) + back[dst, 1]*(-d1) + back[dst, 2]*(-d2)
+        view_to_stack[i, 2] = right[dst, 0]*(-d0) + right[dst, 1]*(-d1) + right[dst, 2]*(-d2)
+        view_to_stack[i, 3] = left[dst, 0]*(-d0) + left[dst, 1]*(-d1) + left[dst, 2]*(-d2)
+        
+    return view_from_stack, view_to_stack
+
+@njit(cache=True)
 def greedy_max_weight_matching(E: np.ndarray) -> list:
     """
     Compute a greedy heuristic maximum weight matching for a NumPy array of edges.
@@ -199,7 +230,7 @@ def load_starlink_data(url: str, reload: bool = True) -> tuple:
     satellites = load.tle_file(url, reload=reload)
     if not satellites:
         raise Exception("No Starlink satellites were loaded; check the TLE URL.")
-    logger.info("Loaded %d Starlink satellites from %s", len(satellites), url)
+    logger.debug("Loaded %d Starlink satellites from %s", len(satellites), url)
 
     valid_satellites = []
     for sat in satellites:
@@ -294,6 +325,7 @@ def setup_visualization() -> dict:
     # Create Text visual
     text_top = scene.visuals.Text(text="Waiting...",
             color='black',
+            face='Courier New',  # Change font here
             font_size=10,
             bold=False,
             pos=(0, 0),
@@ -302,6 +334,7 @@ def setup_visualization() -> dict:
             parent=canvas.central_widget)
     text_bot = scene.visuals.Text(text="Waiting...",
             color='black',
+            face='Courier New',  # Change font here
             font_size=10,
             bold=False,
             pos=(0, h),
@@ -327,7 +360,7 @@ def setup_visualization() -> dict:
 
 
 class Simulation:
-    FOR_THETA: float = 30.0  # Angle in degrees for the satellite LT direction.
+    FOR_THETA: float = 15.0  # Angle in degrees for the satellite LT direction.
     LISL_MAX_DISTANCE: float = 3000.0  # Maximum distance for LISL in km.
     TIME_SCALE: float = 10.0
     EARTH_RADIUS: float = 6371.0  # Earth's radius in km.
@@ -372,6 +405,8 @@ class Simulation:
         self.down = None
         self.right = None
         self.left = None
+        
+        self._update_earth_rotation()
 
     def get_simulation_time(self):
         """
@@ -400,13 +435,13 @@ class Simulation:
         return rotation_angle_deg
 
     def _update_earth_rotation(self):
-        logger.info("Updating Earth rotation...")
+        logger.debug("Updating Earth rotation...")
         """Update the Earth's rotation transformation."""
         self.viz['sphere_visual'].transform.reset()
         self.viz['sphere_visual'].transform.rotate(self.compute_rotation(), (0, 0, 1))
 
     def _update_satellite_positions(self):
-        logger.info("Updating satellite positions...")
+        logger.debug("Updating satellite positions...")
         """Update satellite positions and velocities."""
         current_time = self.get_simulation_time()
         error_upd, pos_upd, vel_upd = self.sat_array.sgp4(
@@ -424,7 +459,7 @@ class Simulation:
         self.viz['scatter'].set_data(self.positions, face_color=[0, 0, 0, 0.5], size=10, edge_width=0)
 
     def _update_satellite_arrows(self):
-        logger.info("Updating satellite arrows...")
+        logger.debug("Updating satellite arrows...")
         """Update satellite LT direction arrows."""
         front = self.velocities / np.linalg.norm(self.velocities, axis=1)[:, None]
         back = -front
@@ -448,7 +483,7 @@ class Simulation:
         self.viz['arrow'].set_data(pos=a_data, color=arrow_color, width=5, connect='segments')
 
     def _update_links(self):
-        logger.info("Updating links...")
+        logger.debug("Updating links...")
         """Update satellite link visualizations using KDTree and matching."""
         tree_start = time.perf_counter()
         tree = cKDTree(self.positions)
@@ -456,12 +491,9 @@ class Simulation:
         edges = tree.query_pairs(r=distance_threshold, output_type='ndarray')
         tree_end = time.perf_counter()
 
+        p_lisl_start = time.perf_counter()          
         # Compute the potential LISL edges.
-        p_lisl_start = time.perf_counter()
-        
-        with cprofile_context():
- 
-            
+        with cprofile_context(): 
             # Precompute cosine threshold once.
             cos_threshold = math.cos(math.radians(self.FOR_THETA))
 
@@ -471,17 +503,10 @@ class Simulation:
             direction = sat_p_j - sat_p_i
             direction /= np.linalg.norm(direction, axis=1, keepdims=True)
 
-            # Compute dot products for the source side using np.stack.
-            view_from_stack = np.stack([
-                np.einsum('ij,ij->i', arr[edges[:, 0]], direction)
-                for arr in (self.front, self.back, self.right, self.left)
-            ], axis=1)
-
-            # Compute dot products for the destination side.
-            view_to_stack = np.stack([
-                np.einsum('ij,ij->i', arr[edges[:, 1]], -direction)
-                for arr in (self.front, self.back, self.right, self.left)
-            ], axis=1)
+            # Compute view stacks for each edge.
+            view_from_stack, view_to_stack = compute_view_stacks(
+                self.front, self.back, self.right, self.left, edges, direction
+            )
 
             # Generate boolean indicators using the precomputed threshold.
             i_j_indicator = view_from_stack > cos_threshold
@@ -534,7 +559,6 @@ class Simulation:
 
         p_lisl_end = time.perf_counter()
         
-        
         # Compute the matching for the LISL edges.
         matching_start = time.perf_counter()
         relative_speed = self.velocities[repeated_edges[:, 1]] - self.velocities[repeated_edges[:, 0]]
@@ -584,9 +608,12 @@ class Simulation:
         text += f"T-wmatch: {matching_end - matching_start:.4f} s\n"
         text += f"T-avg: {self.average_update_time:.4f} s\n"
         text += f"T-tot: {time.perf_counter() - self.real_start_time:.2f} s\n"
-        text += f"T-rwt: {self.accumulated_update_time*self.TIME_SCALE:.2f} s\n"
-        text += f"T-dat: {self.get_simulation_time().utc_strftime('%Y-%m-%d %H:%M:%S')}\n"
-        
+        text += f"T-swt: {self.accumulated_update_time*self.TIME_SCALE:.2f} s\n"
+        text += f"DAT: {self.get_simulation_time().utc_strftime('%Y-%m-%d %H:%M:%S')}\n"
+        text += f"FPS: {self.update_count / (time.perf_counter() - self.real_start_time):.2f}\n"
+        text += f"TSc: {self.TIME_SCALE:.2f}\n"
+        text += f"CPU: {psutil.cpu_percent()}%\n"
+        text += f"MEM: {psutil.Process().memory_info().rss / 1e6:.2f} MB\n"
         self.viz['text_bot'].text = text
                 
     def update(self, event):
@@ -612,6 +639,11 @@ class Simulation:
         self.accumulated_update_time += elapsed
         self.average_update_time = 0.9 * self.average_update_time + 0.1 * elapsed
 
+    def update_dummy(self, event):
+        """
+        Dummy update function to keep the timer running.
+        """
+        self.viz['canvas'].update()
 
 def main():
     # Load Starlink data.
@@ -625,7 +657,8 @@ def main():
     simulation = Simulation(ts, sat_array, viz)
 
     # Set up a timer to update the simulation at roughly 60 FPS.
-    timer = app.Timer(interval=1 / 60.0, connect=simulation.update, start=True)
+    timer1 = app.Timer(interval=1 / 60.0, connect=simulation.update, start=True)
+    timer2 = app.Timer(interval=1 / 60.0, connect=simulation.update_dummy, start=True)
 
     if __name__ == '__main__':
         profiler = cProfile.Profile()
