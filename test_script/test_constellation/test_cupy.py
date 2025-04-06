@@ -485,68 +485,63 @@ class Simulation:
     def _update_links(self):
         logger.debug("Updating links...")
         """Update satellite link visualizations using KDTree and matching."""
-        tree_start = time.perf_counter()
         tree = cKDTree(self.positions)
         distance_threshold = self.LISL_MAX_DISTANCE / self.EARTH_RADIUS
         edges = tree.query_pairs(r=distance_threshold, output_type='ndarray')
-        tree_end = time.perf_counter()
 
-        p_lisl_start = time.perf_counter()          
-        # Compute the potential LISL edges.
-        with cprofile_context(): 
-            # Precompute cosine threshold once.
-            cos_threshold = math.cos(math.radians(self.FOR_THETA))
+        # Precompute cosine threshold once.
+        cos_threshold = math.cos(math.radians(self.FOR_THETA))
 
-            # Compute normalized direction for each edge.
-            sat_p_i = self.positions[edges[:, 0]]
-            sat_p_j = self.positions[edges[:, 1]]
-            direction = sat_p_j - sat_p_i
-            direction /= np.linalg.norm(direction, axis=1, keepdims=True)
+        # Compute normalized direction for each edge.
+        sat_p_i = self.positions[edges[:, 0]]
+        sat_p_j = self.positions[edges[:, 1]]
+        direction = sat_p_j - sat_p_i
+        direction /= np.linalg.norm(direction, axis=1, keepdims=True)
 
-            # Compute view stacks for each edge.
-            view_from_stack, view_to_stack = compute_view_stacks(
-                self.front, self.back, self.right, self.left, edges, direction
-            )
+        # Compute view stacks for each edge.
+        view_from_stack, view_to_stack = compute_view_stacks(
+            self.front, self.back, self.right, self.left, edges, direction
+        )
 
-            # Generate boolean indicators using the precomputed threshold.
-            i_j_indicator = view_from_stack > cos_threshold
-            j_i_indicator = view_to_stack > cos_threshold
+        # Generate boolean indicators using the precomputed threshold.
+        i_j_indicator = view_from_stack > cos_threshold
+        j_i_indicator = view_to_stack > cos_threshold
 
-            # Use np.any to obtain binary indicators.
-            i_j_binary = np.any(i_j_indicator, axis=1)
-            j_i_binary = np.any(j_i_indicator, axis=1)
+        # Use np.any to obtain binary indicators.
+        i_j_binary = np.any(i_j_indicator, axis=1)
+        j_i_binary = np.any(j_i_indicator, axis=1)
 
-            # Select edges passing the threshold for both endpoints.
-            final_indicator = i_j_binary & j_i_binary
-            possible_edges = edges[final_indicator]
+        # Select edges passing the threshold for both endpoints.
+        final_indicator = i_j_binary & j_i_binary
+        possible_edges = edges[final_indicator]
 
-            # Compute the outer product of boolean indicators for each valid edge.
-            ij_bin = i_j_indicator[final_indicator][:, :, None] & j_i_indicator[final_indicator][:, None, :]
-            p_lisl_LT_pair = ij_bin.reshape(-1)
+        # Compute the outer product of boolean indicators for each valid edge.
+        ij_bin = i_j_indicator[final_indicator][:, :, None] & j_i_indicator[final_indicator][:, None, :]
+        p_lisl_LT_pair = ij_bin.reshape(-1)
 
-            # Filter view stacks for valid edges and compute pairwise minimum.
-            view_from_stack = view_from_stack[final_indicator]
-            view_to_stack = view_to_stack[final_indicator]
-            view_LT_pair = np.minimum(view_from_stack[:, :, None], view_to_stack[:, None, :]).reshape(-1)
-            view_LT_pair = view_LT_pair[p_lisl_LT_pair].reshape(-1, 1)
+        # Filter view stacks for valid edges and compute pairwise minimum.
+        view_from_stack = view_from_stack[final_indicator]
+        view_to_stack = view_to_stack[final_indicator]
+        view_LT_pair = np.minimum(view_from_stack[:, :, None], view_to_stack[:, None, :]).reshape(-1)
+        view_LT_pair = view_LT_pair[p_lisl_LT_pair].reshape(-1, 1)
 
-            # Expand edges and filter using the computed pair indicator.
-            repeated_edges, expanded_edges = expand_edges_with_original_numba(possible_edges)
-            repeated_edges = repeated_edges[p_lisl_LT_pair]
-            expanded_edges = expanded_edges[p_lisl_LT_pair]
+        # Expand edges and filter using the computed pair indicator.
+        repeated_edges, expanded_edges = expand_edges_with_original_numba(possible_edges)
+        repeated_edges = repeated_edges[p_lisl_LT_pair]
+        expanded_edges = expanded_edges[p_lisl_LT_pair]
 
-            # Build the color array using np.array for clarity.
-            edges_color = np.array([self.FRONT_COLOR, self.BACK_COLOR, self.RIGHT_COLOR, self.LEFT_COLOR])
-            expanded_from = expanded_edges[:, 0] % 4
-            expanded_to = expanded_edges[:, 1] % 4
+        # Build the color array using np.array for clarity.
+        edges_color = np.array([self.FRONT_COLOR, self.BACK_COLOR, self.RIGHT_COLOR, self.LEFT_COLOR])
+        expanded_from = expanded_edges[:, 0] % 4
+        expanded_to = expanded_edges[:, 1] % 4
 
-            # Retrieve and duplicate the colors.
-            color_from = edges_color[expanded_from]
-            color_to = edges_color[expanded_to]
-            color_from_repeated = np.repeat(color_from, 2, axis=0)
-            color_to_repeated = np.repeat(color_to, 2, axis=0)
-            edges_color_data = np.vstack([color_from_repeated, color_to_repeated])
-            edges_color_data[:, 3] = 0.1
+        # Retrieve and duplicate the colors.
+        color_from = edges_color[expanded_from]
+        color_to = edges_color[expanded_to]
+        color_from_repeated = np.repeat(color_from, 2, axis=0)
+        color_to_repeated = np.repeat(color_to, 2, axis=0)
+        edges_color_data = np.vstack([color_from_repeated, color_to_repeated])
+        edges_color_data[:, 3] = 0.1
 
         if self.PLOT_POTENTIAL_LISL:
             p_from = self.positions[repeated_edges[:, 0]]
@@ -557,10 +552,8 @@ class Simulation:
             p_lisl_data = np.concatenate((p_lisl_data_from, p_lisl_data_to), axis=0)
             self.viz['p_lisl'].set_data(pos=p_lisl_data, color=edges_color_data, width=0.75, connect='segments')
 
-        p_lisl_end = time.perf_counter()
         
         # Compute the matching for the LISL edges.
-        matching_start = time.perf_counter()
         relative_speed = self.velocities[repeated_edges[:, 1]] - self.velocities[repeated_edges[:, 0]]
         relative_direction = self.positions[repeated_edges[:, 1]] - self.positions[repeated_edges[:, 0]]
         cross = np.cross(relative_speed, relative_direction)
@@ -591,30 +584,7 @@ class Simulation:
         c_lisl_data = np.concatenate((c_lisl_data_from, c_lisl_data_to), axis=0)
         self.viz['c_lisl'].set_data(pos=c_lisl_data, color=edges_color_data, width=1.5, connect='segments')
 
-        matching_end = time.perf_counter()
 
-        text = ""
-        text += f"#n_sats: {self.positions.shape[0]}\n"
-        text += f"#n_q_es: {edges.shape[0]}\n"
-        text += f"#n_p_sp: {possible_edges.shape[0]}\n"
-        text += f"#n_p_lp: {expanded_edges.shape[0]}\n"
-        text += f"#n_c_lp: {connected_edges.shape[0]}\n"
-        self.viz['text_top'].text = text
-
-
-        text = ""
-        text += f"T-kdtree: {tree_end - tree_start:.4f} s\n"
-        text += f"T-n_p_lp: {p_lisl_end - p_lisl_start:.4f} s\n"
-        text += f"T-wmatch: {matching_end - matching_start:.4f} s\n"
-        text += f"T-avg: {self.average_update_time:.4f} s\n"
-        text += f"T-tot: {time.perf_counter() - self.real_start_time:.2f} s\n"
-        text += f"T-swt: {self.accumulated_update_time*self.TIME_SCALE:.2f} s\n"
-        text += f"DAT: {self.get_simulation_time().utc_strftime('%Y-%m-%d %H:%M:%S')}\n"
-        text += f"FPS: {self.update_count / (time.perf_counter() - self.real_start_time):.2f}\n"
-        text += f"TSc: {self.TIME_SCALE:.2f}\n"
-        text += f"CPU: {psutil.cpu_percent()}%\n"
-        text += f"MEM: {psutil.Process().memory_info().rss / 1e6:.2f} MB\n"
-        self.viz['text_bot'].text = text
                 
     def update(self, event):
         """

@@ -493,7 +493,7 @@ def compute_view_stacks(front, back, right, left, edges, direction):
 
 
 @njit(parallel=True,cache=True)
-def optimize_edge_and_color_data(edges_color, connected_edges, connected_sat, positions):
+def optimize_edge_and_color_data(edges_color, connected_edges, connected_sat, positions, lift=False):
     M = connected_edges.shape[0]
     M_sat = connected_sat.shape[0]
     
@@ -530,8 +530,12 @@ def optimize_edge_and_color_data(edges_color, connected_edges, connected_sat, po
         idx_to   = connected_sat[i, 1]
         for j in range(3):
             # Multiply by a slight factor (1.0001)
-            p_from[i, j] = positions[idx_from, j] * 1.0001
-            p_to[i, j]   = positions[idx_to, j] * 1.0001
+            if lift:
+                p_from[i, j] = positions[idx_from, j] * 1.001
+                p_to[i, j]   = positions[idx_to, j] * 1.001
+            else:
+                p_from[i, j] = positions[idx_from, j]
+                p_to[i, j]   = positions[idx_to, j]
             # p_mid is computed as the average.
             p_mid[i, j]  = (p_from[i, j] + p_to[i, j]) * 0.5
 
@@ -961,8 +965,8 @@ class Simulation:
         if self.PLOT_POTENTIAL_LISL:
             # Build the color array using np.array for clarity.
             edges_color_data, p_lisl_data = optimize_edge_and_color_data(edges_color, filtered_expanded, filtered_repeated, self.positions)
-            edges_color_data[:, 3] = 0.05  # Set alpha channel to 0.5 for transparency.
-            self.viz['p_lisl'].set_data(pos=p_lisl_data, color=edges_color_data, width=0.75, connect='segments')
+            edges_color_data[:, 3] = 0.1
+            self.viz['p_lisl'].set_data(pos=p_lisl_data, color=edges_color_data, width=0.5, connect='segments')
             
         toc = time.perf_counter()
         self.profiled_time['draw_potential_lisl'] = toc - tic
@@ -994,8 +998,8 @@ class Simulation:
         
         # Draw the connected edges.
         tic = time.perf_counter()
-        edges_color_data, c_lisl_data = optimize_edge_and_color_data(edges_color, connected_lts, connected_sat, self.positions)
-        self.viz['c_lisl'].set_data(pos=c_lisl_data, color=edges_color_data, width=1.5, connect='segments')
+        edges_color_data, c_lisl_data = optimize_edge_and_color_data(edges_color, connected_lts, connected_sat, self.positions, lift=True)
+        self.viz['c_lisl'].set_data(pos=c_lisl_data, color=edges_color_data, width=2, connect='segments')
         toc = time.perf_counter()
         self.profiled_time['draw_matching'] = toc - tic
         
