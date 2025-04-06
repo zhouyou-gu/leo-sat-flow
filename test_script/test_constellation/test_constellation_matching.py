@@ -788,17 +788,17 @@ def setup_visualization() -> dict:
 
 
 class Simulation:
-    FOR_THETA: float = 30.0  # Angle in degrees for the satellite LT direction.
+    FOR_THETA: float = 15.0  # Angle in degrees for the satellite LT direction.
     LISL_MAX_DISTANCE: float = 3000.0  # Maximum distance for LISL in km.
-    TIME_SCALE: float = 10.0
+    TIME_SCALE: float = 1.0
     EARTH_RADIUS: float = 6371.0  # Earth's radius in km.
     
     PLOT_POTENTIAL_LISL: bool = True    
     
-    FRONT_COLOR = np.array([0, 0, 1, 1])
-    BACK_COLOR = np.array([1, 0.75, 0, 1])
+    FRONT_COLOR = np.array([0, 0, 0.85, 1])
+    BACK_COLOR = np.array([0.05, 0.75, 0.05, 1])
     RIGHT_COLOR = np.array([1, 0, 0, 1])
-    LEFT_COLOR = np.array([0.05, 1, 0.05, 1])
+    LEFT_COLOR = np.array([0.75, 0.75, 0, 1])
     
     def __init__(self, ts, sat_array, viz):
         """
@@ -904,7 +904,7 @@ class Simulation:
         arrow_color[num_arrows // 2: 3 * num_arrows // 4, :] = self.RIGHT_COLOR
         arrow_color[3 * num_arrows // 4:, :] = self.LEFT_COLOR
 
-        self.viz['arrow'].set_data(pos=a_data, color=arrow_color, width=5, connect='segments')
+        self.viz['arrow'].set_data(pos=a_data, color=arrow_color, width=10, connect='segments')
 
     def _update_links(self):
         logger.debug("Updating links...")
@@ -965,11 +965,11 @@ class Simulation:
         if self.PLOT_POTENTIAL_LISL:
             # Build the color array using np.array for clarity.
             edges_color_data, p_lisl_data = optimize_edge_and_color_data(edges_color, filtered_expanded, filtered_repeated, self.positions)
-            edges_color_data[:, 3] = 0.1
-            self.viz['p_lisl'].set_data(pos=p_lisl_data, color=edges_color_data, width=0.5, connect='segments')
+            edges_color_data[:, 3] = 0.25
+            self.viz['p_lisl'].set_data(pos=p_lisl_data, color=edges_color_data, width=0.0001, connect='segments')
             
         toc = time.perf_counter()
-        self.profiled_time['draw_potential_lisl'] = toc - tic
+        self.profiled_time['draw_p_lisl'] = toc - tic
     
         # Compute the matching for the LISL edges.
         # Compute the weighted edges for the matching.
@@ -979,7 +979,7 @@ class Simulation:
             filtered_expanded, view_LT_pair_min_cos.reshape(-1), self.FOR_THETA
         )
         toc = time.perf_counter()
-        self.profiled_time['compute_weighted_edges'] = toc - tic
+        self.profiled_time['weight_edges'] = toc - tic
         
         tic = time.perf_counter()
         matching = greedy_max_weight_matching(weighted_edges)
