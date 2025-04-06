@@ -4,6 +4,7 @@
     },
     "terminal.integrated.env.linux": {
       "PYTHONPATH": "${workspaceFolder}",
+      "DISPLAY": ":1",
     },
     "terminal.integrated.env.windows": {
       "PYTHONPATH": "${workspaceFolder}",
