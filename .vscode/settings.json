@@ -14,5 +14,6 @@
       "**/*.pyc": {"when": "$(basename).py"}, 
       "**/__pycache__": true,
     },
-    "explorer.excludeGitIgnore": true
+    "explorer.excludeGitIgnore": true,
+    "git.commitMode": "separate"
   }

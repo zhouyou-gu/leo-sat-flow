@@ -30,3 +30,14 @@ print("Max Threads per Block:", device.MAX_THREADS_PER_BLOCK)
 meminfo = cuda.current_context().get_memory_info()
 print("Total Memory (bytes):", meminfo.total)
 print("Free Memory (bytes):", meminfo.free)
+
+import numpy as np
+import cupy as cp
+a = np.zeros((10,10))
+d = cp.asarray(a)
+d += 1.  ## fails
+
+
+import torch
+print(torch.cuda.is_available())
+print(torch.cuda.current_device())
