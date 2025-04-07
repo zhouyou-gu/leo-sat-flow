@@ -743,7 +743,7 @@ def setup_visualization() -> dict:
     text_top = scene.visuals.Text(text="Waiting...",
             color='black',
             face='FreeMono',  # Change font here
-            font_size=10,
+            font_size=30,
             bold=False,
             pos=(0, 0),
             anchor_x='left',  # horizontal alignment
@@ -752,7 +752,7 @@ def setup_visualization() -> dict:
     text_bot = scene.visuals.Text(text="Waiting...",
             color='black',
             face='FreeMono',  # Change font here
-            font_size=10,
+            font_size=30,
             bold=False,
             pos=(0, h),
             anchor_x='left',  # horizontal alignment
@@ -762,7 +762,7 @@ def setup_visualization() -> dict:
     text_top_right = scene.visuals.Text(text="Waiting...",
             color='black',
             face='FreeMono',  # Change font here
-            font_size=10,
+            font_size=30,
             bold=False,
             pos=(w, 0),
             anchor_x='right',  # horizontal alignment
@@ -790,7 +790,7 @@ def setup_visualization() -> dict:
 class Simulation:
     FOR_THETA: float = 15.0  # Angle in degrees for the satellite LT direction.
     LISL_MAX_DISTANCE: float = 3000.0  # Maximum distance for LISL in km.
-    TIME_SCALE: float = 1.0
+    TIME_SCALE: float = 10.0
     EARTH_RADIUS: float = 6371.0  # Earth's radius in km.
     
     PLOT_POTENTIAL_LISL: bool = True    
@@ -1079,7 +1079,9 @@ class Simulation:
 def main():
     # Load Starlink data.
     satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle'
-    ts, valid_satellites, sat_array = load_starlink_data(satellite_url, reload=False)
+    # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=tle'
+    
+    ts, valid_satellites, sat_array = load_starlink_data(satellite_url, reload=True)
 
     # Set up visualization.
     viz = setup_visualization()
