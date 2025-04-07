@@ -531,8 +531,8 @@ def optimize_edge_and_color_data(edges_color, connected_edges, connected_sat, po
         for j in range(3):
             # Multiply by a slight factor (1.0001)
             if lift:
-                p_from[i, j] = positions[idx_from, j] * 1.001
-                p_to[i, j]   = positions[idx_to, j] * 1.001
+                p_from[i, j] = positions[idx_from, j] * 1.0001
+                p_to[i, j]   = positions[idx_to, j] * 1.0001
             else:
                 p_from[i, j] = positions[idx_from, j]
                 p_to[i, j]   = positions[idx_to, j]
@@ -670,7 +670,7 @@ def setup_visualization() -> dict:
     Returns:
         dict: Dictionary containing references to visualization components.
     """
-    canvas = scene.SceneCanvas(title='Mega-Constellation Simulation',size=(1000, 600),
+    canvas = scene.SceneCanvas(title='Mega-Constellation Simulation',size=(1600, 800),
         keys='interactive', show=True, bgcolor=(1.0, 1.0, 1.0, 0))
     view = canvas.central_widget.add_view()
     view.camera = scene.cameras.TurntableCamera(fov=45, azimuth=0, elevation=45, distance=2.5)
@@ -1009,6 +1009,8 @@ class Simulation:
         text += f"#n_p_sp: {filtered_edges.shape[0]}\n"
         text += f"#n_p_lp: {filtered_expanded.shape[0]}\n"
         text += f"#n_c_lp: {connected_lts.shape[0]}\n"
+        text += f"FOR_THETA: +/-{self.FOR_THETA:.0f}°\n"
+        text += f"MAX_DIST: {self.LISL_MAX_DISTANCE:.0f} km\n"
         self.viz['text_top'].text = text
 
         
