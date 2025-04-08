@@ -670,7 +670,7 @@ def setup_visualization() -> dict:
     Returns:
         dict: Dictionary containing references to visualization components.
     """
-    canvas = scene.SceneCanvas(title='Mega-Constellation Simulation',size=(1600, 800),
+    canvas = scene.SceneCanvas(title='Mega-Constellation Simulation',size=(1200, 700),position=(0, 0),
         keys='interactive', show=True, bgcolor=(1.0, 1.0, 1.0, 0))
     view = canvas.central_widget.add_view()
     view.camera = scene.cameras.TurntableCamera(fov=45, azimuth=0, elevation=45, distance=2.5)
@@ -740,10 +740,12 @@ def setup_visualization() -> dict:
     view.add(c_lisl)
     w, h = canvas.size
     # Create Text visual
+    
+    FONT_SIZE = 10
     text_top = scene.visuals.Text(text="Waiting...",
             color='black',
             face='FreeMono',  # Change font here
-            font_size=30,
+            font_size=FONT_SIZE,
             bold=False,
             pos=(0, 0),
             anchor_x='left',  # horizontal alignment
@@ -752,7 +754,7 @@ def setup_visualization() -> dict:
     text_bot = scene.visuals.Text(text="Waiting...",
             color='black',
             face='FreeMono',  # Change font here
-            font_size=30,
+            font_size=FONT_SIZE,
             bold=False,
             pos=(0, h),
             anchor_x='left',  # horizontal alignment
@@ -762,7 +764,7 @@ def setup_visualization() -> dict:
     text_top_right = scene.visuals.Text(text="Waiting...",
             color='black',
             face='FreeMono',  # Change font here
-            font_size=30,
+            font_size=FONT_SIZE,
             bold=False,
             pos=(w, 0),
             anchor_x='right',  # horizontal alignment
@@ -793,7 +795,7 @@ class Simulation:
     TIME_SCALE: float = 10.0
     EARTH_RADIUS: float = 6371.0  # Earth's radius in km.
     
-    PLOT_POTENTIAL_LISL: bool = True    
+    PLOT_POTENTIAL_LISL: bool = False    
     
     FRONT_COLOR = np.array([0, 0, 0.85, 1])
     BACK_COLOR = np.array([0.05, 0.75, 0.05, 1])
@@ -865,13 +867,13 @@ class Simulation:
         return rotation_angle_deg
 
     def _update_earth_rotation(self):
-        logger.debug("Updating Earth rotation...")
+        logger.debug(f'Updating Earth rotation... {self.update_count}')
         """Update the Earth's rotation transformation."""
         self.viz['sphere_visual'].transform.reset()
         self.viz['sphere_visual'].transform.rotate(self.compute_rotation(), (0, 0, 1))
 
     def _update_satellite_positions(self):
-        logger.debug("Updating satellite positions...")
+        logger.debug(f'Updating satellite positions and velocities... {self.update_count}')
         """Update satellite positions and velocities."""
         current_time = self.get_simulation_time()
         error_upd, pos_upd, vel_upd = self.sat_array.sgp4(
@@ -889,7 +891,7 @@ class Simulation:
         self.viz['scatter'].set_data(self.positions, face_color=[0, 0, 0, 0.5], size=10, edge_width=0)
 
     def _update_satellite_arrows(self):
-        logger.debug("Updating satellite arrows...")
+        logger.debug(f'Updating satellite arrows... {self.update_count}')
         """Update satellite LT direction arrows."""
         self.front, self.back, self.down, self.right, self.left = update_arrows(self.velocities, self.positions)
 
@@ -907,7 +909,7 @@ class Simulation:
         self.viz['arrow'].set_data(pos=a_data, color=arrow_color, width=10, connect='segments')
 
     def _update_links(self):
-        logger.debug("Updating links...")
+        logger.debug(f'Updating satellite links... {self.update_count}')
         """Update satellite link visualizations using KDTree and matching."""
         
         # Compute the KDTree for efficient nearest neighbor search.
@@ -1081,7 +1083,7 @@ def main():
     satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle'
     # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=tle'
     
-    ts, valid_satellites, sat_array = load_starlink_data(satellite_url, reload=True)
+    ts, valid_satellites, sat_array = load_starlink_data(satellite_url, reload=False)
 
     # Set up visualization.
     viz = setup_visualization()
@@ -1094,4 +1096,5 @@ def main():
     app.run()
 
 if __name__ == '__main__':
+    logger.level = logging.DEBUG
     main()
