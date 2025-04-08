@@ -1082,8 +1082,8 @@ def main():
     # Load Starlink data.
     satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle'
     # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=tle'
-    
-    ts, valid_satellites, sat_array = load_starlink_data(satellite_url, reload=False)
+    # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'
+    ts, valid_satellites, sat_array = load_starlink_data(satellite_url, reload=True)
 
     # Set up visualization.
     viz = setup_visualization()
