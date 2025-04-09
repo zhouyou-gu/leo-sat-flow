@@ -32,10 +32,13 @@ from vispy.visuals.filters import TextureFilter
 from vispy.visuals.transforms import MatrixTransform, STTransform
 from vispy import gloo
 
+from sim_alg.lisl_channel_model import capacity_relaxed
+from sim_alg.solver import mr_solver
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+np.set_printoptions(precision=3, suppress=True)
 
 import cProfile, pstats, io
 from contextlib import contextmanager
@@ -493,8 +496,8 @@ def compute_view_stacks(front, back, right, left, edges, direction):
 
 
 @njit(parallel=True,cache=True)
-def optimize_edge_and_color_data(edges_color, connected_edges, connected_sat, positions, lift=False):
-    M = connected_edges.shape[0]
+def optimize_edge_and_color_data(edges_color, connected_sat, connected_lct, positions, lift=False):
+    M = connected_lct.shape[0]
     M_sat = connected_sat.shape[0]
     
     # Build edges_color_from and edges_color_to.
@@ -504,8 +507,8 @@ def optimize_edge_and_color_data(edges_color, connected_edges, connected_sat, po
     edges_color_to   = np.empty((2 * M, 4), dtype=edges_color.dtype)
     
     for i in prange(M):
-        idx_from = connected_edges[i, 0] % 4
-        idx_to   = connected_edges[i, 1] % 4
+        idx_from = connected_lct[i, 0] % 4
+        idx_to   = connected_lct[i, 1] % 4
         # Duplicate the row for "from" and "to".
         for j in range(4):
             edges_color_from[2 * i, j]     = edges_color[idx_from, j]
@@ -790,12 +793,15 @@ def setup_visualization() -> dict:
 
 
 class Simulation:
-    FOR_THETA: float = 15.0  # Angle in degrees for the satellite LT direction.
+    FOR_THETA: float = 30.0  # Angle in degrees for the satellite LT direction.
     LISL_MAX_DISTANCE: float = 3000.0  # Maximum distance for LISL in km.
     TIME_SCALE: float = 10.0
     EARTH_RADIUS: float = 6371.0  # Earth's radius in km.
     
-    PLOT_POTENTIAL_LISL: bool = False    
+    JITTER_SIGMA_URAD = 10
+    
+    PLOT_POTENTIAL_LISL: bool = True    
+    PLOT_SATELLITE_LCTS: bool = False
     
     FRONT_COLOR = np.array([0, 0, 0.85, 1])
     BACK_COLOR = np.array([0.05, 0.75, 0.05, 1])
@@ -804,7 +810,7 @@ class Simulation:
     
     EDGE_COLOR = np.array([FRONT_COLOR,BACK_COLOR,RIGHT_COLOR,LEFT_COLOR])
 
-    def __init__(self, ts, sat_array, viz):
+    def __init__(self, ts, sat_array, viz, solver):
         """
         Initialize the simulation.
 
@@ -847,8 +853,8 @@ class Simulation:
         
         # Initialize potential LISL edges and view stacks.
         self.filtered_edges = None
-        self.filtered_expanded = None
         self.filtered_repeated = None
+        self.filtered_expanded = None
         
         # Precompute cosine threshold once.
         self.cos_threshold = math.cos(math.radians(self.FOR_THETA))
@@ -861,6 +867,9 @@ class Simulation:
         self.profiled_time = {}       
 
         self.update_space()
+
+        self.solver:mr_solver = solver
+        self.solver.init_edges(self.filtered_repeated, self.filtered_expanded, self.positions)
 
     def get_simulation_time(self):
         """
@@ -916,19 +925,19 @@ class Simulation:
         logger.debug(f'Updating satellite arrows... {self.update_count}')
         """Update satellite LT direction arrows."""
         self.front, self.back, self.down, self.right, self.left = update_arrows(self.velocities, self.positions)
+        if self.PLOT_SATELLITE_LCTS:
+            a_from = np.tile(self.positions, (4, 1))
+            a_to = np.concatenate((self.front, self.back, self.right, self.left), axis=0) * 0.01 + a_from
+            a_data = np.concatenate((a_from, a_to), axis=1).reshape(-1, 3)
 
-        a_from = np.tile(self.positions, (4, 1))
-        a_to = np.concatenate((self.front, self.back, self.right, self.left), axis=0) * 0.01 + a_from
-        a_data = np.concatenate((a_from, a_to), axis=1).reshape(-1, 3)
+            num_arrows = self.positions.shape[0] * 8
+            arrow_color = np.zeros((num_arrows, 4))
+            arrow_color[: num_arrows // 4, :] = self.FRONT_COLOR
+            arrow_color[num_arrows // 4: num_arrows // 2, :] = self.BACK_COLOR
+            arrow_color[num_arrows // 2: 3 * num_arrows // 4, :] = self.RIGHT_COLOR
+            arrow_color[3 * num_arrows // 4:, :] = self.LEFT_COLOR
 
-        num_arrows = self.positions.shape[0] * 8
-        arrow_color = np.zeros((num_arrows, 4))
-        arrow_color[: num_arrows // 4, :] = self.FRONT_COLOR
-        arrow_color[num_arrows // 4: num_arrows // 2, :] = self.BACK_COLOR
-        arrow_color[num_arrows // 2: 3 * num_arrows // 4, :] = self.RIGHT_COLOR
-        arrow_color[3 * num_arrows // 4:, :] = self.LEFT_COLOR
-
-        self.viz['arrow'].set_data(pos=a_data, color=arrow_color, width=10, connect='segments')
+            self.viz['arrow'].set_data(pos=a_data, color=arrow_color, width=10, connect='segments')
 
     def _update_p_satp(self):
         logger.debug(f'Updating potential satellite pairs... {self.update_count}')
@@ -959,14 +968,6 @@ class Simulation:
     def _update_p_lisl(self):
         logger.debug(f'Updating potential LISL... {self.update_count}')
         """Update potential LISL visualizations."""
-        # Set the color for the potential LISL edges.
-        # Draw the potential LISL edges.
-        if self.PLOT_POTENTIAL_LISL:
-            # Build the color array using np.array for clarity.
-            edges_color_data, p_lisl_data = optimize_edge_and_color_data(self.EDGE_COLOR, self.positions)
-            edges_color_data[:, 3] = 0.25
-            self.viz['p_lisl'].set_data(pos=p_lisl_data, color=edges_color_data, width=0.0001, connect='segments')        
-        
         # Generate boolean indicators using the precomputed threshold.
         tic = time.perf_counter()
         self.filtered_edges, filtered_view_from_stack, filtered_view_to_stack, p_lisl_LT_pair = filter_and_compute_pair(
@@ -998,39 +999,28 @@ class Simulation:
         toc = time.perf_counter()
         self.profiled_time['draw_p_lisl'] = toc - tic
     
-    def _update_c_lisl(self):
+    def _update_c_lisl(self, edge_weight=None):
         # Compute the matching for the LISL edges.
         # Compute the weighted edges for the matching.
         tic = time.perf_counter()
-        weighted_edges = compute_weighted_edges(
-            self.velocities, self.positions, self.filtered_repeated, 
-            self.filtered_expanded, self.view_LT_pair_min_cos.reshape(-1), self.FOR_THETA
-        )
-        toc = time.perf_counter()
-        self.profiled_time['weight_edges'] = toc - tic
+        edge_from = self.positions[self.connected_sat[:, 0]]
+        edge_to = self.positions[self.connected_sat[:, 1]]
+        if edge_weight is None:
+            edge_weight = np.ones(self.connected_sat.shape[0], dtype=self.EDGE_COLOR.dtype)
         
-        tic = time.perf_counter()
-        matching = greedy_max_weight_matching(weighted_edges)
-        toc = time.perf_counter()
-        self.profiled_time['greedy_matching'] = toc - tic    
-    
-        # Filter the edges based on the matching.
-        tic = time.perf_counter()
-        m = len(matching)
-        flat_array = np.fromiter((x for pair in ((min(e), max(e)) for e in matching)
-                                  for x in pair), dtype=int, count=2*m)
-        self.connected_lct = flat_array.reshape(-1, 2)
-        self.connected_sat = self.connected_lct // 4
-        toc = time.perf_counter()
-        self.profiled_time['filter_matching'] = toc - tic
+        edge_weight = edge_weight.reshape(-1, 1)
         
-        # Draw the connected edges.
-        tic = time.perf_counter()
-        edges_color_data, c_lisl_data = optimize_edge_and_color_data(self.EDGE_COLOR, self.connected_lts, self.connected_sat, self.positions, lift=True)
-        self.viz['c_lisl'].set_data(pos=c_lisl_data, color=edges_color_data, width=2, connect='segments')
+        c_lisl_data = np.concatenate((edge_from, edge_to), axis=1).reshape(-1, 3)
+        edges_color_data = np.zeros((c_lisl_data.shape[0], 4), dtype=self.EDGE_COLOR.dtype)
+        if edge_weight is not None:
+            edges_color_data[:, 3] = np.concatenate((edge_weight, edge_weight), axis=1).reshape(-1)
+        else:
+            edges_color_data[:, 3] = 1
+            
+        self.viz['c_lisl'].set_data(pos=c_lisl_data, color=edges_color_data, width=5, connect='segments')
         toc = time.perf_counter()
         self.profiled_time['draw_matching'] = toc - tic
-        
+       
     def update_space(self):
         """
         inital update function called on each timer tick to update the simulation.
@@ -1065,12 +1055,7 @@ class Simulation:
             self._update_p_lisl()
             toc = time.perf_counter()
             self.profiled_time['_update_p_lisl'] = toc - tic
-            
-            # tic = time.perf_counter()
-            # self._update_c_lisl()
-            # toc = time.perf_counter()
-            # self.profiled_time['_update_c_lisl'] = toc - tic
-            
+                        
             text = ""
             text += f"#n_sats: {self.positions.shape[0]}\n"
             text += f"#n_q_es: {self.edges.shape[0]}\n"
@@ -1100,7 +1085,6 @@ class Simulation:
         except Exception as e:
             logger.error("Unexpected error during update: %s", e)
 
-
         elapsed = time.perf_counter() - start_time
         self.accumulated_update_time += elapsed
         self.average_update_time = 0.9 * self.average_update_time + 0.1 * elapsed
@@ -1111,49 +1095,36 @@ class Simulation:
         """
         logger.debug(f"Timer event triggered. Update count: {self.update_count}")
         self.update_count += 1
+        connected, comp = self.solver.check_connected()
+        print(f"Consteallation is connected: {connected}")
+        self.connected_sat, self.connected_lct = self.solver.get_dual_matching()
+        distance = np.linalg.norm(self.positions[self.connected_sat[:, 0]] - self.positions[self.connected_sat[:, 1]], axis=1)
+        connected_capacity = self.solver.compute_capacity(distance)
+        print(f"Connected SATP: {self.connected_sat.shape[0]}, Connected LISL: {self.connected_lct.shape[0]}")
+        print(f"Connected Capacity: {connected_capacity}, distance: {distance}")
+        print(f"Max Capacity: {np.max(connected_capacity):.2f}, Min Capacity: {np.min(connected_capacity):.2f}")
+        connected_capacity[connected_capacity > 1] = 1
+        self._update_c_lisl(connected_capacity)
+        self.solver.get_dual_srouting()
         
-def main():
+                
+if __name__ == '__main__':
+    logger.level = logging.DEBUG
     # Load Starlink data.
     satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle'
     # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=tle'
     # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'
-    ts, valid_satellites, sat_array = load_starlink_data(satellite_url, reload=True)
+    ts, valid_satellites, sat_array = load_starlink_data(satellite_url, reload=False)
 
     # Set up visualization.
     viz = setup_visualization()
 
+    # Set a mr_solver
+    solver = mr_solver()
+
     # Create simulation instance.
-    simulation = Simulation(ts, sat_array, viz)
+    simulation = Simulation(ts, sat_array, viz, solver)
 
     # Set up a timer to update the simulation at roughly 60 FPS.
-    timer1 = app.Timer(interval=0, connect=simulation.update, start=True)
+    timer1 = app.Timer(interval=1, connect=simulation.update, iterations=10,start=True)
     app.run()
-
-if __name__ == '__main__':
-    logger.level = logging.DEBUG
-    main()
-
-
-
-
-#get time
-
-#get satellite and earth info
-
-#get p_edges
-
-#get capacity
-
-#for i in range(num_iter):
-    #fetch previous lambda
-
-    #compute matching and routing
-
-    #compute data rate on each edge
-    #check the dual function value with the new routing
-
-    #update lambda
-
-    #use dual matching compute new routing in the network
-    #check the dual function value with the new routing
-    
