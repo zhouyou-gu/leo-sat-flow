@@ -215,7 +215,7 @@ class mr_solver:
         
         return connected_sat, connected_lct
     
-    def get_dual_srouting(self, debug=False, n_pair=100):
+    def get_dual_srouting(self, debug=False, n_pair=1000):
         logging.info("Computing dual srouting")
         prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
         edge_weights = 1 + self.s_t_data_rate * prices
