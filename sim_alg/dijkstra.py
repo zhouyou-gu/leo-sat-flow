@@ -2,11 +2,74 @@ import numpy as np
 import numba
 from numba import prange, typed, types
 
+uni_tuple_t = types.UniTuple(types.int64, 2)
+
+
+@numba.njit(parallel=True, cache=True)
+def extract_weights(A, B, none_value=0):
+    """
+    Numba-accelerated function that extracts weights from B based on edges in A.
+    
+    Parameters:
+      A : (K,2) np.ndarray   - Each row represents an edge defined by (source, target)
+      B : (K',3) np.ndarray  - Each row is (source, target, weight) for an edge
+      
+    Returns:
+      weights : np.ndarray of shape (K,) where weights[i] corresponds to the weight from B
+                for the edge A[i]. If an edge is not found, np.nan is returned.
+    """
+    # Create a typed dictionary with keys as a pair of int64 and value as float64.
+    d = typed.Dict.empty(
+        key_type=uni_tuple_t,
+        value_type=types.float64
+    )
+    for i in range(B.shape[0]):
+        key = (int(B[i, 0]), int(B[i, 1]))
+        d[key] = B[i, 2]
+    
+    # Preallocate the result array.
+    weights = np.empty(A.shape[0], dtype=np.float64)
+    
+    # Use prange to parallelize lookup over A.
+    for i in prange(A.shape[0]):
+        key = (int(A[i, 0]), int(A[i, 1]))
+        if key in d:
+            weights[i] = d[key]
+        else:
+            weights[i] = none_value  # You can choose a different default value if needed.
+    
+    return weights
+
+@numba.njit(parallel=True, cache=True)
+def csr_to_edge_list(indptr, indices, data):
+    # Number of non-zero entries is given by the last element in indptr.
+    nnz = indptr[-1]
+    # Create an output array of shape (nnz, 3). Using float64 to hold all values.
+    # If you prefer to keep the indices as an integer type, you could set up a structured array.
+    out = np.empty((nnz, 3), dtype=np.float64)
+    
+    n_rows = indptr.shape[0] - 1  # Total number of rows in the CSR matrix.
+    
+    # Iterate over each row in parallel.
+    for i in prange(n_rows):
+        row_start = indptr[i]
+        row_end = indptr[i + 1]
+        # The CSR format ensures that all non-zeros for row i
+        # are stored contiguously from row_start to row_end in the 'indices' and 'data' arrays.
+        for j in range(row_start, row_end):
+            # First column: row index (edge source)
+            out[j, 0] = i  
+            # Second column: column index (edge destination)
+            out[j, 1] = indices[j]
+            # Third column: weight of the edge
+            out[j, 2] = data[j]
+            
+    return out
+
+
 # ------------------------------------------------------------------------------
 # Revised Step 1. Convert edge list to CSR representation with duplicate merging.
 # ------------------------------------------------------------------------------
-
-uni_tuple_t = types.UniTuple(types.int64, 2)
 @numba.njit(cache=True)
 def build_csr(num_nodes, edges, weights, merging_method='avg'):
     """
@@ -235,6 +298,71 @@ def multi_dijkstra_with_paths(num_nodes, indptr, indices, data, sources, targets
     
     return costs, lengths, paths_all
 
+@numba.njit(parallel=True, cache=True)
+def construct_edges_matrix_all_in_one(sources, targets, costs, lengths, paths_all):
+    """
+    Constructs a result matrix (with shape (total_edges, 5)) from the output of multi_dijkstra_with_paths.
+    
+    For each query (s-t pair) i:
+      - Let L = lengths[i] (number of vertices in the returned path).
+      - For every edge from the j-th vertex to the (j+1)-th vertex (j=0,..., L-2),
+        a row is added with:
+          Column 0 : paths_all[i, j]     (the "from" vertex for the edge)
+          Column 1 : paths_all[i, j+1]   (the "to" vertex for the edge)
+          Column 2 : sources[i]          (the overall source for the query)
+          Column 3 : targets[i]          (the overall target for the query)
+          Column 4 : costs[i]            (the s-t pair’s cost/weight)
+          Column 5 : i                  (the index of the query)
+    
+    The function first computes how many edges exist in total over all queries,
+    by summing (lengths[i] - 1) for each query i, and also computes a prefix offset
+    array so that for query i the results will be stored beginning at that offset.
+    
+    Parameters:
+      sources   : 1D np.ndarray(int64)  of shape (Q,), each element a source vertex.
+      targets   : 1D np.ndarray(int64)  of shape (Q,), each element a target vertex.
+      costs     : 1D np.ndarray(float64) of shape (Q,), the s-t cost for each query.
+      lengths   : 1D np.ndarray(int64)  of shape (Q,), number of vertices in each returned path.
+      paths_all : 2D np.ndarray(int64)  of shape (Q, N) with the reconstructed paths (unused slots padded, e.g. with -1).
+    
+    Returns:
+      A (total_edges x 6) np.ndarray(float64), where total_edges = sum_i (lengths[i]-1).
+      Each row is [from, to, source, target, cost, idx].
+    """
+    Q = sources.shape[0]
+    total_edges = 0
+    # Build offsets array and compute total number of edges (each query contributes lengths[i]-1 edges)
+    offsets = np.empty(Q, dtype=np.int64)
+    for i in range(Q):
+        total_edges += lengths[i] - 1
+        if i == 0:
+            offsets[i] = 0
+        else:
+            offsets[i] = offsets[i - 1] + (lengths[i - 1] - 1)
+    
+    # Allocate the result matrix
+    result = np.empty((total_edges, 6), dtype=np.float64)
+    
+    # Fill the result matrix in parallel over queries
+    for i in prange(Q):
+        L = lengths[i]
+        if L < 2:
+            # No edge exists if the path has fewer than 2 vertices.
+            continue
+        start_idx = offsets[i]
+        num_edges = L - 1
+        src = sources[i]
+        tgt = targets[i]
+        cost = costs[i]
+        for j in range(num_edges):
+            result[start_idx + j, 0] = paths_all[i, j]       # from-vertex of edge j
+            result[start_idx + j, 1] = paths_all[i, j + 1]   # to-vertex of edge j
+            result[start_idx + j, 2] = src                   # s-t query source (same for all edges in this query)
+            result[start_idx + j, 3] = tgt                   # s-t query target
+            result[start_idx + j, 4] = cost                  # s-t query cost
+            result[start_idx + j, 5] = i                     # s-t query index
+    return result
+
 # ------------------------------------------------------------------------------
 # Example usage.
 # ------------------------------------------------------------------------------
@@ -269,3 +397,5 @@ if __name__ == "__main__":
         else:
             print("Query {}: from {} to {} is unreachable.".format(
                 i, sources[i], targets[i]))
+
+    print("data", construct_edges_matrix_all_in_one(sources, targets, costs, lengths, paths_all)) 

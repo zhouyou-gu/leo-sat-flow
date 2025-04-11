@@ -798,6 +798,8 @@ class Simulation:
     TIME_SCALE: float = 10.0
     EARTH_RADIUS: float = 6371.0  # Earth's radius in km.
     
+    N_LCT_PER_SAT: int = 4  # Number of LCTs per satellite.
+    
     JITTER_SIGMA_URAD = 10
     
     PLOT_POTENTIAL_LISL: bool = True    
@@ -864,6 +866,9 @@ class Simulation:
         self.connected_sat = None
         self.connected_lct = None
 
+        # Initialize the routing
+        self.srouting = None
+
         self.profiled_time = {}       
 
         self.update_space()
@@ -926,16 +931,16 @@ class Simulation:
         """Update satellite LT direction arrows."""
         self.front, self.back, self.down, self.right, self.left = update_arrows(self.velocities, self.positions)
         if self.PLOT_SATELLITE_LCTS:
-            a_from = np.tile(self.positions, (4, 1))
+            a_from = np.tile(self.positions, (self.N_LCT_PER_SAT, 1))
             a_to = np.concatenate((self.front, self.back, self.right, self.left), axis=0) * 0.01 + a_from
             a_data = np.concatenate((a_from, a_to), axis=1).reshape(-1, 3)
 
             num_arrows = self.positions.shape[0] * 8
-            arrow_color = np.zeros((num_arrows, 4))
-            arrow_color[: num_arrows // 4, :] = self.FRONT_COLOR
-            arrow_color[num_arrows // 4: num_arrows // 2, :] = self.BACK_COLOR
-            arrow_color[num_arrows // 2: 3 * num_arrows // 4, :] = self.RIGHT_COLOR
-            arrow_color[3 * num_arrows // 4:, :] = self.LEFT_COLOR
+            arrow_color = np.zeros((num_arrows, self.N_LCT_PER_SAT))
+            arrow_color[: num_arrows // self.N_LCT_PER_SAT, :] = self.FRONT_COLOR
+            arrow_color[num_arrows // self.N_LCT_PER_SAT: num_arrows // 2, :] = self.BACK_COLOR
+            arrow_color[num_arrows // 2: 3 * num_arrows // self.N_LCT_PER_SAT, :] = self.RIGHT_COLOR
+            arrow_color[3 * num_arrows // self.N_LCT_PER_SAT:, :] = self.LEFT_COLOR
 
             self.viz['arrow'].set_data(pos=a_data, color=arrow_color, width=10, connect='segments')
 
@@ -1095,17 +1100,29 @@ class Simulation:
         """
         logger.debug(f"Timer event triggered. Update count: {self.update_count}")
         self.update_count += 1
+        
+        # Check the constellation connectivity
         connected, comp = self.solver.check_connected()
-        print(f"Consteallation is connected: {connected}")
+        logger.info(f"Constellation is connected: {connected}")
+        
+        # Compute the dual matching.
         self.connected_sat, self.connected_lct = self.solver.get_dual_matching()
+        logger.info(f"Connected SATP: {self.connected_sat.shape[0]}, Connected LISL: {self.connected_lct.shape[0]}")
+        
+        # Show capacity and distance
         distance = np.linalg.norm(self.positions[self.connected_sat[:, 0]] - self.positions[self.connected_sat[:, 1]], axis=1)
         connected_capacity = self.solver.compute_capacity(distance)
-        print(f"Connected SATP: {self.connected_sat.shape[0]}, Connected LISL: {self.connected_lct.shape[0]}")
-        print(f"Connected Capacity: {connected_capacity}, distance: {distance}")
-        print(f"Max Capacity: {np.max(connected_capacity):.2f}, Min Capacity: {np.min(connected_capacity):.2f}")
+        logger.info(f"Connected Capacity: {connected_capacity}, distance: {distance}")
+        logger.info(f"Max Capacity: {np.max(connected_capacity):.2f}, Min Capacity: {np.min(connected_capacity):.2f}")
         connected_capacity[connected_capacity > 1] = 1
         self._update_c_lisl(connected_capacity)
-        self.solver.get_dual_srouting()
+        
+        # Compute the dual srouting.
+        self.srouting = self.solver.get_dual_srouting()
+        logger.info(f"Routing shape: {self.srouting.shape}")
+        
+        # Update the step edge prices.
+        self.solver.update_step_edge_prices(self.connected_lct, self.srouting)
         
                 
 if __name__ == '__main__':
@@ -1114,7 +1131,7 @@ if __name__ == '__main__':
     satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle'
     # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=tle'
     # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'
-    ts, valid_satellites, sat_array = load_starlink_data(satellite_url, reload=False)
+    ts, valid_satellites, sat_array = load_starlink_data(satellite_url, reload=True)
 
     # Set up visualization.
     viz = setup_visualization()
@@ -1126,5 +1143,6 @@ if __name__ == '__main__':
     simulation = Simulation(ts, sat_array, viz, solver)
 
     # Set up a timer to update the simulation at roughly 60 FPS.
-    timer1 = app.Timer(interval=1, connect=simulation.update, iterations=10,start=True)
+    timer1 = app.Timer(interval=0.0001, connect=simulation.update, iterations=10000,start=True)
+    timer2 = app.Timer(interval=1/60.,start=True)
     app.run()

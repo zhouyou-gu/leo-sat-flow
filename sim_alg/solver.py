@@ -1,7 +1,16 @@
 from numba import njit
 
-from sim_alg.dijkstra import build_csr, multi_dijkstra_with_paths
+from sim_alg.dijkstra import build_csr, construct_edges_matrix_all_in_one, csr_to_edge_list, extract_weights, multi_dijkstra_with_paths
 from sim_alg.lisl_channel_model import *
+
+import scipy.sparse as sp
+
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+np.set_printoptions(precision=3, suppress=True)
 
 
 @njit(cache=True)
@@ -108,6 +117,30 @@ def random_source_target_pairs(N, P):
         
     return sources, targets
 
+class price_graph:
+    def __init__(self, n_sat, possible_sat_pair_expanded, initial_prices=0.1):
+        self.n_sat = n_sat
+        # Initialize edge prices
+        csr_pair = build_csr(self.n_sat, possible_sat_pair_expanded, np.ones(possible_sat_pair_expanded.shape[0])*initial_prices)
+        self.price_graph = sp.csr_matrix((csr_pair[2], csr_pair[1], csr_pair[0]), shape=(self.n_sat, self.n_sat))
+    
+    def get_prices(self, possible_sat_pair_expanded):
+        # Compute edge price based on the price graph
+        edge_price_on_graph_idx_wgt = csr_to_edge_list(self.price_graph.indptr, self.price_graph.indices, self.price_graph.data)
+        prices = extract_weights(possible_sat_pair_expanded, edge_price_on_graph_idx_wgt)
+        # Check if np.nan is in the weights
+        if np.isnan(prices).any():
+            raise ValueError("NaN found in edge weights")
+        
+        # Check if the weights are all positive
+        if np.any(prices < 0):
+            raise ValueError("Negative weights found in edge weights")
+    
+        return prices
+    
+    def add_prices(self, d_price_graph):
+        self.price_graph += d_price_graph
+        self.price_graph.data[self.price_graph.data < 0] = 0
 
 class mr_solver:
     WAVELENGTH = 1.55e-6  # Wavelength in meters (1.55 microns typical in telecom)
@@ -122,30 +155,36 @@ class mr_solver:
     EPSILON = 1e-5  # Epsilon for relaxed capacity calculations
 
     EARTH_RADIUS = 6371e3  # Earth radius in meters
+    N_LCT_PER_SAT = 4  # Number of LCTs per satellite
+    
+    ALPHA = 0.001  # Learning rate for edge price updates
+    
     def __init__(self):
         self.n_sat = 0
         self.positions = None
         self.possible_sat_pair_expanded = None
         self.possible_lct_pair_expanded = None 
         
-        self.possible_lct_pair_edge_prices = None
         self.possible_lct_pair_edge_capacity = None
         
         self.s_t_data_rate = 1.
     
+        self.price_graph: price_graph = None
+        
     def init_edges(self, possible_sat_pair_expanded, possible_lct_pair_expanded,positions):
         self.possible_sat_pair_expanded = possible_sat_pair_expanded
         self.possible_lct_pair_expanded = possible_lct_pair_expanded
         
-        # Initialize edge prices and capacities
+        # Initialize edge capacities
         num_edges = len(possible_lct_pair_expanded)
-        self.possible_lct_pair_edge_prices = np.ones(num_edges)
         self.possible_lct_pair_edge_capacity = np.zeros(num_edges)
         
         # Set initial positions
         self.positions = positions
         self.n_sat = positions.shape[0]
         self.update_edge_capacity()
+        
+        self.price_graph = price_graph(self.n_sat, self.possible_sat_pair_expanded)
     
     @classmethod
     def compute_capacity(cls, distance):
@@ -161,24 +200,29 @@ class mr_solver:
         self.edge_capacity = self.compute_capacity(distance)
         
     def get_dual_matching(self):
-        edge_weights =  self.possible_lct_pair_edge_prices * self.possible_lct_pair_edge_capacity
-        weighted_edges = np.column_stack((self.possible_lct_pair_expanded, edge_weights))
+        logging.info("Computing dual matching")
+        prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
+        edge_weights_pr = prices * self.edge_capacity
+        logger.info(f"Ec: {self.edge_capacity}, max: {np.max(self.edge_capacity)}, min: {np.min(self.edge_capacity)}")
+        logger.info(f"Mw: {edge_weights_pr}, max: {np.max(edge_weights_pr)}, min: {np.min(edge_weights_pr)}")
+        weighted_edges = np.column_stack((self.possible_lct_pair_expanded, edge_weights_pr))
         matching = greedy_max_weight_matching(weighted_edges)
         m = len(matching)
         flat_array = np.fromiter((x for pair in ((min(e), max(e)) for e in matching)
                                   for x in pair), dtype=int, count=2*m)
-        connected_lts = flat_array.reshape(-1, 2)
-        connected_sat = connected_lts // 4
+        connected_lct = flat_array.reshape(-1, 2)
+        connected_sat = connected_lct // self.N_LCT_PER_SAT
         
-        
-        return connected_sat, connected_lts
+        return connected_sat, connected_lct
     
-    def get_dual_srouting(self, debug=False):
-        edge_weights = self.possible_lct_pair_edge_prices * self.s_t_data_rate + 1.
-        s_t_source, s_t_target = random_source_target_pairs(self.n_sat, 1000)
+    def get_dual_srouting(self, debug=False, n_pair=100):
+        logging.info("Computing dual srouting")
+        prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
+        edge_weights = 1 + self.s_t_data_rate * prices
+        logger.info(f"Rw: {edge_weights}, max: {np.max(edge_weights)}, min: {np.min(edge_weights)}")
+        s_t_source, s_t_target = random_source_target_pairs(self.n_sat, n_pair)
         indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, edge_weights)
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, data, s_t_source, s_t_target)
-        
         if debug:
             for i in range(s_t_source.shape[0]):
                 if costs[i] < 1e12:
@@ -189,14 +233,47 @@ class mr_solver:
                     print("Query {}: from {} to {} is unreachable.".format(
                         i, s_t_source[i], s_t_target[i]))
         
+        traffic = np.ones(s_t_source.shape[0])*self.s_t_data_rate
+        srouting = construct_edges_matrix_all_in_one(s_t_source, s_t_target, traffic, lengths, paths_all)
+        
+        return srouting
                     
     def check_connected(self):
         # Check if the graph is connected
         num_nodes = self.n_sat
-        indptr, indices, data = build_csr(num_nodes, self.possible_sat_pair_expanded, self.possible_lct_pair_edge_prices)
+        indptr, indices, data = build_csr(num_nodes, self.possible_sat_pair_expanded, np.ones(self.possible_sat_pair_expanded.shape[0]))
         comp = graph_partition(num_nodes, indptr, indices)
         num_components = np.unique(comp).shape[0]
+        if num_components > 1:
+            print(f"Graph is not connected, found {num_components} components.")
+            raise ValueError("Graph is not connected")
         return num_components == 1, comp
     
-    
+    def update_step_edge_prices(self, connected_lct, srouting):
+        logging.info("Updating edge prices")
+        num_nodes = self.n_sat
+        traffic = srouting[:,4]
+        logger.info(f"Tr: {traffic}, max: {np.max(traffic)}, min: {np.min(traffic)}")
+        qx = build_csr(num_nodes, srouting[:,0:2], traffic, merging_method='sum')
+        logger.info(f"qx: {qx[2]}, max: {np.max(qx[2])}, min: {np.min(qx[2])}")
+        qx_csr = sp.csr_matrix((qx[2], qx[1], qx[0]), shape=(num_nodes, num_nodes))
+
+        connected_sat = connected_lct//self.N_LCT_PER_SAT
+        capacity_matched = self.compute_capacity(
+            np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
+        )
+        logger.info(f"Cm: {capacity_matched}, max: {np.max(capacity_matched)}, min: {np.min(capacity_matched)}")
+        rc = build_csr(num_nodes, connected_sat, capacity_matched, merging_method='sum')
+        logger.info(f"rc: {rc[2]}, max: {np.max(rc[2])}, min: {np.min(rc[2])}")
+        rc_csr = sp.csr_matrix((rc[2], rc[1], rc[0]), shape=(num_nodes, num_nodes))
+        
+        # Update edge prices
+        old_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
+        logger.info(f"Oe: {old_price}, max: {np.max(old_price)}, min: {np.min(old_price)}")
+        
+        d_price_graph = self.ALPHA * (qx_csr - rc_csr)
+        self.price_graph.add_prices(d_price_graph)    
+        
+        new_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
+        logger.info(f"Ne: {new_price}, max: {np.max(new_price)}, min: {np.min(new_price)}")
 
