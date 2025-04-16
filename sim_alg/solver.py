@@ -1,6 +1,6 @@
 from numba import njit
 
-from sim_alg.dijkstra import build_csr, construct_edges_matrix_all_in_one, csr_to_edge_list, extract_weights, multi_dijkstra_with_paths
+from sim_alg.dijkstra import build_csr, construct_edges_matrix_all_in_one, csr_to_edge_list, extract_weights, multi_dijkstra_with_paths, multi_dijkstra_with_paths_aw_b
 from sim_alg.lisl_channel_model import *
 
 import scipy.sparse as sp
@@ -157,7 +157,7 @@ class mr_solver:
     EARTH_RADIUS = 6371e3  # Earth radius in meters
     N_LCT_PER_SAT = 4  # Number of LCTs per satellite
     
-    ALPHA = 0.001  # Learning rate for edge price updates
+    ALPHA = 0.1  # Learning rate for edge price updates
     
     def __init__(self):
         self.n_sat = 0
@@ -167,11 +167,14 @@ class mr_solver:
         
         self.possible_lct_pair_edge_capacity = None
         
-        self.s_t_data_rate = 1.
+        self.data_source = None
+        self.data_target = None
+        self.s_t_data_rate = None
+        
     
         self.price_graph: price_graph = None
         
-    def init_edges(self, possible_sat_pair_expanded, possible_lct_pair_expanded,positions):
+    def init_edges(self, possible_sat_pair_expanded, possible_lct_pair_expanded, positions):
         self.possible_sat_pair_expanded = possible_sat_pair_expanded
         self.possible_lct_pair_expanded = possible_lct_pair_expanded
         
@@ -185,6 +188,8 @@ class mr_solver:
         self.update_edge_capacity()
         
         self.price_graph = price_graph(self.n_sat, self.possible_sat_pair_expanded)
+    
+        self.update_pairs()
     
     @classmethod
     def compute_capacity(cls, distance):
@@ -203,8 +208,8 @@ class mr_solver:
         logging.info("Computing dual matching")
         prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
         edge_weights_pr = prices * self.edge_capacity
-        logger.info(f"Ec: {self.edge_capacity}, max: {np.max(self.edge_capacity)}, min: {np.min(self.edge_capacity)}")
-        logger.info(f"Mw: {edge_weights_pr}, max: {np.max(edge_weights_pr)}, min: {np.min(edge_weights_pr)}")
+        logger.info(f"Ec: max: {np.max(self.edge_capacity)}, min: {np.min(self.edge_capacity)}")
+        logger.info(f"Mw: max: {np.max(edge_weights_pr)}, min: {np.min(edge_weights_pr)}")
         weighted_edges = np.column_stack((self.possible_lct_pair_expanded, edge_weights_pr))
         matching = greedy_max_weight_matching(weighted_edges)
         m = len(matching)
@@ -215,26 +220,27 @@ class mr_solver:
         
         return connected_sat, connected_lct
     
-    def get_dual_srouting(self, debug=False, n_pair=1000):
+    def update_pairs(self, n_pair=1, data_rate=1.):
+        self.data_source, self.data_target = random_source_target_pairs(self.n_sat, n_pair)
+        self.s_t_data_rate = np.ones(self.data_source.shape[0]) * data_rate
+    
+    def get_dual_srouting(self, debug=False):
         logging.info("Computing dual srouting")
         prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
-        edge_weights = 1 + self.s_t_data_rate * prices
-        logger.info(f"Rw: {edge_weights}, max: {np.max(edge_weights)}, min: {np.min(edge_weights)}")
-        s_t_source, s_t_target = random_source_target_pairs(self.n_sat, n_pair)
-        indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, edge_weights)
-        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, data, s_t_source, s_t_target)
+        indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
+        costs, lengths, paths_all = multi_dijkstra_with_paths_aw_b(self.n_sat, indptr, indices, self.data_source, self.data_target, data, self.s_t_data_rate, 1)
         if debug:
-            for i in range(s_t_source.shape[0]):
+            for i in range(self.data_source.shape[0]):
                 if costs[i] < 1e12:
                     path = paths_all[i, :lengths[i]]
                     print("Query {}: from {} to {}: cost = {}, path = {}".format(
-                        i, s_t_source[i], s_t_target[i], costs[i], path))
+                        i, self.data_source[i], self.data_target[i], costs[i], path))
                 else:
                     print("Query {}: from {} to {} is unreachable.".format(
-                        i, s_t_source[i], s_t_target[i]))
+                        i, self.data_source[i], self.data_target[i]))
         
-        traffic = np.ones(s_t_source.shape[0])*self.s_t_data_rate
-        srouting = construct_edges_matrix_all_in_one(s_t_source, s_t_target, traffic, lengths, paths_all)
+        srouting = construct_edges_matrix_all_in_one(self.data_source, self.data_target, self.s_t_data_rate, lengths, paths_all)
+        srouting = srouting[srouting[:, -1] >= 0]
         
         return srouting
                     
@@ -244,36 +250,46 @@ class mr_solver:
         indptr, indices, data = build_csr(num_nodes, self.possible_sat_pair_expanded, np.ones(self.possible_sat_pair_expanded.shape[0]))
         comp = graph_partition(num_nodes, indptr, indices)
         num_components = np.unique(comp).shape[0]
-        if num_components > 1:
-            print(f"Graph is not connected, found {num_components} components.")
-            raise ValueError("Graph is not connected")
         return num_components == 1, comp
     
     def update_step_edge_prices(self, connected_lct, srouting):
         logging.info("Updating edge prices")
         num_nodes = self.n_sat
         traffic = srouting[:,4]
-        logger.info(f"Tr: {traffic}, max: {np.max(traffic)}, min: {np.min(traffic)}")
+        logger.info(f"Tr: max: {np.max(traffic)}, min: {np.min(traffic)}")
         qx = build_csr(num_nodes, srouting[:,0:2], traffic, merging_method='sum')
-        logger.info(f"qx: {qx[2]}, max: {np.max(qx[2])}, min: {np.min(qx[2])}")
+        logger.info(f"qx: max: {np.max(qx[2])}, min: {np.min(qx[2])}")
         qx_csr = sp.csr_matrix((qx[2], qx[1], qx[0]), shape=(num_nodes, num_nodes))
 
         connected_sat = connected_lct//self.N_LCT_PER_SAT
         capacity_matched = self.compute_capacity(
             np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
         )
-        logger.info(f"Cm: {capacity_matched}, max: {np.max(capacity_matched)}, min: {np.min(capacity_matched)}")
+        logger.info(f"Cm: max: {np.max(capacity_matched)}, min: {np.min(capacity_matched)}")
         rc = build_csr(num_nodes, connected_sat, capacity_matched, merging_method='sum')
-        logger.info(f"rc: {rc[2]}, max: {np.max(rc[2])}, min: {np.min(rc[2])}")
+        logger.info(f"rc: max: {np.max(rc[2])}, min: {np.min(rc[2])}")
         rc_csr = sp.csr_matrix((rc[2], rc[1], rc[0]), shape=(num_nodes, num_nodes))
         
         # Update edge prices
         old_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
-        logger.info(f"Oe: {old_price}, max: {np.max(old_price)}, min: {np.min(old_price)}")
+        logger.info(f"Oe: max: {np.max(old_price)}, min: {np.min(old_price)}")
         
         d_price_graph = self.ALPHA * (qx_csr - rc_csr)
         self.price_graph.add_prices(d_price_graph)    
         
         new_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
-        logger.info(f"Ne: {new_price}, max: {np.max(new_price)}, min: {np.min(new_price)}")
+        logger.info(f"Ne: max: {np.max(new_price)}, min: {np.min(new_price)}")
+        
+        return new_price
 
+    def get_prim_srouting(self):
+        logging.info("Computing prim srouting")
+        connected_sat, connected_lct = self.get_dual_matching()        
+        prices = self.price_graph.get_prices(connected_sat)
+        indptr, indices, data = build_csr(self.n_sat, connected_sat, prices)
+        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
+        
+        srouting = construct_edges_matrix_all_in_one(self.data_source, self.data_target, self.s_t_data_rate, lengths, paths_all)
+        srouting = srouting[srouting[:, -1] >= 0]
+        
+        return srouting        

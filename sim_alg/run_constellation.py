@@ -25,12 +25,13 @@ import networkx as nx
 
 from skyfield.api import load
 from skyfield.sgp4lib import TEME
-from sgp4.api import SatrecArray
 from vispy import app, scene
 from vispy.geometry import MeshData, create_sphere
 from vispy.visuals.filters import TextureFilter
 from vispy.visuals.transforms import MatrixTransform, STTransform
 from vispy import gloo
+
+from sim_alg.constellation import load_url_tle_data, generate_walker_constellation
 
 from sim_alg.lisl_channel_model import capacity_relaxed
 from sim_alg.solver import mr_solver
@@ -634,50 +635,27 @@ def compute_texcoords(faces: np.ndarray) -> np.ndarray:
         texcoords.extend(compute_face_texcoords(face))
     return np.array(texcoords)
 
-
-def load_starlink_data(url: str, reload: bool = True) -> tuple:
-    """
-    Load Starlink TLE data from the provided URL.
-
-    Parameters:
-        url (str): URL to the TLE file.
-        reload (bool): Whether to reload the TLE data.
-
-    Returns:
-        tuple: (timescale, valid_satellites, sat_array)
-    """
-    ts = load.timescale()
-    satellites = load.tle_file(url, reload=reload)
-    if not satellites:
-        raise Exception("No Starlink satellites were loaded; check the TLE URL.")
-    logger.debug("Loaded %d Starlink satellites from %s", len(satellites), url)
-
-    valid_satellites = []
-    for sat in satellites:
-        pos = sat.at(ts.now())
-        if np.isnan(pos.position.km).any():
-            message = pos.message if pos.message else "position is invalid"
-            logger.warning("Skipping %s due to error: %s", sat.name, message)
-            continue
-        valid_satellites.append(sat)
-
-    models = [sat.model for sat in valid_satellites]
-    sat_array = SatrecArray(models)
-    return ts, valid_satellites, sat_array
-
-
-def setup_visualization() -> dict:
+def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 0) -> dict:
     """
     Set up the Vispy visualization environment including canvas, view, sphere, and markers.
 
     Returns:
         dict: Dictionary containing references to visualization components.
     """
-    canvas = scene.SceneCanvas(title='Mega-Constellation Simulation',size=(1200, 700),position=(0, 0),
-        keys='interactive', show=True, bgcolor=(1.0, 1.0, 1.0, 0))
-    view = canvas.central_widget.add_view()
-    view.camera = scene.cameras.TurntableCamera(fov=45, azimuth=0, elevation=45, distance=2.5)
-
+    if view is None:
+        canvas = scene.SceneCanvas(title='Mega-Constellation Simulation',size=size, position=position,
+            keys='interactive', show=True, bgcolor=(1.0, 1.0, 1.0, 0))
+        view = canvas.central_widget.add_view()
+        top_left_coord = 0, 0
+        bot_left_coord = 0, size[1]
+        top_right_coord = size[0], 0
+        bot_right_coord = size[0], size[1]
+        view.camera = scene.cameras.TurntableCamera(fov=45, azimuth=0, elevation=45, distance=2.5)
+    else:
+        top_left_coord = view.pos
+        bot_left_coord = view.pos[0], view.pos[1] + view.size[1]
+        top_right_coord = view.pos[0] + view.size[0], view.pos[1]
+        bot_right_coord = view.pos[0] + view.size[0], view.pos[1] + view.size[1]
     # # Set up the OpenGL state for non-transparent objects.
     # gloo.set_state(depth_test=True, depth_mask=True, blend=False, cull_face=False)
 
@@ -739,59 +717,97 @@ def setup_visualization() -> dict:
     view.add(p_lisl)
 
     # Lines for connected LISL.
-    c_lisl = scene.visuals.Arrow()
-    view.add(c_lisl)
-    w, h = canvas.size
+    o_lisl = scene.visuals.Arrow()
+    view.add(o_lisl)
     # Create Text visual
     
     FONT_SIZE = 10
-    text_top = scene.visuals.Text(text="Waiting...",
+    text_top_left = scene.visuals.Text(text="Waiting..." + str(idx),
             color='black',
             face='FreeMono',  # Change font here
             font_size=FONT_SIZE,
             bold=False,
-            pos=(0, 0),
+            pos=top_left_coord,
             anchor_x='left',  # horizontal alignment
             anchor_y='bottom',  # vertical alignment
-            parent=canvas.central_widget)
-    text_bot = scene.visuals.Text(text="Waiting...",
+            parent=view.parent,
+            )
+    
+    text_bot_left = scene.visuals.Text(text="Waiting..." + str(idx),
             color='black',
             face='FreeMono',  # Change font here
             font_size=FONT_SIZE,
             bold=False,
-            pos=(0, h),
+            pos=bot_left_coord,
             anchor_x='left',  # horizontal alignment
             anchor_y='top',  # vertical alignment
-            parent=canvas.central_widget)
-
-    text_top_right = scene.visuals.Text(text="Waiting...",
+            parent=view.parent,
+            )
+    
+    text_top_right = scene.visuals.Text(text="Waiting..." + str(idx),
             color='black',
             face='FreeMono',  # Change font here
             font_size=FONT_SIZE,
             bold=False,
-            pos=(w, 0),
+            pos=top_right_coord,
             anchor_x='right',  # horizontal alignment
             anchor_y='bottom',  # vertical alignment
-            parent=canvas.central_widget)
+            parent=view.parent,
+            )
+
+    text_bot_right = scene.visuals.Text(text="Waiting..." + str(idx),
+            color='black',
+            face='FreeMono',  # Change font here
+            font_size=FONT_SIZE,
+            bold=False,
+            pos=bot_right_coord,
+            anchor_x='right',  # horizontal alignment
+            anchor_y='top',  # vertical alignment
+            parent=view.parent,
+            )
 
     # Position the text at the center
     # text.transform = scene.STTransform(translate=(1, 1))
 
     return {
-        "canvas": canvas,
         "view": view,
         "sphere_visual": sphere_visual,
         "scatter": scatter,
         "arrow": satellite_arrow,
         "p_lisl": p_lisl,
-        "c_lisl": c_lisl,
-        "text_top": text_top,
-        "text_bot": text_bot,
+        "o_lisl": o_lisl,
+        "text_top_left": text_top_left,
+        "text_bot_left": text_bot_left,
         "text_top_right": text_top_right,
+        "text_bot_right": text_bot_right,
     }
 
 
+def setup_viz_list(sceen_size=(300, 100), shape=(2, 2)):
+    ret = []
+    for i in range(shape[0]):
+        for j in range(shape[1]):
+            ret.append(setup_visualization(size=(sceen_size[0] // shape[1], sceen_size[1] // shape[0]),
+                position=(i * (sceen_size[0] // shape[1]), j * (sceen_size[1] // shape[0]))))
+            print(f"Setting up visualization {i}, {j} at position {(i * (sceen_size[0] // shape[1]), j * (sceen_size[1] // shape[0]))}, with size {(sceen_size[0] // shape[1], sceen_size[1] // shape[0])}")
+    return ret
+            
+def setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(2, 2)):
+    ret = []
+    canvas = scene.SceneCanvas(title='Mega-Constellation Simulation',size=sceen_size, position=(0, 0),
+            keys='interactive', show=True, bgcolor=(1.0, 1.0, 1.0, 0))
+    grid = canvas.central_widget.add_grid()
+    camera = scene.cameras.TurntableCamera(fov=45, azimuth=0, elevation=45, distance=2.5)
 
+    for i in range(shape[0]):
+        for j in range(shape[1]):
+            view = grid.add_view(row=i, col=j)
+            view.pos = (i * (sceen_size[0] // shape[1]), j * (sceen_size[1] // shape[0]))
+            view.size = (sceen_size[0] // shape[1], sceen_size[1] // shape[0])
+            view.camera = camera
+            ret.append(setup_visualization(view=view, idx=(i, j)))
+    return ret
+                               
 class Simulation:
     FOR_THETA: float = 30.0  # Angle in degrees for the satellite LT direction.
     LISL_MAX_DISTANCE: float = 3000.0  # Maximum distance for LISL in km.
@@ -802,8 +818,9 @@ class Simulation:
     
     JITTER_SIGMA_URAD = 10
     
-    PLOT_POTENTIAL_LISL: bool = True    
-    PLOT_SATELLITE_LCTS: bool = False
+    PLOT_POTENTIAL_LISL: bool = False    
+    PLOT_SATELLITE_LCTS: bool = True
+    PLOT_TEXT: bool = False
     
     FRONT_COLOR = np.array([0, 0, 0.85, 1])
     BACK_COLOR = np.array([0.05, 0.75, 0.05, 1])
@@ -812,24 +829,19 @@ class Simulation:
     
     EDGE_COLOR = np.array([FRONT_COLOR,BACK_COLOR,RIGHT_COLOR,LEFT_COLOR])
 
-    def __init__(self, ts, sat_array, viz, solver):
+    def __init__(self, ts, sat_array):
         """
         Initialize the simulation.
 
         Parameters:
             ts: Skyfield timescale.
             sat_array: Vectorized satellite propagation array.
-            sphere_visual: Vispy visual for the Earth sphere.
-            scatter: Vispy visual for satellite markers.
-            satellite_arrow: Vispy visual for satellite LT arrows.
-            p_lisl: Vispy visual for primary LISL lines.
-            c_lisl: Vispy visual for connected LISL lines.
-            canvas: Vispy SceneCanvas.
         """
         self.ts = ts
         self.sat_array = sat_array
-        self.viz = viz
         
+        self.viz_list = setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(2, 2))
+                
         self.simulation_start_time = self.ts.now()
         self.real_start_time = time.perf_counter()
         self.update_count = 0
@@ -873,7 +885,7 @@ class Simulation:
 
         self.update_space()
 
-        self.solver:mr_solver = solver
+        self.solver:mr_solver = mr_solver()
         self.solver.init_edges(self.filtered_repeated, self.filtered_expanded, self.positions)
 
     def get_simulation_time(self):
@@ -905,8 +917,10 @@ class Simulation:
     def _update_earth_rotation(self):
         logger.debug(f'Updating Earth rotation... {self.update_count}')
         """Update the Earth's rotation transformation."""
-        self.viz['sphere_visual'].transform.reset()
-        self.viz['sphere_visual'].transform.rotate(self.compute_rotation(), (0, 0, 1))
+        rotation_angle = self.compute_rotation()
+        for viz in self.viz_list:
+            viz['sphere_visual'].transform.reset()
+            viz['sphere_visual'].transform.rotate(rotation_angle, (0, 0, 1))
 
     def _update_satellite_positions(self):
         logger.debug(f'Updating satellite positions and velocities... {self.update_count}')
@@ -924,7 +938,9 @@ class Simulation:
         self.positions = positions @ R_teme_to_icrs
         self.velocities = velocities @ R_teme_to_icrs
 
-        self.viz['scatter'].set_data(self.positions, face_color=[0, 0, 0, 0.5], size=10, edge_width=0)
+        for viz in self.viz_list:
+            # Update the satellite markers.
+            viz['scatter'].set_data(self.positions, face_color=[0, 0, 0, 0.5], size=10, edge_width=0)
 
     def _update_satellite_arrows(self):
         logger.debug(f'Updating satellite arrows... {self.update_count}')
@@ -942,7 +958,9 @@ class Simulation:
             arrow_color[num_arrows // 2: 3 * num_arrows // self.N_LCT_PER_SAT, :] = self.RIGHT_COLOR
             arrow_color[3 * num_arrows // self.N_LCT_PER_SAT:, :] = self.LEFT_COLOR
 
-            self.viz['arrow'].set_data(pos=a_data, color=arrow_color, width=10, connect='segments')
+            for viz in self.viz_list:
+                # Update the satellite arrows.
+                viz['arrow'].set_data(pos=a_data, color=arrow_color, width=10, connect='segments')
 
     def _update_p_satp(self):
         logger.debug(f'Updating potential satellite pairs... {self.update_count}')
@@ -999,33 +1017,13 @@ class Simulation:
             # Build the color array using np.array for clarity.
             edges_color_data, p_lisl_data = optimize_edge_and_color_data(self.EDGE_COLOR, self.filtered_repeated, self.filtered_expanded, self.positions)
             edges_color_data[:, 3] = 0.25
-            self.viz['p_lisl'].set_data(pos=p_lisl_data, color=edges_color_data, width=0.0001, connect='segments')
+            for viz in self.viz_list:
+                # Update the potential LISL lines.
+                viz['p_lisl'].set_data(pos=p_lisl_data, color=edges_color_data, width=0.0001, connect='segments')
             
         toc = time.perf_counter()
         self.profiled_time['draw_p_lisl'] = toc - tic
-    
-    def _update_c_lisl(self, edge_weight=None):
-        # Compute the matching for the LISL edges.
-        # Compute the weighted edges for the matching.
-        tic = time.perf_counter()
-        edge_from = self.positions[self.connected_sat[:, 0]]
-        edge_to = self.positions[self.connected_sat[:, 1]]
-        if edge_weight is None:
-            edge_weight = np.ones(self.connected_sat.shape[0], dtype=self.EDGE_COLOR.dtype)
-        
-        edge_weight = edge_weight.reshape(-1, 1)
-        
-        c_lisl_data = np.concatenate((edge_from, edge_to), axis=1).reshape(-1, 3)
-        edges_color_data = np.zeros((c_lisl_data.shape[0], 4), dtype=self.EDGE_COLOR.dtype)
-        if edge_weight is not None:
-            edges_color_data[:, 3] = np.concatenate((edge_weight, edge_weight), axis=1).reshape(-1)
-        else:
-            edges_color_data[:, 3] = 1
-            
-        self.viz['c_lisl'].set_data(pos=c_lisl_data, color=edges_color_data, width=5, connect='segments')
-        toc = time.perf_counter()
-        self.profiled_time['draw_matching'] = toc - tic
-       
+           
     def update_space(self):
         """
         inital update function called on each timer tick to update the simulation.
@@ -1060,70 +1058,110 @@ class Simulation:
             self._update_p_lisl()
             toc = time.perf_counter()
             self.profiled_time['_update_p_lisl'] = toc - tic
-                        
-            text = ""
-            text += f"#n_sats: {self.positions.shape[0]}\n"
-            text += f"#n_q_es: {self.edges.shape[0]}\n"
-            text += f"#n_p_sp: {self.filtered_edges.shape[0]}\n"
-            text += f"#n_p_lp: {self.filtered_expanded.shape[0]}\n"
-            text += f"FOR_THETA: +/-{self.FOR_THETA:.0f}°\n"
-            text += f"MAX_DIST: {self.LISL_MAX_DISTANCE:.0f} km\n"
-            self.viz['text_top'].text = text
-            
-            
-            text = ""
-            text += f"AVG: {self.average_update_time:.4f} s\n"
-            text += f"UPD: {self.update_count}\n"
-            text += f"TOT: {time.perf_counter() - self.real_start_time:.2f} s\n"
-            text += f"FPS: {1./self.average_update_time:.2f}\n"
-            text += f"TSc: {self.TIME_SCALE:.2f}\n"
-            text += f"SWT: {self.accumulated_update_time*self.TIME_SCALE:.2f} s\n"
-            text += f"DAT: {self.get_simulation_time().utc_strftime('%Y-%m-%d %H:%M:%S')}\n"
-            text += f"CPU: {psutil.cpu_percent()}%\n"
-            text += f"MEM: {psutil.Process().memory_info().rss / 1e6:.2f} MB\n"
-            self.viz['text_bot'].text = text
-            
-            text = ""
-            for key, value in self.profiled_time.items():
-                text += f"{key}: {value:.4f} s\n"
-            self.viz['text_top_right'].text = text
+
+            if self.PLOT_TEXT:        
+                text = ""
+                text += f"#n_sats: {self.positions.shape[0]}\n"
+                text += f"#n_q_es: {self.edges.shape[0]}\n"
+                text += f"#n_p_sp: {self.filtered_edges.shape[0]}\n"
+                text += f"#n_p_lp: {self.filtered_expanded.shape[0]}\n"
+                text += f"FOR_THETA: +/-{self.FOR_THETA:.0f}°\n"
+                text += f"MAX_DIST: {self.LISL_MAX_DISTANCE:.0f} km\n"
+                for viz in self.viz_list:
+                    viz['text_top_left'].text = text
+                
+                text = ""
+                text += f"AVG: {self.average_update_time:.4f} s\n"
+                text += f"UPD: {self.update_count}\n"
+                text += f"TOT: {time.perf_counter() - self.real_start_time:.2f} s\n"
+                text += f"FPS: {1./self.average_update_time:.2f}\n"
+                text += f"TSc: {self.TIME_SCALE:.2f}\n"
+                text += f"SWT: {self.accumulated_update_time*self.TIME_SCALE:.2f} s\n"
+                text += f"DAT: {self.get_simulation_time().utc_strftime('%Y-%m-%d %H:%M:%S')}\n"
+                text += f"CPU: {psutil.cpu_percent()}%\n"
+                text += f"MEM: {psutil.Process().memory_info().rss / 1e6:.2f} MB\n"
+                for viz in self.viz_list:
+                    viz['text_bot_left'].text = text
+                    
+                text = ""
+                for key, value in self.profiled_time.items():
+                    text += f"{key}: {value:.4f} s\n"
+                
+                for viz in self.viz_list:
+                    viz['text_top_right'].text = text
+                    
         except Exception as e:
             logger.error("Unexpected error during update: %s", e)
-
+            # Stop the simulation
+            app.quit()
+            
         elapsed = time.perf_counter() - start_time
         self.accumulated_update_time += elapsed
         self.average_update_time = 0.9 * self.average_update_time + 0.1 * elapsed
 
+    def _update_o_lisl(self, satp = None, edge_weight=None, viz=None):
+        # Update optional LISL lines.
+        tic = time.perf_counter()
+        if viz is not None:
+            edge_from = self.positions[satp[:, 0]]
+            edge_to = self.positions[satp[:, 1]]
+            if edge_weight is None:
+                edge_weight = np.ones(satp.shape[0], dtype=self.EDGE_COLOR.dtype)
+            
+            edge_weight = edge_weight.reshape(-1, 1)
+            
+            o_lisl_data = np.concatenate((edge_from, edge_to), axis=1).reshape(-1, 3)
+            edges_color_data = np.zeros((o_lisl_data.shape[0], 4), dtype=self.EDGE_COLOR.dtype)
+            if edge_weight is not None:
+                edges_color_data[:, 3] = np.concatenate((edge_weight, edge_weight), axis=1).reshape(-1)
+            else:
+                edges_color_data[:, 3] = 1
+            
+            viz['o_lisl'].set_data(pos=o_lisl_data, color=edges_color_data, width=1, connect='segments')
+        
+        toc = time.perf_counter()
+        self.profiled_time['draw_matching'] = toc - tic
+
     def update(self, event):
         """
-        Dummy update function to keep the timer running.
+        Update the simulation at each timer tick.
         """
         logger.debug(f"Timer event triggered. Update count: {self.update_count}")
         self.update_count += 1
         
-        # Check the constellation connectivity
-        connected, comp = self.solver.check_connected()
-        logger.info(f"Constellation is connected: {connected}")
+        try:
+            # Check the constellation connectivity
+            connected, comp = self.solver.check_connected()
+            logger.info(f"Constellation is connected: {connected}")
+            
+            # Compute the dual matching.
+            self.connected_sat, self.connected_lct = self.solver.get_dual_matching()
+            logger.info(f"Connected SATP: {self.connected_sat.shape[0]}, Connected LISL: {self.connected_lct.shape[0]}")
+            
+            # Show capacity and distance
+            distance = np.linalg.norm(self.positions[self.connected_sat[:, 0]] - self.positions[self.connected_sat[:, 1]], axis=1)
+            connected_capacity = self.solver.compute_capacity(distance)
+            logger.info(f"Connected Capacity: {connected_capacity}, distance: {distance}")
+            logger.info(f"Max Capacity: {np.max(connected_capacity):.2f}, Min Capacity: {np.min(connected_capacity):.2f}")
+            
+            edge_weight = 1-np.exp(-connected_capacity)
+            self._update_o_lisl(satp=self.connected_sat, edge_weight=edge_weight, viz=self.viz_list[0])
+            
+            # Compute the dual srouting.
+            self.srouting = self.solver.get_dual_srouting()
+            logger.info(f"Routing shape: {self.srouting.shape}")
+            self._update_o_lisl(satp=self.srouting[:,0:2].astype(np.int64), edge_weight=None, viz=self.viz_list[1]) 
+            
+            # Update the step edge prices.
+            self.solver.update_step_edge_prices(self.connected_lct, self.srouting)
+            prices = self.solver.price_graph.get_prices(self.filtered_repeated)
+            edge_weight = prices/np.max(prices)
+            self._update_o_lisl(satp=self.filtered_repeated, edge_weight=edge_weight, viz=self.viz_list[2])
         
-        # Compute the dual matching.
-        self.connected_sat, self.connected_lct = self.solver.get_dual_matching()
-        logger.info(f"Connected SATP: {self.connected_sat.shape[0]}, Connected LISL: {self.connected_lct.shape[0]}")
-        
-        # Show capacity and distance
-        distance = np.linalg.norm(self.positions[self.connected_sat[:, 0]] - self.positions[self.connected_sat[:, 1]], axis=1)
-        connected_capacity = self.solver.compute_capacity(distance)
-        logger.info(f"Connected Capacity: {connected_capacity}, distance: {distance}")
-        logger.info(f"Max Capacity: {np.max(connected_capacity):.2f}, Min Capacity: {np.min(connected_capacity):.2f}")
-        connected_capacity[connected_capacity > 1] = 1
-        self._update_c_lisl(connected_capacity)
-        
-        # Compute the dual srouting.
-        self.srouting = self.solver.get_dual_srouting()
-        logger.info(f"Routing shape: {self.srouting.shape}")
-        
-        # Update the step edge prices.
-        self.solver.update_step_edge_prices(self.connected_lct, self.srouting)
-        
+        except Exception as e:
+            logger.error("Error during update: %s", e, exc_info=True)
+            # Stop the simulation
+            app.quit()
                 
 if __name__ == '__main__':
     logger.level = logging.DEBUG
@@ -1131,18 +1169,13 @@ if __name__ == '__main__':
     satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle'
     # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=tle'
     # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'
-    ts, valid_satellites, sat_array = load_starlink_data(satellite_url, reload=True)
-
-    # Set up visualization.
-    viz = setup_visualization()
-
-    # Set a mr_solver
-    solver = mr_solver()
+    # ts, valid_satellites, sat_array = load_url_tle_data(satellite_url, reload=True)
+    ts, valid_satellites, sat_array = generate_walker_constellation()
 
     # Create simulation instance.
-    simulation = Simulation(ts, sat_array, viz, solver)
+    simulation = Simulation(ts, sat_array)
 
     # Set up a timer to update the simulation at roughly 60 FPS.
-    timer1 = app.Timer(interval=0.0001, connect=simulation.update, iterations=10000,start=True)
-    timer2 = app.Timer(interval=1/60.,start=True)
+    timer1 = app.Timer(interval=0.0001, connect=simulation.update, iterations=10000, start=True)
+    timer2 = app.Timer(interval=1/60., start=True)
     app.run()

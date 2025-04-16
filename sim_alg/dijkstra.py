@@ -299,6 +299,25 @@ def multi_dijkstra_with_paths(num_nodes, indptr, indices, data, sources, targets
     return costs, lengths, paths_all
 
 @numba.njit(parallel=True, cache=True)
+def multi_dijkstra_with_paths_aw_b(num_nodes, indptr, indices, sources, targets, weights, a, b):
+    n_queries = sources.shape[0]
+    costs = np.empty(n_queries, dtype=np.float64)
+    lengths = np.empty(n_queries, dtype=np.int64)
+    paths_all = -np.ones((n_queries, num_nodes), dtype=np.int64)
+    
+    for i in prange(n_queries):
+        s = sources[i]
+        t = targets[i]
+        data = weights * a[i] + b
+        cost, length, path = single_dijkstra_with_path(num_nodes, indptr, indices, data, s, t)
+        costs[i] = cost
+        lengths[i] = length
+        for j in range(num_nodes):
+            paths_all[i, j] = path[j]
+    
+    return costs, lengths, paths_all
+
+@numba.njit(parallel=True, cache=True)
 def construct_edges_matrix_all_in_one(sources, targets, costs, lengths, paths_all):
     """
     Constructs a result matrix (with shape (total_edges, 5)) from the output of multi_dijkstra_with_paths.
@@ -313,7 +332,8 @@ def construct_edges_matrix_all_in_one(sources, targets, costs, lengths, paths_al
           Column 3 : targets[i]          (the overall target for the query)
           Column 4 : costs[i]            (the s-t pair’s cost/weight)
           Column 5 : i                  (the index of the query)
-    
+          Column 6 : 0 or 1             (0 if unreachable, 1 if reachable)    
+          
     The function first computes how many edges exist in total over all queries,
     by summing (lengths[i] - 1) for each query i, and also computes a prefix offset
     array so that for query i the results will be stored beginning at that offset.
@@ -341,7 +361,7 @@ def construct_edges_matrix_all_in_one(sources, targets, costs, lengths, paths_al
             offsets[i] = offsets[i - 1] + (lengths[i - 1] - 1)
     
     # Allocate the result matrix
-    result = np.empty((total_edges, 6), dtype=np.float64)
+    result = np.empty((total_edges, 7), dtype=np.float64)
     
     # Fill the result matrix in parallel over queries
     for i in prange(Q):
@@ -360,7 +380,11 @@ def construct_edges_matrix_all_in_one(sources, targets, costs, lengths, paths_al
             result[start_idx + j, 2] = src                   # s-t query source (same for all edges in this query)
             result[start_idx + j, 3] = tgt                   # s-t query target
             result[start_idx + j, 4] = cost                  # s-t query cost
-            result[start_idx + j, 5] = i                     # s-t query index
+            result[start_idx + j, 5] = i                 # s-t query index
+            if cost >= 1e12:
+                result[start_idx + j, 6] = 0                # unreachable
+            else:
+                result[start_idx + j, 6] = 1                # reachable
     return result
 
 # ------------------------------------------------------------------------------
@@ -387,6 +411,7 @@ if __name__ == "__main__":
     sources = np.array([0, 1, 1], dtype=np.int64)
     targets = np.array([3, 3, 2], dtype=np.int64)
     
+    data = np.tile(data, (sources.shape[0], 1)) # Repeat data for each query.
     costs, lengths, paths_all = multi_dijkstra_with_paths(num_nodes, indptr, indices, data, sources, targets)
     
     for i in range(sources.shape[0]):
