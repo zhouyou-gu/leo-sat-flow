@@ -118,7 +118,7 @@ def random_source_target_pairs(N, P):
     return sources, targets
 
 class price_graph:
-    def __init__(self, n_sat, possible_sat_pair_expanded, initial_prices=0.1):
+    def __init__(self, n_sat, possible_sat_pair_expanded, initial_prices=10):
         self.n_sat = n_sat
         # Initialize edge prices
         csr_pair = build_csr(self.n_sat, possible_sat_pair_expanded, np.ones(possible_sat_pair_expanded.shape[0])*initial_prices)
@@ -146,13 +146,13 @@ class mr_solver:
     WAVELENGTH = 1.55e-6  # Wavelength in meters (1.55 microns typical in telecom)
     ANGULAR_SPREADING = 100e-6  # Angular spreading in radians
     BEAM_WAIST = w0_from_angular_spreading(ANGULAR_SPREADING, WAVELENGTH)  # Beam waist in meters
-    PEAK_POWER_W = 10  # Convert dBm to Watts
+    PEAK_POWER_W = 20  # Convert dBm to Watts
     BANDWIDTH = 1e9  # 1 GHz bandwidth
     RESPONSIVITY = 0.5  # 0.8 A/W responsivity
     APERTURE_AREA = 1e-2  # Area in m^2 (example)
     NOISE_CURRENT = 3e-7  # Example noise in A rms
     JITTER = 10e-6  # Jitter in radians
-    EPSILON = 1e-5  # Epsilon for relaxed capacity calculations
+    EPSILON = 1e-3  # Epsilon for relaxed capacity calculations
 
     EARTH_RADIUS = 6371e3  # Earth radius in meters
     N_LCT_PER_SAT = 4  # Number of LCTs per satellite
@@ -228,7 +228,11 @@ class mr_solver:
         logging.info("Computing dual srouting")
         prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
         indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
+        logging.info("build csr done")
+        print(f"source: {self.data_source}, target: {self.data_target}, data rate: {self.s_t_data_rate}")
         costs, lengths, paths_all = multi_dijkstra_with_paths_aw_b(self.n_sat, indptr, indices, self.data_source, self.data_target, data, self.s_t_data_rate, 1)
+        logging.info("Computing dual srouting done")
+
         if debug:
             for i in range(self.data_source.shape[0]):
                 if costs[i] < 1e12:
@@ -284,12 +288,34 @@ class mr_solver:
 
     def get_prim_srouting(self):
         logging.info("Computing prim srouting")
-        connected_sat, connected_lct = self.get_dual_matching()        
+        
+        # Compute the matching
+        connected_sat, connected_lct = self.get_dual_matching() 
+        
+        # Compute the edge capacity for the connected satellites
+        capacity_on_graph = self.compute_capacity(
+            np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
+        )
+        indptr, indices, data = build_csr(self.n_sat, connected_sat, capacity_on_graph, merging_method='sum')
+        capacity_on_graph = csr_to_edge_list(indptr, indices, data)
+        
+        # Compute the srouting with connected satellites
         prices = self.price_graph.get_prices(connected_sat)
-        indptr, indices, data = build_csr(self.n_sat, connected_sat, prices)
-        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
+        indptr, indices, prices = build_csr(self.n_sat, connected_sat, prices)
+        costs, lengths, paths_all = multi_dijkstra_with_paths_aw_b(self.n_sat, indptr, indices, self.data_source, self.data_target, prices, self.s_t_data_rate, 1)
         
         srouting = construct_edges_matrix_all_in_one(self.data_source, self.data_target, self.s_t_data_rate, lengths, paths_all)
         srouting = srouting[srouting[:, -1] >= 0]
         
-        return srouting        
+        # Compute the traffic load for the srouting
+        indptr, indices, data = build_csr(self.n_sat, srouting[:, 0:2], srouting[:, 4], merging_method='sum')
+        traffic_load_edge_list = csr_to_edge_list(indptr, indices, data)
+
+        # Compute the capacity on the routes        
+        capacity_on_routes = extract_weights(traffic_load_edge_list[:, 0:2], capacity_on_graph)
+ 
+        traffic_load_and_capacity = np.concatenate((traffic_load_edge_list, capacity_on_routes.reshape(-1, 1)), axis=1)
+        
+        print("Traffic load: \n", traffic_load_and_capacity[:, 2])
+        print("Capacity: \n", traffic_load_and_capacity[:, 3])
+        return traffic_load_and_capacity        

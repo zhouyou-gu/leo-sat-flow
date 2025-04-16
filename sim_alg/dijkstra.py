@@ -177,8 +177,10 @@ def build_csr(num_nodes, edges, weights, merging_method='avg'):
 # ------------------------------------------------------------------------------
 # Step 2. Custom heap for Dijkstra.
 # ------------------------------------------------------------------------------
-@numba.njit(cache=True)
+@numba.njit(boundscheck=True, cache=True)   # enable bounds checking
 def heap_push(heap_cost, heap_node, size, cost, node):
+    if size >= heap_cost.size:
+        raise IndexError("heap overflow")
     heap_cost[size] = cost
     heap_node[size] = node
     pos = size
@@ -238,7 +240,7 @@ def single_dijkstra_with_path(num_nodes, indptr, indices, data, source, target):
     dist[source] = 0.0
     prev = -1 * np.ones(num_nodes, dtype=np.int64)
     
-    max_heap_size = num_nodes
+    max_heap_size = indices.size
     heap_cost = np.empty(max_heap_size, dtype=np.float64)
     heap_node = np.empty(max_heap_size, dtype=np.int64)
     heap_size = 0

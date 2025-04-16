@@ -1099,7 +1099,7 @@ class Simulation:
         self.accumulated_update_time += elapsed
         self.average_update_time = 0.9 * self.average_update_time + 0.1 * elapsed
 
-    def _update_o_lisl(self, satp = None, edge_weight=None, viz=None):
+    def _update_o_lisl(self, satp = None, edge_weight=None, viz=None, binary=False):
         # Update optional LISL lines.
         tic = time.perf_counter()
         if viz is not None:
@@ -1107,16 +1107,23 @@ class Simulation:
             edge_to = self.positions[satp[:, 1]]
             if edge_weight is None:
                 edge_weight = np.ones(satp.shape[0], dtype=self.EDGE_COLOR.dtype)
-            
+
             edge_weight = edge_weight.reshape(-1, 1)
             
             o_lisl_data = np.concatenate((edge_from, edge_to), axis=1).reshape(-1, 3)
-            edges_color_data = np.zeros((o_lisl_data.shape[0], 4), dtype=self.EDGE_COLOR.dtype)
-            if edge_weight is not None:
-                edges_color_data[:, 3] = np.concatenate((edge_weight, edge_weight), axis=1).reshape(-1)
+            if not binary:
+                edges_color_data = np.zeros((o_lisl_data.shape[0], 4), dtype=self.EDGE_COLOR.dtype)
+                if edge_weight is not None:
+                    edges_color_data[:, 3] = np.concatenate((edge_weight, edge_weight), axis=1).reshape(-1)
+                else:
+                    edges_color_data[:, 3] = 1
             else:
+                edges_color_data = np.zeros((o_lisl_data.shape[0], 4), dtype=self.EDGE_COLOR.dtype)
                 edges_color_data[:, 3] = 1
-            
+                edge_weight_red = (edge_weight > 0.5).astype(np.float32)
+                edge_weight_green = (edge_weight < 0.5).astype(np.float32)
+                edges_color_data[:, 0] = np.concatenate((edge_weight_red, edge_weight_red), axis=1).reshape(-1)
+                edges_color_data[:, 1] = np.concatenate((edge_weight_green, edge_weight_green), axis=1).reshape(-1)
             viz['o_lisl'].set_data(pos=o_lisl_data, color=edges_color_data, width=1, connect='segments')
         
         toc = time.perf_counter()
@@ -1158,11 +1165,20 @@ class Simulation:
             edge_weight = prices/np.max(prices)
             self._update_o_lisl(satp=self.filtered_repeated, edge_weight=edge_weight, viz=self.viz_list[2])
         
+            # Compute the prim srouting.
+            traffic_load_and_capacity = self.solver.get_prim_srouting()
+            overflow = traffic_load_and_capacity[:,2] > traffic_load_and_capacity[:,3]
+            overflow = overflow.astype(np.float32).flatten()
+            self._update_o_lisl(satp=traffic_load_and_capacity[:,0:2].astype(np.int64), edge_weight=overflow, viz=self.viz_list[3], binary=True)
+
         except Exception as e:
             logger.error("Error during update: %s", e, exc_info=True)
             # Stop the simulation
             app.quit()
-                
+        cpu_usage = psutil.cpu_percent()
+        mem_usage = psutil.Process().memory_info().rss / 1e6
+        logger.info(f"CPU Usage: {cpu_usage}%, Memory Usage: {mem_usage:.2f} MB")    
+        
 if __name__ == '__main__':
     logger.level = logging.DEBUG
     # Load Starlink data.

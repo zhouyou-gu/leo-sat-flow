@@ -38,7 +38,7 @@ if __name__ == "__main__":
     w0 = w0_from_angular_spreading(100e-6, wavelength)  # Beam waist in meters
     z_values = np.geomspace(1, 3e6, 100)  # from 0 to 3000 km
     rho = 0.0        # on-axis, for example
-    P = 10  # Watts
+    P = 20  # Watts
     # Compute intensity vs. z at rho=0
     I_on_axis = np.array([gaussian_beam_intensity(P, w0, wavelength, rho, z) for z in z_values])
     
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     C_on_axis = np.array([capacity_lower_bound(B, R, A, N0, P, w0, wavelength, rho, z) for z in z_values])
     
     sigma_jitter = 10e-6 # Jitter in radians
-    epsilon = 1e-5
+    epsilon = 1e-3
     # C_relaxed = np.array([capacity_relaxed(B, R, A, N0, P, w0, wavelength, z, sigma_jitter, epsilon) for z in z_values])    
     C_relaxed = capacity_relaxed(B, R, A, N0, P, w0, wavelength, z_values, sigma_jitter, epsilon)
     plt.figure(figsize=(10, 6))
