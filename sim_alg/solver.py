@@ -157,6 +157,7 @@ class mr_solver:
     EARTH_RADIUS = 6371e3  # Earth radius in meters
     N_LCT_PER_SAT = 4  # Number of LCTs per satellite
     
+    MIN_CAPACITY = 1
     
     def __init__(self):
         self.ALPHA = 0.5
@@ -175,10 +176,16 @@ class mr_solver:
         
     
         self.price_graph: price_graph = None
-        
+                
     def init_edges(self, possible_sat_pair_expanded, possible_lct_pair_expanded, positions):
         self.possible_sat_pair_expanded = possible_sat_pair_expanded
         self.possible_lct_pair_expanded = possible_lct_pair_expanded
+        
+        capacity = self.compute_capacity(
+            np.linalg.norm(positions[self.possible_sat_pair_expanded[:, 0]] - positions[self.possible_sat_pair_expanded[:, 1]], axis=1)
+        )
+        self.possible_sat_pair_expanded = self.possible_sat_pair_expanded[capacity > self.MIN_CAPACITY]
+        self.possible_lct_pair_expanded = self.possible_lct_pair_expanded[capacity > self.MIN_CAPACITY]
         
         # Initialize edge capacities
         num_edges = len(possible_lct_pair_expanded)
