@@ -118,7 +118,7 @@ def random_source_target_pairs(N, P):
     return sources, targets
 
 class price_graph:
-    def __init__(self, n_sat, possible_sat_pair_expanded, initial_prices=10):
+    def __init__(self, n_sat, possible_sat_pair_expanded, initial_prices=0.):
         self.n_sat = n_sat
         # Initialize edge prices
         csr_pair = build_csr(self.n_sat, possible_sat_pair_expanded, np.ones(possible_sat_pair_expanded.shape[0])*initial_prices)
@@ -157,9 +157,11 @@ class mr_solver:
     EARTH_RADIUS = 6371e3  # Earth radius in meters
     N_LCT_PER_SAT = 4  # Number of LCTs per satellite
     
-    ALPHA = 0.1  # Learning rate for edge price updates
     
     def __init__(self):
+        self.ALPHA = 0.5
+        self.counter = 0
+        
         self.n_sat = 0
         self.positions = None
         self.possible_sat_pair_expanded = None
@@ -257,6 +259,7 @@ class mr_solver:
         return num_components == 1, comp
     
     def update_step_edge_prices(self, connected_lct, srouting):
+        self.counter += 1
         logging.info("Updating edge prices")
         num_nodes = self.n_sat
         traffic = srouting[:,4]
@@ -278,12 +281,13 @@ class mr_solver:
         old_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
         logger.info(f"Oe: max: {np.max(old_price)}, min: {np.min(old_price)}")
         
-        d_price_graph = self.ALPHA * (qx_csr - rc_csr)
+        d_price_graph = (self.ALPHA/np.sqrt(self.counter)) * (qx_csr - rc_csr)
         self.price_graph.add_prices(d_price_graph)    
         
         new_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
         logger.info(f"Ne: max: {np.max(new_price)}, min: {np.min(new_price)}")
         
+        logger.info(f"Sz: {self.ALPHA/np.sqrt(self.counter)}")
         return new_price
 
     def get_prim_srouting(self):

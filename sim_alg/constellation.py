@@ -135,7 +135,39 @@ def generate_walker_constellation(sats_per_plane = 100, planes = 30, phasing = 1
         tle = generate_tle(i + 1, epoch_str, inclination, raan, eccentricity,
                            arg_perigee, mean_anomaly, mean_motion, rev_num)
         tle_list.append(tle)
+         
+    return fetch_valid_sat_from_tle_list(tle_list)
+
+
+def generate_walker_constellation_add_planes(sats_per_plane = 100, planes = 2, d_raan = 20, phasing = 1, epoch = datetime(2025, 1, 1),
+                                  inclination=50, eccentricity=0.0001, arg_perigee = 0., mean_motion=15.0):
+    """
+    Generate a Walker Delta constellation by assigning RAAN and mean anomaly for each satellite.
+    Satellites are distributed evenly across the planes and within each plane.
+    """
+    total_sats = sats_per_plane * planes
+    epoch_str = format_epoch(epoch)
+    tle_list = []
     
+    for i in range(total_sats):
+        # Determine which orbital plane and the satellite's slot in that plane.
+        plane = i % planes         # Plane index: 0 to (planes - 1)
+        sat_in_plane = i // planes   # Position within the plane
+        
+        # RAAN is evenly spread among the orbital planes.
+        raan = plane * d_raan
+        
+        # Evenly spaced mean anomaly within the plane, with an offset for relative phasing.
+        mean_anomaly = (sat_in_plane * (360.0 / sats_per_plane) +
+                        plane * (360.0 / total_sats) * phasing) % 360.0
+        
+        # rev_num is a placeholder representing the satellite's order in its plane.
+        rev_num = sat_in_plane + 1
+        
+        tle = generate_tle(i + 1, epoch_str, inclination, raan, eccentricity,
+                           arg_perigee, mean_anomaly, mean_motion, rev_num)
+        tle_list.append(tle)
+         
     return fetch_valid_sat_from_tle_list(tle_list)
 
 

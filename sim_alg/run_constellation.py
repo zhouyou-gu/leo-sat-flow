@@ -31,7 +31,7 @@ from vispy.visuals.filters import TextureFilter
 from vispy.visuals.transforms import MatrixTransform, STTransform
 from vispy import gloo
 
-from sim_alg.constellation import load_url_tle_data, generate_walker_constellation
+from sim_alg.constellation import generate_walker_constellation_add_planes, load_url_tle_data, generate_walker_constellation
 
 from sim_alg.lisl_channel_model import capacity_relaxed
 from sim_alg.solver import mr_solver
@@ -1109,6 +1109,8 @@ class Simulation:
                 edge_weight = np.ones(satp.shape[0], dtype=self.EDGE_COLOR.dtype)
 
             edge_weight = edge_weight.reshape(-1, 1)
+            edge_from = edge_from * (1 + 0.0001 * edge_weight)
+            edge_to = edge_to * (1 + 0.0001 * edge_weight)
             
             o_lisl_data = np.concatenate((edge_from, edge_to), axis=1).reshape(-1, 3)
             if not binary:
@@ -1182,11 +1184,15 @@ class Simulation:
 if __name__ == '__main__':
     logger.level = logging.DEBUG
     # Load Starlink data.
-    satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle'
+    ts, valid_satellites, sat_array = generate_walker_constellation()
+    # ts, valid_satellites, sat_array = generate_walker_constellation_add_planes()
+
+    
+    # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle'
     # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=tle'
     # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'
+
     # ts, valid_satellites, sat_array = load_url_tle_data(satellite_url, reload=True)
-    ts, valid_satellites, sat_array = generate_walker_constellation()
 
     # Create simulation instance.
     simulation = Simulation(ts, sat_array)
