@@ -3,6 +3,41 @@ import numpy as np
 import math
 
 @njit(parallel=True,cache=True)
+def rotation_matmul(A: np.ndarray, rot: np.ndarray) -> np.ndarray:
+    """
+    Perform parallel matrix multiplication of an (k x 3) matrix A with a (3 x 3) matrix B.
+
+    Parameters
+    ----------
+    A : np.ndarray
+        Input matrix of shape (k, 3).
+    B : np.ndarray
+        Input matrix of shape (3, 3).
+
+    Returns
+    -------
+    np.ndarray
+        Output matrix of shape (k, 3), result of A @ B.
+    """
+    # Ensure input dimensions
+    k, n = A.shape
+    if n != 3 or rot.shape != (3, 3):
+        raise ValueError("A must have shape (k,3) and B must have shape (3,3)")
+
+    # Allocate output
+    C = np.empty((k, 3), dtype=A.dtype)
+
+    # Parallel loop over rows of A
+    for i in prange(k):
+        # Compute dot product of A[i, :] with each column of B
+        for j in range(3):
+            tmp = 0.0
+            for l in range(3):
+                tmp += A[i, l] * rot[l, j]
+            C[i, j] = tmp
+    return C
+
+@njit(parallel=True,cache=True)
 def update_arrows(velocities, positions):
     """
     Compute the direction arrows in parallel.

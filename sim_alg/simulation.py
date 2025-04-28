@@ -1,0 +1,399 @@
+import math
+import time
+
+import psutil
+import numpy as np
+from scipy.spatial import cKDTree
+
+from skyfield.api import load
+from skyfield.sgp4lib import TEME
+
+from sim_alg.visual import *
+from sim_alg.tle import *
+from sim_alg.constellation import *
+
+from sim_alg.solver import mr_solver
+
+import logging
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+np.set_printoptions(precision=3, suppress=True)
+
+class Simulation:
+    FOR_THETA: float = 30.0  # Angle in degrees for the satellite LT direction.
+    LISL_MAX_DISTANCE: float = 3000.0  # Maximum distance for LISL in km.
+    TIME_SCALE: float = 10.0
+    EARTH_RADIUS: float = 6371.0  # Earth's radius in km.
+    
+    N_LCT_PER_SAT: int = 4  # Number of LCTs per satellite.
+    
+    JITTER_SIGMA_URAD = 10
+    
+    PLOT_POTENTIAL_LISL: bool = False    
+    PLOT_SATELLITE_LCTS: bool = True
+    PLOT_TEXT: bool = False
+    
+    FRONT_COLOR = np.array([0, 0, 0.85, 1])
+    BACK_COLOR = np.array([0.05, 0.75, 0.05, 1])
+    RIGHT_COLOR = np.array([1, 0, 0, 1])
+    LEFT_COLOR = np.array([0.75, 0.75, 0, 1])
+    
+    EDGE_COLOR = np.array([FRONT_COLOR,BACK_COLOR,RIGHT_COLOR,LEFT_COLOR])
+
+    def __init__(self, ts, sat_array):
+        """
+        Initialize the simulation.
+
+        Parameters:
+            ts: Skyfield timescale.
+            sat_array: Vectorized satellite propagation array.
+        """
+        self.ts = ts
+        self.sat_array = sat_array
+        
+        self.viz_list = self.setup_visualization()
+                
+        self.simulation_start_time = self.ts.now()
+        self.real_start_time = time.perf_counter()
+        self.update_count = 0
+        self.accumulated_update_time = 0
+        self.average_update_time = 1
+
+        # Initialize satellite positions and velocities.
+        self.positions = None
+        self.velocities = None
+        # Initialize directional vectors.
+        self.front = None
+        self.back = None
+        self.down = None
+        self.right = None
+        self.left = None
+        
+        # Initialize p_satp edges and directions.
+        self.edges = None
+        self.directions = None
+        # Initialize view stacks.
+        self.view_from_stack = None
+        self.view_to_stack = None
+        
+        # Initialize potential LISL edges and view stacks.
+        self.filtered_edges = None
+        self.filtered_repeated = None
+        self.filtered_expanded = None
+        
+        # Precompute cosine threshold once.
+        self.cos_threshold = math.cos(math.radians(self.FOR_THETA))
+        self.view_LT_pair_min_cos = None
+        
+        # Initialize the connected satellite and LISL data.
+        self.connected_sat = None
+        self.connected_lct = None
+
+        # Initialize the routing
+        self.srouting = None
+
+        self.profiled_time = {}       
+
+        self.update_space()
+
+        self.solver:mr_solver = mr_solver()
+        self.solver.init_edges(self.filtered_repeated, self.filtered_expanded, self.positions)
+
+    def setup_visualization(self):
+        return setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(2, 2))        
+
+    def get_simulation_time(self):
+        """
+        Compute the current simulation time based on the time scaling factor.
+
+        Returns:
+            Skyfield Time: The current simulation time.
+        """
+        elapsed_real = time.perf_counter() - self.real_start_time
+        elapsed_scaled = elapsed_real * self.TIME_SCALE
+        delta_days = elapsed_scaled / 86400  # Convert seconds to days.
+        new_tt_jd = self.simulation_start_time.tt + delta_days
+        return self.ts.tt(jd=new_tt_jd)
+
+    def compute_rotation(self) -> float:
+        """
+        Compute the initial rotation angle from the current GMST.
+
+        Returns:
+            float: Rotation angle in degrees.
+        """
+        t_now = self.get_simulation_time()
+        gmst_hours = t_now.gmst
+        rotation_angle_deg = gmst_hours * 15  # 15° per hour.
+        logger.debug("GMST: %.2f hours, Rotation angle: %.2f degrees", gmst_hours, rotation_angle_deg)
+        return rotation_angle_deg
+
+    def _update_earth_rotation(self):
+        logger.debug(f'Updating Earth rotation... {self.update_count}')
+        """Update the Earth's rotation transformation."""
+        rotation_angle = self.compute_rotation()
+        for viz in self.viz_list:
+            viz['sphere_visual'].transform.reset()
+            viz['sphere_visual'].transform.rotate(rotation_angle, (0, 0, 1))
+
+    def _update_satellite_positions(self):
+        logger.debug(f'Updating satellite positions and velocities... {self.update_count}')
+        """Update satellite positions and velocities."""
+        current_time = self.get_simulation_time()
+        error_upd, pos_upd, vel_upd = self.sat_array.sgp4(
+            np.array([current_time.whole]),
+            np.array([current_time.ut1_fraction])
+        )
+        positions = np.array(pos_upd).reshape(-1, 3) / self.EARTH_RADIUS
+        velocities = np.array(vel_upd).reshape(-1, 3) / self.EARTH_RADIUS
+        
+        R_icrs_to_teme = TEME.rotation_at(current_time)
+        R_teme_to_icrs = R_icrs_to_teme.T
+
+        self.positions = rotation_matmul(positions, R_teme_to_icrs)
+        self.velocities = rotation_matmul(velocities, R_teme_to_icrs)
+
+        for viz in self.viz_list:
+            # Update the satellite markers.
+            viz['scatter'].set_data(self.positions, face_color=[0, 0, 0, 0.5], size=10, edge_width=0)
+
+    def _update_satellite_arrows(self):
+        logger.debug(f'Updating satellite arrows... {self.update_count}')
+        """Update satellite LT direction arrows."""
+        self.front, self.back, self.down, self.right, self.left = update_arrows(self.velocities, self.positions)
+        if self.PLOT_SATELLITE_LCTS:
+            a_from = np.tile(self.positions, (self.N_LCT_PER_SAT, 1))
+            a_to = np.concatenate((self.front, self.back, self.right, self.left), axis=0) * 0.01 + a_from
+            a_data = np.concatenate((a_from, a_to), axis=1).reshape(-1, 3)
+
+            num_arrows = self.positions.shape[0] * 8
+            arrow_color = np.zeros((num_arrows, self.N_LCT_PER_SAT))
+            arrow_color[: num_arrows // self.N_LCT_PER_SAT, :] = self.FRONT_COLOR
+            arrow_color[num_arrows // self.N_LCT_PER_SAT: num_arrows // 2, :] = self.BACK_COLOR
+            arrow_color[num_arrows // 2: 3 * num_arrows // self.N_LCT_PER_SAT, :] = self.RIGHT_COLOR
+            arrow_color[3 * num_arrows // self.N_LCT_PER_SAT:, :] = self.LEFT_COLOR
+
+            for viz in self.viz_list:
+                # Update the satellite arrows.
+                viz['arrow'].set_data(pos=a_data, color=arrow_color, width=10, connect='segments')
+
+    def _update_p_satp(self):
+        logger.debug(f'Updating potential satellite pairs... {self.update_count}')
+        """Updating potential satellite pairs using KDTree."""
+        
+        # Compute the KDTree for efficient nearest neighbor search.
+        tic = time.perf_counter()
+        tree = cKDTree(self.positions)
+        distance_threshold = self.LISL_MAX_DISTANCE / self.EARTH_RADIUS
+        self.edges = tree.query_pairs(r=distance_threshold, output_type='ndarray')
+        toc = time.perf_counter()
+        self.profiled_time['kdtree'] = toc - tic
+        
+        # Compute normalized direction for each edge.
+        tic = time.perf_counter()
+        self.directions = compute_directions(self.positions, self.edges)
+        toc = time.perf_counter()
+        self.profiled_time['direction'] = toc - tic
+        
+        # Compute view stacks for each edge.
+        tic = time.perf_counter()
+        self.view_from_stack, self.view_to_stack = compute_view_stacks(
+            self.front, self.back, self.right, self.left, self.edges, self.directions
+        )
+        toc = time.perf_counter()
+        self.profiled_time['view_stacks'] = toc - tic
+    
+    def _update_p_lisl(self):
+        logger.debug(f'Updating potential LISL... {self.update_count}')
+        """Update potential LISL visualizations."""
+        # Generate boolean indicators using the precomputed threshold.
+        tic = time.perf_counter()
+        self.filtered_edges, filtered_view_from_stack, filtered_view_to_stack, p_lisl_LT_pair = filter_and_compute_pair(
+            self.edges, self.view_from_stack, self.view_to_stack, self.cos_threshold
+        )
+        toc = time.perf_counter()
+        self.profiled_time['p_lisl_LT_pair'] = toc - tic
+        
+        # Expand edges and filter using the computed pair indicator.
+        tic = time.perf_counter()
+        self.filtered_repeated, self.filtered_expanded = expand_and_filter_edges(self.filtered_edges, p_lisl_LT_pair)
+        toc = time.perf_counter()
+        self.profiled_time['expand_edges'] = toc - tic
+        
+        # Filter view stacks for valid edges and compute pairwise minimum.
+        tic = time.perf_counter()
+        self.view_LT_pair_min_cos = compute_view_LT_pair_min_cos(filtered_view_from_stack, filtered_view_to_stack, p_lisl_LT_pair.reshape(-1))
+        toc = time.perf_counter()
+        self.profiled_time['view_LT_pair'] = toc - tic
+        
+        tic = time.perf_counter()
+        # Draw the potential LISL edges.
+        if self.PLOT_POTENTIAL_LISL:
+            # Build the color array using np.array for clarity.
+            edges_color_data, p_lisl_data = optimize_edge_and_color_data(self.EDGE_COLOR, self.filtered_repeated, self.filtered_expanded, self.positions)
+            edges_color_data[:, 3] = 0.25
+            for viz in self.viz_list:
+                # Update the potential LISL lines.
+                viz['p_lisl'].set_data(pos=p_lisl_data, color=edges_color_data, width=0.0001, connect='segments')
+            
+        toc = time.perf_counter()
+        self.profiled_time['draw_p_lisl'] = toc - tic
+           
+    def update_space(self):
+        """
+        inital update function called on each timer tick to update the simulation.
+        """
+        start_time = time.perf_counter()
+        cpu_usage = psutil.cpu_percent()
+        mem_usage = psutil.Process().memory_info().rss / 1e6
+        logger.info(f"CPU Usage: {cpu_usage}%, Memory Usage: {mem_usage:.2f} MB")
+
+        try:
+            tic = time.perf_counter()
+            self._update_earth_rotation()
+            toc = time.perf_counter()
+            self.profiled_time['earth_rotation'] = toc - tic
+            
+            tic = time.perf_counter()
+            self._update_satellite_positions()
+            toc = time.perf_counter()
+            self.profiled_time['satellite_positions'] = toc - tic
+            
+            tic = time.perf_counter()
+            self._update_satellite_arrows()
+            toc = time.perf_counter()
+            self.profiled_time['satellite_arrows'] = toc - tic
+            
+            tic = time.perf_counter()
+            self._update_p_satp()
+            toc = time.perf_counter()
+            self.profiled_time['_update_p_satp'] = toc - tic
+            
+            tic = time.perf_counter()
+            self._update_p_lisl()
+            toc = time.perf_counter()
+            self.profiled_time['_update_p_lisl'] = toc - tic
+
+            if self.PLOT_TEXT:        
+                text = ""
+                text += f"#n_sats: {self.positions.shape[0]}\n"
+                text += f"#n_q_es: {self.edges.shape[0]}\n"
+                text += f"#n_p_sp: {self.filtered_edges.shape[0]}\n"
+                text += f"#n_p_lp: {self.filtered_expanded.shape[0]}\n"
+                text += f"FOR_THETA: +/-{self.FOR_THETA:.0f}°\n"
+                text += f"MAX_DIST: {self.LISL_MAX_DISTANCE:.0f} km\n"
+                for viz in self.viz_list:
+                    viz['text_top_left'].text = text
+                
+                text = ""
+                text += f"AVG: {self.average_update_time:.4f} s\n"
+                text += f"UPD: {self.update_count}\n"
+                text += f"TOT: {time.perf_counter() - self.real_start_time:.2f} s\n"
+                text += f"FPS: {1./self.average_update_time:.2f}\n"
+                text += f"TSc: {self.TIME_SCALE:.2f}\n"
+                text += f"SWT: {self.accumulated_update_time*self.TIME_SCALE:.2f} s\n"
+                text += f"DAT: {self.get_simulation_time().utc_strftime('%Y-%m-%d %H:%M:%S')}\n"
+                text += f"CPU: {psutil.cpu_percent()}%\n"
+                text += f"MEM: {psutil.Process().memory_info().rss / 1e6:.2f} MB\n"
+                for viz in self.viz_list:
+                    viz['text_bot_left'].text = text
+                    
+                text = ""
+                for key, value in self.profiled_time.items():
+                    text += f"{key}: {value:.4f} s\n"
+                
+                for viz in self.viz_list:
+                    viz['text_top_right'].text = text
+                    
+        except Exception as e:
+            logger.error("Unexpected error during update: %s", e)
+            # Stop the simulation
+            app.quit()
+            
+        elapsed = time.perf_counter() - start_time
+        self.accumulated_update_time += elapsed
+        self.average_update_time = 0.9 * self.average_update_time + 0.1 * elapsed
+
+    def _update_o_lisl(self, satp = None, edge_weight=None, viz=None, binary=False):
+        # Update optional LISL lines.
+        tic = time.perf_counter()
+        if viz is not None:
+            edge_from = self.positions[satp[:, 0]]
+            edge_to = self.positions[satp[:, 1]]
+            if edge_weight is None:
+                edge_weight = np.ones(satp.shape[0], dtype=self.EDGE_COLOR.dtype)
+
+            edge_weight = edge_weight.reshape(-1, 1)
+            edge_from = edge_from * (1 + 0.0001 * edge_weight)
+            edge_to = edge_to * (1 + 0.0001 * edge_weight)
+            
+            o_lisl_data = np.concatenate((edge_from, edge_to), axis=1).reshape(-1, 3)
+            if not binary:
+                edges_color_data = np.zeros((o_lisl_data.shape[0], 4), dtype=self.EDGE_COLOR.dtype)
+                if edge_weight is not None:
+                    edges_color_data[:, 3] = np.concatenate((edge_weight, edge_weight), axis=1).reshape(-1)
+                else:
+                    edges_color_data[:, 3] = 1
+            else:
+                edges_color_data = np.zeros((o_lisl_data.shape[0], 4), dtype=self.EDGE_COLOR.dtype)
+                edges_color_data[:, 3] = 1
+                edge_weight_red = (edge_weight > 0.5).astype(np.float32)
+                edge_weight_green = (edge_weight < 0.5).astype(np.float32)
+                edges_color_data[:, 0] = np.concatenate((edge_weight_red, edge_weight_red), axis=1).reshape(-1)
+                edges_color_data[:, 1] = np.concatenate((edge_weight_green, edge_weight_green), axis=1).reshape(-1)
+            viz['o_lisl'].set_data(pos=o_lisl_data, color=edges_color_data, width=1, connect='segments')
+        
+        toc = time.perf_counter()
+        self.profiled_time['draw_matching'] = toc - tic
+
+    def update(self, event):
+        """
+        Update the simulation at each timer tick.
+        """
+        logger.debug(f"Timer event triggered. Update count: {self.update_count}")
+        self.update_count += 1
+        try:
+            self.run_step()
+        except Exception as e:
+            logger.error("Error during update: %s", e, exc_info=True)
+            # Stop the simulation
+            app.quit()
+        cpu_usage = psutil.cpu_percent()
+        mem_usage = psutil.Process().memory_info().rss / 1e6
+        logger.info(f"CPU Usage: {cpu_usage}%, Memory Usage: {mem_usage:.2f} MB")    
+  
+    def run_step(self):
+        # Check the constellation connectivity
+        connected, comp = self.solver.check_connected()
+        logger.info(f"Constellation is connected: {connected}")
+        
+        # Compute the dual matching.
+        self.connected_sat, self.connected_lct = self.solver.get_dual_matching()
+        logger.info(f"Connected SATP: {self.connected_sat.shape[0]}, Connected LISL: {self.connected_lct.shape[0]}")
+        
+        # Show capacity and distance
+        distance = np.linalg.norm(self.positions[self.connected_sat[:, 0]] - self.positions[self.connected_sat[:, 1]], axis=1)
+        connected_capacity = self.solver.compute_capacity(distance)
+        logger.info(f"Connected Capacity: {connected_capacity}, distance: {distance}")
+        logger.info(f"Max Capacity: {np.max(connected_capacity):.2f}, Min Capacity: {np.min(connected_capacity):.2f}")
+        
+        edge_weight = 1-np.exp(-connected_capacity)
+        self._update_o_lisl(satp=self.connected_sat, edge_weight=edge_weight, viz=self.viz_list[0])
+        
+        # Compute the dual srouting.
+        self.srouting = self.solver.get_dual_srouting()
+        logger.info(f"Routing shape: {self.srouting.shape}")
+        self._update_o_lisl(satp=self.srouting[:,0:2].astype(np.int64), edge_weight=None, viz=self.viz_list[1]) 
+        
+        # Update the step edge prices.
+        self.solver.update_step_edge_prices(self.connected_lct, self.srouting)
+        prices = self.solver.price_graph.get_prices(self.filtered_repeated)
+        edge_weight = prices/np.max(prices)
+        self._update_o_lisl(satp=self.filtered_repeated, edge_weight=edge_weight, viz=self.viz_list[2])
+    
+        # Compute the prim srouting.
+        traffic_load_and_capacity = self.solver.get_prim_srouting()
+        overflow = traffic_load_and_capacity[:,2] > traffic_load_and_capacity[:,3]
+        overflow = overflow.astype(np.float32).flatten()
+        self._update_o_lisl(satp=traffic_load_and_capacity[:,0:2].astype(np.int64), edge_weight=overflow, viz=self.viz_list[3], binary=True)

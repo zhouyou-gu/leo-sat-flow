@@ -180,10 +180,6 @@ def generate_starlink_constellation():
 
 
 
-
-
-
-
 if __name__ == "__main__":
     # Configuration for the Walker Delta constellation.
     total_sats = 24     # Total number of satellites.
