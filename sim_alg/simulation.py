@@ -51,6 +51,8 @@ class Simulation:
         """
         self.ts = ts
         self.sat_array = sat_array
+
+        self.N_SAT = len(sat_array)
         
         self.viz_list = self.setup_visualization()
                 
@@ -63,6 +65,7 @@ class Simulation:
         # Initialize satellite positions and velocities.
         self.positions = None
         self.velocities = None
+        
         # Initialize directional vectors.
         self.front = None
         self.back = None
@@ -70,9 +73,12 @@ class Simulation:
         self.right = None
         self.left = None
         
+        # Initialize LCT directions
+        self.lct_directions = None
+        
         # Initialize p_satp edges and directions.
         self.edges = None
-        self.directions = None
+        
         # Initialize view stacks.
         self.view_from_stack = None
         self.view_to_stack = None
@@ -96,10 +102,15 @@ class Simulation:
         self.profiled_time = {}       
 
         self.update_space()
-
+        
         self.solver:mr_solver = mr_solver()
         self.solver.init_edges(self.filtered_repeated, self.filtered_expanded, self.positions)
 
+    def _assign_lct(self):
+        sat_with_lct_list = np.random.randint(0, 2, size=(self.N_SAT, 1))
+        self.lct_on_indicator = np.tile(sat_with_lct_list, (1, self.N_LCT_PER_SAT))
+        self.lct_directions = np.concatenate((self.front, self.back, self.right, self.left), axis=1).reshape(-1, self.N_LCT_PER_SAT, 3)
+        
     def setup_visualization(self):
         return setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(2, 2))        
 
@@ -167,16 +178,16 @@ class Simulation:
             a_to = np.concatenate((self.front, self.back, self.right, self.left), axis=0) * 0.01 + a_from
             a_data = np.concatenate((a_from, a_to), axis=1).reshape(-1, 3)
 
-            num_arrows = self.positions.shape[0] * 8
-            arrow_color = np.zeros((num_arrows, self.N_LCT_PER_SAT))
-            arrow_color[: num_arrows // self.N_LCT_PER_SAT, :] = self.FRONT_COLOR
-            arrow_color[num_arrows // self.N_LCT_PER_SAT: num_arrows // 2, :] = self.BACK_COLOR
-            arrow_color[num_arrows // 2: 3 * num_arrows // self.N_LCT_PER_SAT, :] = self.RIGHT_COLOR
-            arrow_color[3 * num_arrows // self.N_LCT_PER_SAT:, :] = self.LEFT_COLOR
+            # num_arrows = self.positions.shape[0] * 8
+            # arrow_color = np.zeros((num_arrows, self.N_LCT_PER_SAT))
+            # arrow_color[: num_arrows // self.N_LCT_PER_SAT, :] = self.FRONT_COLOR
+            # arrow_color[num_arrows // self.N_LCT_PER_SAT: num_arrows // 2, :] = self.BACK_COLOR
+            # arrow_color[num_arrows // 2: 3 * num_arrows // self.N_LCT_PER_SAT, :] = self.RIGHT_COLOR
+            # arrow_color[3 * num_arrows // self.N_LCT_PER_SAT:, :] = self.LEFT_COLOR
 
             for viz in self.viz_list:
                 # Update the satellite arrows.
-                viz['arrow'].set_data(pos=a_data, color=arrow_color, width=10, connect='segments')
+                viz['arrow'].set_data(pos=a_data, width=1, connect='segments')
 
     def _update_p_satp(self):
         logger.debug(f'Updating potential satellite pairs... {self.update_count}')
@@ -192,14 +203,14 @@ class Simulation:
         
         # Compute normalized direction for each edge.
         tic = time.perf_counter()
-        self.directions = compute_directions(self.positions, self.edges)
+        directions = compute_directions(self.positions, self.edges)
         toc = time.perf_counter()
         self.profiled_time['direction'] = toc - tic
         
         # Compute view stacks for each edge.
         tic = time.perf_counter()
         self.view_from_stack, self.view_to_stack = compute_view_stacks(
-            self.front, self.back, self.right, self.left, self.edges, self.directions
+            self.lct_directions, self.edges, directions
         )
         toc = time.perf_counter()
         self.profiled_time['view_stacks'] = toc - tic
@@ -266,6 +277,11 @@ class Simulation:
             self.profiled_time['satellite_arrows'] = toc - tic
             
             tic = time.perf_counter()
+            self._assign_lct()
+            toc = time.perf_counter()
+            self.profiled_time['assign_lct'] = toc - tic
+                
+            tic = time.perf_counter()
             self._update_p_satp()
             toc = time.perf_counter()
             self.profiled_time['_update_p_satp'] = toc - tic
@@ -277,7 +293,7 @@ class Simulation:
 
             if self.PLOT_TEXT:        
                 text = ""
-                text += f"#n_sats: {self.positions.shape[0]}\n"
+                text += f"#n_sats: {self.N_SAT}\n"
                 text += f"#n_q_es: {self.edges.shape[0]}\n"
                 text += f"#n_p_sp: {self.filtered_edges.shape[0]}\n"
                 text += f"#n_p_lp: {self.filtered_expanded.shape[0]}\n"

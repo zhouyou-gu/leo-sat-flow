@@ -419,18 +419,7 @@ def compute_weighted_edges(velocities, positions, filtered_repeated,
     return res
 
 @njit(parallel=True,cache=True)
-def compute_view_stacks(front, back, right, left, edges, direction):
-    """
-    Compute dot products for source and destination sides in parallel.
-
-    Parameters:
-        front, back, right, left (np.ndarray): Arrays of shape (N, 3) representing direction vectors.
-        edges (np.ndarray): Array of shape (num_edges, 2) containing indices.
-        direction (np.ndarray): Array of shape (num_edges, 3) representing normalized directions.
-
-    Returns:
-        tuple: Two arrays of shape (num_edges, 4) for view_from_stack and view_to_stack.
-    """
+def compute_view_stacks(lct_directions, edges, direction):
     num_edges = edges.shape[0]
     # Pre-allocate output arrays.
     view_from_stack = np.empty((num_edges, 4), dtype=direction.dtype)
@@ -445,18 +434,58 @@ def compute_view_stacks(front, back, right, left, edges, direction):
         d2 = direction[i, 2]
         
         # Compute dot products for source side.
-        view_from_stack[i, 0] = front[src, 0]*d0 + front[src, 1]*d1 + front[src, 2]*d2
-        view_from_stack[i, 1] = back[src, 0]*d0 + back[src, 1]*d1 + back[src, 2]*d2
-        view_from_stack[i, 2] = right[src, 0]*d0 + right[src, 1]*d1 + right[src, 2]*d2
-        view_from_stack[i, 3] = left[src, 0]*d0 + left[src, 1]*d1 + left[src, 2]*d2
-
-        # Compute dot products for destination side with -direction.
-        view_to_stack[i, 0] = front[dst, 0]*(-d0) + front[dst, 1]*(-d1) + front[dst, 2]*(-d2)
-        view_to_stack[i, 1] = back[dst, 0]*(-d0) + back[dst, 1]*(-d1) + back[dst, 2]*(-d2)
-        view_to_stack[i, 2] = right[dst, 0]*(-d0) + right[dst, 1]*(-d1) + right[dst, 2]*(-d2)
-        view_to_stack[i, 3] = left[dst, 0]*(-d0) + left[dst, 1]*(-d1) + left[dst, 2]*(-d2)
+        view_from_stack[i, 0] = lct_directions[src, 0, 0]*d0 + lct_directions[src, 0, 1]*d1 + lct_directions[src, 0, 2]*d2
+        view_from_stack[i, 1] = lct_directions[src, 1, 0]*d0 + lct_directions[src, 1, 1]*d1 + lct_directions[src, 1, 2]*d2
+        view_from_stack[i, 2] = lct_directions[src, 2, 0]*d0 + lct_directions[src, 2, 1]*d1 + lct_directions[src, 2, 2]*d2
+        view_from_stack[i, 3] = lct_directions[src, 3, 0]*d0 + lct_directions[src, 3, 1]*d1 + lct_directions[src, 3, 2]*d2
         
+        # Compute dot products for destination side with -direction.
+        view_to_stack[i, 0] = lct_directions[dst, 0, 0]*(-d0) + lct_directions[dst, 0, 1]*(-d1) + lct_directions[dst, 0, 2]*(-d2)
+        view_to_stack[i, 1] = lct_directions[dst, 1, 0]*(-d0) + lct_directions[dst, 1, 1]*(-d1) + lct_directions[dst, 1, 2]*(-d2)
+        view_to_stack[i, 2] = lct_directions[dst, 2, 0]*(-d0) + lct_directions[dst, 2, 1]*(-d1) + lct_directions[dst, 2, 2]*(-d2)
+        view_to_stack[i, 3] = lct_directions[dst, 3, 0]*(-d0) + lct_directions[dst, 3, 1]*(-d1) + lct_directions[dst, 3, 2]*(-d2)
+
     return view_from_stack, view_to_stack
+
+# @njit(parallel=True,cache=True)
+# def compute_view_stacks(front, back, right, left, edges, direction):
+#     """
+#     Compute dot products for source and destination sides in parallel.
+
+#     Parameters:
+#         front, back, right, left (np.ndarray): Arrays of shape (N, 3) representing direction vectors.
+#         edges (np.ndarray): Array of shape (num_edges, 2) containing indices.
+#         direction (np.ndarray): Array of shape (num_edges, 3) representing normalized directions.
+
+#     Returns:
+#         tuple: Two arrays of shape (num_edges, 4) for view_from_stack and view_to_stack.
+#     """
+#     num_edges = edges.shape[0]
+#     # Pre-allocate output arrays.
+#     view_from_stack = np.empty((num_edges, 4), dtype=direction.dtype)
+#     view_to_stack = np.empty((num_edges, 4), dtype=direction.dtype)
+    
+#     for i in prange(num_edges):
+#         # Get the source and destination indices for this edge.
+#         src = edges[i, 0]
+#         dst = edges[i, 1]
+#         d0 = direction[i, 0]
+#         d1 = direction[i, 1]
+#         d2 = direction[i, 2]
+        
+#         # Compute dot products for source side.
+#         view_from_stack[i, 0] = front[src, 0]*d0 + front[src, 1]*d1 + front[src, 2]*d2
+#         view_from_stack[i, 1] = back[src, 0]*d0 + back[src, 1]*d1 + back[src, 2]*d2
+#         view_from_stack[i, 2] = right[src, 0]*d0 + right[src, 1]*d1 + right[src, 2]*d2
+#         view_from_stack[i, 3] = left[src, 0]*d0 + left[src, 1]*d1 + left[src, 2]*d2
+
+#         # Compute dot products for destination side with -direction.
+#         view_to_stack[i, 0] = front[dst, 0]*(-d0) + front[dst, 1]*(-d1) + front[dst, 2]*(-d2)
+#         view_to_stack[i, 1] = back[dst, 0]*(-d0) + back[dst, 1]*(-d1) + back[dst, 2]*(-d2)
+#         view_to_stack[i, 2] = right[dst, 0]*(-d0) + right[dst, 1]*(-d1) + right[dst, 2]*(-d2)
+#         view_to_stack[i, 3] = left[dst, 0]*(-d0) + left[dst, 1]*(-d1) + left[dst, 2]*(-d2)
+        
+#     return view_from_stack, view_to_stack
 
 
 @njit(parallel=True,cache=True)

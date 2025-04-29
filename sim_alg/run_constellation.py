@@ -31,7 +31,7 @@ np.set_printoptions(precision=3, suppress=True)
 if __name__ == '__main__':
     logger.level = logging.DEBUG
     # Load tle data.
-    ts, valid_satellites, sat_array = generate_starlink_constellation()
+    ts, valid_satellites, sat_array = generate_walker_constellation_add_planes()
 
     # Create simulation instance.
     simulation = Simulation(ts, sat_array)
