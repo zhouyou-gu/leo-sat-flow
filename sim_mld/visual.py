@@ -217,4 +217,4 @@ def setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(3, 3)):
             view.size = (sceen_size[0] // shape[1], sceen_size[1] // shape[0])
             view.camera = camera
             ret.append(setup_visualization(view=view, idx=(i, j)))
-    return ret
+    return canvas, ret

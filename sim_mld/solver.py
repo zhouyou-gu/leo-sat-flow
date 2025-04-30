@@ -9,7 +9,7 @@ import cvxpy as cp
 import logging
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 np.set_printoptions(precision=3, suppress=True)
 
@@ -175,10 +175,9 @@ class mr_solver:
         self.data_target = None
         self.s_t_data_rate = None
         
-    
         self.price_graph: price_graph = None
                 
-    def init_edges(self, possible_sat_pair_expanded, possible_lct_pair_expanded, positions):
+    def init_constellation(self, possible_sat_pair_expanded, possible_lct_pair_expanded, positions):
         self.possible_sat_pair_expanded = possible_sat_pair_expanded
         self.possible_lct_pair_expanded = possible_lct_pair_expanded
         
@@ -199,7 +198,7 @@ class mr_solver:
         
         self.price_graph = price_graph(self.n_sat, self.possible_sat_pair_expanded)
     
-        self.update_pairs()
+        self.update_source_target_pairs()
     
     @classmethod
     def compute_capacity(cls, distance):
@@ -209,17 +208,28 @@ class mr_solver:
             cls.PEAK_POWER_W, cls.BEAM_WAIST, cls.WAVELENGTH, distance,
             cls.JITTER, cls.EPSILON
         )
+        
+    def check_connected(self):
+        # Check if the graph is connected
+        indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, np.ones(self.possible_sat_pair_expanded.shape[0]))
+        comp = graph_partition(self.n_sat, indptr, indices)
+        num_components = np.unique(comp).shape[0]
+        return num_components == 1, comp
+
+    def update_source_target_pairs(self, n_pair=1, data_rate=1.):
+        self.data_source, self.data_target = random_source_target_pairs(self.n_sat, n_pair)
+        self.s_t_data_rate = np.ones(self.data_source.shape[0]) * data_rate
     
     def update_edge_capacity(self):
         distance = np.linalg.norm(self.positions[self.possible_sat_pair_expanded[:, 0]] - self.positions[self.possible_sat_pair_expanded[:, 1]], axis=1)
         self.edge_capacity = self.compute_capacity(distance)
         
     def get_dual_matching(self):
-        logging.info("Computing dual matching")
+        logging.debug("Computing dual matching")
         prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
         edge_weights_pr = prices * self.edge_capacity
-        logger.info(f"Ec: max: {np.max(self.edge_capacity)}, min: {np.min(self.edge_capacity)}")
-        logger.info(f"Mw: max: {np.max(edge_weights_pr)}, min: {np.min(edge_weights_pr)}")
+        logger.debug(f"Ec: max: {np.max(self.edge_capacity)}, min: {np.min(self.edge_capacity)}")
+        logger.debug(f"Mw: max: {np.max(edge_weights_pr)}, min: {np.min(edge_weights_pr)}")
         weighted_edges = np.column_stack((self.possible_lct_pair_expanded, edge_weights_pr))
         matching = greedy_max_weight_matching(weighted_edges)
         m = len(matching)
@@ -230,19 +240,15 @@ class mr_solver:
         
         return connected_sat, connected_lct
     
-    def update_pairs(self, n_pair=1, data_rate=1.):
-        self.data_source, self.data_target = random_source_target_pairs(self.n_sat, n_pair)
-        self.s_t_data_rate = np.ones(self.data_source.shape[0]) * data_rate
-    
     def get_dual_srouting(self, debug=False):
-        logging.info("Computing dual srouting")
+        logging.debug("Computing dual srouting")
         prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
         indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
-        logging.info("build csr done")
+        logging.debug("build csr done")
         print(f"source: {self.data_source}, target: {self.data_target}, data rate: {self.s_t_data_rate}")
         # costs, lengths, paths_all = multi_dijkstra_with_paths_aw_b(self.n_sat, indptr, indices, self.data_source, self.data_target, data, self.s_t_data_rate, np.ones_like(self.s_t_data_rate))
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
-        logging.info("Computing dual srouting done")
+        logging.debug("Computing dual srouting done")
 
         if debug:
             for i in range(self.data_source.shape[0]):
@@ -254,125 +260,127 @@ class mr_solver:
                     print("Query {}: from {} to {} is unreachable.".format(
                         i, self.data_source[i], self.data_target[i]))
         
-        srouting = construct_edges_matrix_all_in_one(self.data_source, self.data_target, self.s_t_data_rate, lengths, paths_all)
-        srouting = srouting[srouting[:, -1] >= 0]
-        
-        return srouting
-                    
-    def check_connected(self):
-        # Check if the graph is connected
-        num_nodes = self.n_sat
-        indptr, indices, data = build_csr(num_nodes, self.possible_sat_pair_expanded, np.ones(self.possible_sat_pair_expanded.shape[0]))
-        comp = graph_partition(num_nodes, indptr, indices)
-        num_components = np.unique(comp).shape[0]
-        return num_components == 1, comp
-    
-    def update_step_edge_prices(self, connected_lct, srouting):
-        self.counter += 1
-        logging.info("Updating edge prices")
-        num_nodes = self.n_sat
-        traffic = srouting[:,4]
-        logger.info(f"Tr: max: {np.max(traffic)}, min: {np.min(traffic)}")
-        qx = build_csr(num_nodes, srouting[:,0:2], traffic, merging_method='sum')
-        logger.info(f"qx: max: {np.max(qx[2])}, min: {np.min(qx[2])}")
-        qx_csr = sp.csr_matrix((qx[2], qx[1], qx[0]), shape=(num_nodes, num_nodes))
+        return costs, lengths, paths_all
 
-        connected_sat = connected_lct//self.N_LCT_PER_SAT
-        capacity_matched = self.compute_capacity(
-            np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
+    def get_dual_objective(self):
+        connected_sat, connected_lct = self.get_dual_matching()
+        costs, lengths, paths_all = self.get_dual_srouting()
+        if np.any(costs < 1):
+            return -np.inf
+        else:
+            # Compute the edge capacity for the connected satellites
+            capacity_on_graph = self.compute_capacity(
+                np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
+            )
+            prices = self.price_graph.get_prices(connected_sat)
+            lambda_times_capacity = np.sum(prices * capacity_on_graph)
+            return -lambda_times_capacity
+
+    def get_prim_objective(self):
+        connected_sat, connected_lct = self.get_dual_matching()
+        prices = self.price_graph.get_prices(connected_sat)
+        indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
+        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
+        
+        srouting = construct_edges_matrix_all_in_one(
+            self.data_source, self.data_target, costs, lengths, paths_all
         )
-        logger.info(f"Cm: max: {np.max(capacity_matched)}, min: {np.min(capacity_matched)}")
-        rc = build_csr(num_nodes, connected_sat, capacity_matched, merging_method='sum')
-        logger.info(f"rc: max: {np.max(rc[2])}, min: {np.min(rc[2])}")
-        rc_csr = sp.csr_matrix((rc[2], rc[1], rc[0]), shape=(num_nodes, num_nodes))
+        
+        print("srouting", srouting.__class__)
+        rates = self.get_max_rate(srouting)
+        return -np.sum(rates)
+         
+    def get_max_rate(self, srouting):
+        logger.debug("Computing max rate")
+        if np.asarray(srouting).size == 0:
+            return np.zeros(self.data_source.shape[0])
+        # edges: K×4 numpy array, columns = [u, v, s, t]
+        flow_pairs = srouting[:, 2:4]
+        unique_pairs_view, flow_ids = np.unique(flow_pairs, return_inverse=True, axis=0)
+        F = unique_pairs_view.shape[0]
+
+        uv_view = srouting[:, :2]                                 # the (u,v) pairs
+        uniq_uv_view, edge_ids = np.unique(uv_view, return_inverse=True, axis=0)
+        E = uniq_uv_view.shape[0]
+
+        print(f"F: {F}, E: {E}", srouting.shape, flow_ids.shape, edge_ids.shape)
+        P = sp.coo_matrix(
+            (np.ones(srouting.shape[0]), (edge_ids, flow_ids)),
+            shape=(E, F)
+        ).tocsr()
+        
+        # --- Capacity constraints ------------------------------------------------
+        uv = uniq_uv_view.reshape(-1, 2).astype(np.int64)
+        dists = np.linalg.norm(self.positions[uv[:, 0]] - self.positions[uv[:, 1]], axis=1)
+        capacity = self.compute_capacity(dists)
+
+        # --- LP solve -------------------------------------------------------------
+        r = cp.Variable(F, nonneg=True)
+        prob = cp.Problem(cp.Maximize(cp.sum(r)), [P @ r <= capacity])
+        prob.solve(solver=cp.SCS)
+
+        opt = r.value
+        
+        rate_map = {
+            (int(src), int(tgt)): float(rate)
+            for (src, tgt), rate in zip(unique_pairs_view, opt)
+        }
+        # 2. For each original pair, look it up (default to 0.0 if missing)
+        rates = np.array([
+            rate_map.get((src, tgt), 0.0)
+            for src, tgt in zip(self.data_source, self.data_target)
+        ])
+        return rates
+        
+    def update_step_edge_prices(self):
+        self.counter += 1
+        logging.debug(f"Updating edge prices {self.counter}")
+        connected_sat, connected_lct = self.get_dual_matching()
+        prices = self.price_graph.get_prices(connected_sat)
+        indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
+        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
+        
+        srouting = construct_edges_matrix_all_in_one(
+            self.data_source, self.data_target, costs, lengths, paths_all
+        )
+        
+        rates = self.get_max_rate(srouting)
+        
+        srouting = construct_edges_matrix_all_in_one(
+            self.data_source, self.data_target, rates, lengths, paths_all
+        )
+        if np.asarray(srouting).size == 0:
+            qx_csr = sp.csr_matrix((self.n_sat, self.n_sat))
+        else:
+            traffic = srouting[:,4]
+            qx = build_csr(self.n_sat, srouting[:,0:2], traffic, merging_method='sum')
+            logger.debug(f"qx: max: {np.max(qx[2])}, min: {np.min(qx[2])}")
+            qx_csr = sp.csr_matrix((qx[2], qx[1], qx[0]), shape=(self.n_sat, self.n_sat))
+
+        if np.asarray(connected_sat).size == 0:
+            rc_csr = sp.csr_matrix((self.n_sat, self.n_sat))
+        else:
+            capacity_matched = self.compute_capacity(
+                np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
+            )
+            logger.debug(f"Cm: max: {np.max(capacity_matched)}, min: {np.min(capacity_matched)}")
+            rc = build_csr(self.n_sat, connected_sat, capacity_matched, merging_method='sum')
+            logger.debug(f"rc: max: {np.max(rc[2])}, min: {np.min(rc[2])}")
+            rc_csr = sp.csr_matrix((rc[2], rc[1], rc[0]), shape=(self.n_sat, self.n_sat))
         
         # Update edge prices
         old_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
-        logger.info(f"Oe: max: {np.max(old_price)}, min: {np.min(old_price)}")
+        logger.debug(f"Oe: max: {np.max(old_price)}, min: {np.min(old_price)}")
         
         d_price_graph = (self.ALPHA/np.sqrt(self.counter)) * (qx_csr - rc_csr)
-        self.price_graph.add_prices(d_price_graph)    
+        self.price_graph.add_prices(d_price_graph)     
         
         new_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
-        logger.info(f"Ne: max: {np.max(new_price)}, min: {np.min(new_price)}")
+        logger.debug(f"Ne: max: {np.max(new_price)}, min: {np.min(new_price)}")
         
-        logger.info(f"Sz: {self.ALPHA/np.sqrt(self.counter)}")
+        logger.debug(f"Sz: {self.ALPHA/np.sqrt(self.counter)}")
         return new_price
 
-    def get_prim_srouting(self):
-        logging.info("Computing prim srouting")
-        
-        # Compute the matching
-        connected_sat, connected_lct = self.get_dual_matching() 
-        
-        # Compute the edge capacity for the connected satellites
-        capacity_on_graph = self.compute_capacity(
-            np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
-        )
-        indptr, indices, data = build_csr(self.n_sat, connected_sat, capacity_on_graph, merging_method='sum')
-        capacity_on_graph = csr_to_edge_list(indptr, indices, data)
-        
-        # Compute the srouting with connected satellites
-        prices = self.price_graph.get_prices(connected_sat)
-        indptr, indices, prices = build_csr(self.n_sat, connected_sat, prices)
-        costs, lengths, paths_all = multi_dijkstra_with_paths_aw_b(self.n_sat, indptr, indices, self.data_source, self.data_target, prices, self.s_t_data_rate, np.ones_like(self.s_t_data_rate))
-        
-        srouting = construct_edges_matrix_all_in_one(self.data_source, self.data_target, self.s_t_data_rate, lengths, paths_all)
-        srouting = srouting[srouting[:, -1] >= 0]
-        
-        # Compute the traffic load for the srouting
-        indptr, indices, data = build_csr(self.n_sat, srouting[:, 0:2], srouting[:, 4], merging_method='sum')
-        traffic_load_edge_list = csr_to_edge_list(indptr, indices, data)
 
-        # Compute the capacity on the routes        
-        capacity_on_routes = extract_weights(traffic_load_edge_list[:, 0:2], capacity_on_graph)
- 
-        traffic_load_and_capacity = np.concatenate((traffic_load_edge_list, capacity_on_routes.reshape(-1, 1)), axis=1)
-        
-        print("Traffic load: \n", traffic_load_and_capacity[:, 2])
-        print("Capacity: \n", traffic_load_and_capacity[:, 3])
-        return traffic_load_and_capacity     
-    
-    def get_max_rate(self, srouting):
-        # edges: K×4 numpy array, columns = [u, v, s, t]
-        flow_pairs = [tuple(pair) for pair in srouting[:, 2:4]]
-        unique_pairs = sorted(set(flow_pairs))            # reproducible order
-        idx = {pair: i for i, pair in enumerate(unique_pairs)}
-        F = len(unique_pairs)
-
-        uv = srouting[:, :2]                                 # the (u,v) pairs
-        uniq_uv, inv = np.unique(uv, axis=0, return_inverse=True)
-        E = len(uniq_uv)
-
-        row = inv                                         # edge‐index for each of K rows
-        col = np.array([idx[tuple(p)] for p in srouting[:, 2:4]])
-        data = np.ones(srouting.shape[0], dtype=float)
-
-        P = sp.coo_matrix((data, (row, col)), shape=(E, F))   
-
-        r = cp.Variable(F, nonneg=True)
-        capacity = self.compute_capacity(np.linalg.norm(self.positions[uniq_uv[:, 0]] - self.positions[uniq_uv[:, 1]], axis=1))
-        constraints = [P @ r <= capacity]
-        prob = cp.Problem(cp.Maximize(cp.sum(r)), constraints)
-        prob.solve()    # CVXPY uses sparse internally :contentReference[oaicite:2]{index=2}
-
-        optimal_rates = r.value
-
-        # Map the optimal rates back to the source and target pairs
-        rate_map = {pair: optimal_rates[idx[pair]] for pair in unique_pairs}
-        # Create a new array to store the rates for each source-target pair
-        rates = np.zeros(self.data_source.shape[0])
-        original_pairs = [tuple(self.data_source[i], self.data_target[i]) for i in range(self.data_source.shape[0])]
-        # Fill the rates array with the corresponding values from the rate_map
-        for i, pair in enumerate(original_pairs):
-            if pair in rate_map:
-                rates[i] = rate_map[pair]
-            else:
-                rates[i] = 0.0
-                        
-        return rates
-        
-
-
-
-        
+if __name__ == '__main__':
+    print(np.exp(-np.inf))

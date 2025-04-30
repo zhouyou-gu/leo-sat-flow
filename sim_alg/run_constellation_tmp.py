@@ -35,8 +35,7 @@ if __name__ == '__main__':
 
     # Create simulation instance.
     simulation = Simulation(ts, sat_array)
-
-    # Set up a timer to update the simulation at roughly 60 FPS.
-    timer1 = app.Timer(interval=0.0001, connect=simulation.update, iterations=10000, start=True)
-    timer2 = app.Timer(interval=1/60., start=True)
-    app.run()
+    simulation.run()
+    # # Set up a timer to update the simulation at roughly 60 FPS.
+    # timer1 = app.Timer(interval=0.0001, connect=simulation.update, iterations=10000, start=True)
+    # timer2 = app.Timer(interval=1/60., start=True)

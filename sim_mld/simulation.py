@@ -52,9 +52,9 @@ class Simulation:
         self.ts = ts
         self.sat_array = sat_array
 
-        self.N_SAT = len(sat_array)
+        self.n_sat = len(sat_array)
         
-        self.viz_list = self.setup_visualization()
+        self.canvas, self.viz_list = self.setup_visualization()
                 
         self.simulation_start_time = self.ts.now()
         self.real_start_time = time.perf_counter()
@@ -103,11 +103,20 @@ class Simulation:
 
         self.update_space()
         
-        self.solver:mr_solver = mr_solver()
-        self.solver.init_edges(self.filtered_repeated, self.filtered_expanded, self.positions)
+        self.solver = None
+    
+    def set_solver(self, solver):
+        """
+        Set the solver for the simulation.
+
+        Parameters:
+            solver: The solver instance to be used.
+        """
+        self.solver:mr_solver = solver
+        self.solver.init_constellation(self.filtered_repeated, self.filtered_expanded, self.positions)
 
     def _assign_lct(self):
-        sat_with_lct_list = np.random.randint(0, 2, size=(self.N_SAT, 1))
+        sat_with_lct_list = np.random.randint(0, 2, size=(self.n_sat, 1))
         self.lct_on_indicator = np.tile(sat_with_lct_list, (1, self.N_LCT_PER_SAT))
         self.lct_directions = np.concatenate((self.front, self.back, self.right, self.left), axis=1).reshape(-1, self.N_LCT_PER_SAT, 3)
         
@@ -258,7 +267,7 @@ class Simulation:
         start_time = time.perf_counter()
         cpu_usage = psutil.cpu_percent()
         mem_usage = psutil.Process().memory_info().rss / 1e6
-        logger.info(f"CPU Usage: {cpu_usage}%, Memory Usage: {mem_usage:.2f} MB")
+        logger.debug(f"CPU Usage: {cpu_usage}%, Memory Usage: {mem_usage:.2f} MB")
 
         try:
             tic = time.perf_counter()
@@ -293,7 +302,7 @@ class Simulation:
 
             if self.PLOT_TEXT:        
                 text = ""
-                text += f"#n_sats: {self.N_SAT}\n"
+                text += f"#n_sats: {self.n_sat}\n"
                 text += f"#n_q_es: {self.edges.shape[0]}\n"
                 text += f"#n_p_sp: {self.filtered_edges.shape[0]}\n"
                 text += f"#n_p_lp: {self.filtered_expanded.shape[0]}\n"
@@ -326,6 +335,7 @@ class Simulation:
             logger.error("Unexpected error during update: %s", e)
             # Stop the simulation
             app.quit()
+            exit(1)
             
         elapsed = time.perf_counter() - start_time
         self.accumulated_update_time += elapsed
@@ -375,31 +385,32 @@ class Simulation:
             logger.error("Error during update: %s", e, exc_info=True)
             # Stop the simulation
             app.quit()
+            exit(1)
         cpu_usage = psutil.cpu_percent()
         mem_usage = psutil.Process().memory_info().rss / 1e6
-        logger.info(f"CPU Usage: {cpu_usage}%, Memory Usage: {mem_usage:.2f} MB")    
+        logger.debug(f"CPU Usage: {cpu_usage}%, Memory Usage: {mem_usage:.2f} MB")    
   
     def run_step(self):
         # Check the constellation connectivity
         connected, comp = self.solver.check_connected()
-        logger.info(f"Constellation is connected: {connected}")
+        logger.debug(f"Constellation is connected: {connected}")
         
         # Compute the dual matching.
         self.connected_sat, self.connected_lct = self.solver.get_dual_matching()
-        logger.info(f"Connected SATP: {self.connected_sat.shape[0]}, Connected LISL: {self.connected_lct.shape[0]}")
+        logger.debug(f"Connected SATP: {self.connected_sat.shape[0]}, Connected LISL: {self.connected_lct.shape[0]}")
         
         # Show capacity and distance
         distance = np.linalg.norm(self.positions[self.connected_sat[:, 0]] - self.positions[self.connected_sat[:, 1]], axis=1)
         connected_capacity = self.solver.compute_capacity(distance)
-        logger.info(f"Connected Capacity: {connected_capacity}, distance: {distance}")
-        logger.info(f"Max Capacity: {np.max(connected_capacity):.2f}, Min Capacity: {np.min(connected_capacity):.2f}")
+        logger.debug(f"Connected Capacity: {connected_capacity}, distance: {distance}")
+        logger.debug(f"Max Capacity: {np.max(connected_capacity):.2f}, Min Capacity: {np.min(connected_capacity):.2f}")
         
         edge_weight = 1-np.exp(-connected_capacity)
         self._update_o_lisl(satp=self.connected_sat, edge_weight=edge_weight, viz=self.viz_list[0])
         
         # Compute the dual srouting.
         self.srouting = self.solver.get_dual_srouting()
-        logger.info(f"Routing shape: {self.srouting.shape}")
+        logger.debug(f"Routing shape: {self.srouting.shape}")
         self._update_o_lisl(satp=self.srouting[:,0:2].astype(np.int64), edge_weight=None, viz=self.viz_list[1]) 
         
         # Update the step edge prices.
@@ -413,3 +424,18 @@ class Simulation:
         overflow = traffic_load_and_capacity[:,2] > traffic_load_and_capacity[:,3]
         overflow = overflow.astype(np.float32).flatten()
         self._update_o_lisl(satp=traffic_load_and_capacity[:,0:2].astype(np.int64), edge_weight=overflow, viz=self.viz_list[3], binary=True)
+        
+    def run(self, N_STEPS=1000):
+        """
+        Run the simulation.
+        """
+        logger.debug("Starting simulation...")
+
+        for i in range(N_STEPS):
+            # self.canvas.update()         # schedule a redraw
+            # app.process_events()   # keep GUI alive
+            self.update(None)
+            time.sleep(0.001)
+        
+        print("Simulation completed.")
+        exit(0)

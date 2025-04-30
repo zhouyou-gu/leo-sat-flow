@@ -263,7 +263,7 @@ def single_dijkstra_with_path(num_nodes, indptr, indices, data, source, target):
                 heap_size = heap_push(heap_cost, heap_node, heap_size, new_cost, v)
     
     if dist[target] == INF:
-        return INF, 0, -np.ones(num_nodes, dtype=np.int64)
+        return 0, 0, -np.ones(num_nodes, dtype=np.int64)
     
     count = 0
     cur = target
@@ -352,41 +352,43 @@ def construct_edges_matrix_all_in_one(sources, targets, costs, lengths, paths_al
       Each row is [from, to, source, target, cost, idx].
     """
     Q = sources.shape[0]
-    total_edges = 0
-    # Build offsets array and compute total number of edges (each query contributes lengths[i]-1 edges)
+
+    # --- Phase 1: edge counts & prefix offsets ---------------------------------
     offsets = np.empty(Q, dtype=np.int64)
+    total_edges = 0
     for i in range(Q):
-        total_edges += lengths[i] - 1
-        if i == 0:
-            offsets[i] = 0
-        else:
-            offsets[i] = offsets[i - 1] + (lengths[i - 1] - 1)
+        edges_i = lengths[i] - 1
+        if edges_i < 0:                    # unreachable path -> no edges
+            edges_i = 0
+        offsets[i] = total_edges
+        total_edges += edges_i
+
+    # If nothing is reachable, just return an empty matrix with the right shape.
+    if total_edges == 0:
+        return np.empty((0, 7), dtype=np.float64)
     
-    # Allocate the result matrix
+    # --- Phase 2: fill ----------------------------------------------------------
     result = np.empty((total_edges, 7), dtype=np.float64)
-    
-    # Fill the result matrix in parallel over queries
+
     for i in prange(Q):
         L = lengths[i]
-        if L < 2:
-            # No edge exists if the path has fewer than 2 vertices.
+        if L < 2:                          # 0- or 1-vertex path ⇒ skip
             continue
-        start_idx = offsets[i]
-        num_edges = L - 1
-        src = sources[i]
-        tgt = targets[i]
-        cost = costs[i]
-        for j in range(num_edges):
-            result[start_idx + j, 0] = paths_all[i, j]       # from-vertex of edge j
-            result[start_idx + j, 1] = paths_all[i, j + 1]   # to-vertex of edge j
-            result[start_idx + j, 2] = src                   # s-t query source (same for all edges in this query)
-            result[start_idx + j, 3] = tgt                   # s-t query target
-            result[start_idx + j, 4] = cost                  # s-t query cost
-            result[start_idx + j, 5] = i                 # s-t query index
-            if cost >= 1e12:
-                result[start_idx + j, 6] = 0                # unreachable
-            else:
-                result[start_idx + j, 6] = 1                # reachable
+
+        start = offsets[i]
+        src, tgt, cost = sources[i], targets[i], costs[i]
+        reach_flag = 0.0 if cost >= 1e12 else 1.0
+
+        for j in range(L - 1):
+            row = start + j
+            result[row, 0] = paths_all[i, j]       # from
+            result[row, 1] = paths_all[i, j + 1]   # to
+            result[row, 2] = src                   # query source
+            result[row, 3] = tgt                   # query target
+            result[row, 4] = cost                  # query cost
+            result[row, 5] = i                     # query index
+            result[row, 6] = reach_flag            # reachable flag
+
     return result
 
 # ------------------------------------------------------------------------------
