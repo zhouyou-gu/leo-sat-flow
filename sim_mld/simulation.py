@@ -8,11 +8,11 @@ from scipy.spatial import cKDTree
 from skyfield.api import load
 from skyfield.sgp4lib import TEME
 
-from sim_alg.visual import *
-from sim_alg.tle import *
-from sim_alg.constellation import *
+from sim_mld.visual import *
+from sim_mld.tle import *
+from sim_mld.constellation import *
 
-from sim_alg.solver import mr_solver
+from sim_mld.solver import mr_solver
 
 import logging
 # Configure logging

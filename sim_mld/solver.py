@@ -1,9 +1,10 @@
 from numba import njit
 
-from sim_alg.dijkstra import build_csr, construct_edges_matrix_all_in_one, csr_to_edge_list, extract_weights, multi_dijkstra_with_paths, multi_dijkstra_with_paths_aw_b
-from sim_alg.lisl_channel_model import *
+from sim_mld.dijkstra import *
+from sim_mld.lisl_channel_model import *
 
 import scipy.sparse as sp
+import cvxpy as cp
 
 import logging
 
@@ -239,7 +240,8 @@ class mr_solver:
         indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
         logging.info("build csr done")
         print(f"source: {self.data_source}, target: {self.data_target}, data rate: {self.s_t_data_rate}")
-        costs, lengths, paths_all = multi_dijkstra_with_paths_aw_b(self.n_sat, indptr, indices, self.data_source, self.data_target, data, self.s_t_data_rate, 1)
+        # costs, lengths, paths_all = multi_dijkstra_with_paths_aw_b(self.n_sat, indptr, indices, self.data_source, self.data_target, data, self.s_t_data_rate, np.ones_like(self.s_t_data_rate))
+        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
         logging.info("Computing dual srouting done")
 
         if debug:
@@ -313,7 +315,7 @@ class mr_solver:
         # Compute the srouting with connected satellites
         prices = self.price_graph.get_prices(connected_sat)
         indptr, indices, prices = build_csr(self.n_sat, connected_sat, prices)
-        costs, lengths, paths_all = multi_dijkstra_with_paths_aw_b(self.n_sat, indptr, indices, self.data_source, self.data_target, prices, self.s_t_data_rate, 1)
+        costs, lengths, paths_all = multi_dijkstra_with_paths_aw_b(self.n_sat, indptr, indices, self.data_source, self.data_target, prices, self.s_t_data_rate, np.ones_like(self.s_t_data_rate))
         
         srouting = construct_edges_matrix_all_in_one(self.data_source, self.data_target, self.s_t_data_rate, lengths, paths_all)
         srouting = srouting[srouting[:, -1] >= 0]
@@ -329,4 +331,48 @@ class mr_solver:
         
         print("Traffic load: \n", traffic_load_and_capacity[:, 2])
         print("Capacity: \n", traffic_load_and_capacity[:, 3])
-        return traffic_load_and_capacity        
+        return traffic_load_and_capacity     
+    
+    def get_max_rate(self, srouting):
+        # edges: K×4 numpy array, columns = [u, v, s, t]
+        flow_pairs = [tuple(pair) for pair in srouting[:, 2:4]]
+        unique_pairs = sorted(set(flow_pairs))            # reproducible order
+        idx = {pair: i for i, pair in enumerate(unique_pairs)}
+        F = len(unique_pairs)
+
+        uv = srouting[:, :2]                                 # the (u,v) pairs
+        uniq_uv, inv = np.unique(uv, axis=0, return_inverse=True)
+        E = len(uniq_uv)
+
+        row = inv                                         # edge‐index for each of K rows
+        col = np.array([idx[tuple(p)] for p in srouting[:, 2:4]])
+        data = np.ones(srouting.shape[0], dtype=float)
+
+        P = sp.coo_matrix((data, (row, col)), shape=(E, F))   
+
+        r = cp.Variable(F, nonneg=True)
+        capacity = self.compute_capacity(np.linalg.norm(self.positions[uniq_uv[:, 0]] - self.positions[uniq_uv[:, 1]], axis=1))
+        constraints = [P @ r <= capacity]
+        prob = cp.Problem(cp.Maximize(cp.sum(r)), constraints)
+        prob.solve()    # CVXPY uses sparse internally :contentReference[oaicite:2]{index=2}
+
+        optimal_rates = r.value
+
+        # Map the optimal rates back to the source and target pairs
+        rate_map = {pair: optimal_rates[idx[pair]] for pair in unique_pairs}
+        # Create a new array to store the rates for each source-target pair
+        rates = np.zeros(self.data_source.shape[0])
+        original_pairs = [tuple(self.data_source[i], self.data_target[i]) for i in range(self.data_source.shape[0])]
+        # Fill the rates array with the corresponding values from the rate_map
+        for i, pair in enumerate(original_pairs):
+            if pair in rate_map:
+                rates[i] = rate_map[pair]
+            else:
+                rates[i] = 0.0
+                        
+        return rates
+        
+
+
+
+        

@@ -283,7 +283,7 @@ def single_dijkstra_with_path(num_nodes, indptr, indices, data, source, target):
 # Step 4. Parallel processing of multiple queries.
 # ------------------------------------------------------------------------------
 @numba.njit(parallel=True, cache=True)
-def multi_dijkstra_with_paths(num_nodes, indptr, indices, data, sources, targets):
+def multi_dijkstra_with_paths(num_nodes, indptr, indices, sources, targets, weights):
     n_queries = sources.shape[0]
     costs = np.empty(n_queries, dtype=np.float64)
     lengths = np.empty(n_queries, dtype=np.int64)
@@ -292,7 +292,7 @@ def multi_dijkstra_with_paths(num_nodes, indptr, indices, data, sources, targets
     for i in prange(n_queries):
         s = sources[i]
         t = targets[i]
-        cost, length, path = single_dijkstra_with_path(num_nodes, indptr, indices, data, s, t)
+        cost, length, path = single_dijkstra_with_path(num_nodes, indptr, indices, weights, s, t)
         costs[i] = cost
         lengths[i] = length
         for j in range(num_nodes):
@@ -310,7 +310,7 @@ def multi_dijkstra_with_paths_aw_b(num_nodes, indptr, indices, sources, targets,
     for i in prange(n_queries):
         s = sources[i]
         t = targets[i]
-        data = weights * a[i] + b
+        data = weights * a[i] + b[i]
         cost, length, path = single_dijkstra_with_path(num_nodes, indptr, indices, data, s, t)
         costs[i] = cost
         lengths[i] = length

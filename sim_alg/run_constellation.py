@@ -16,10 +16,10 @@ from scipy.spatial import cKDTree
 from skyfield.api import load
 from skyfield.sgp4lib import TEME
 
-from sim_alg.visual import *
-from sim_alg.tle import *
-from sim_alg.constellation import *
-from sim_alg.simulation import Simulation
+from sim_mld.visual import *
+from sim_mld.tle import *
+from sim_mld.constellation import *
+from sim_mld.simulation import Simulation
 
 from vispy import app
 import logging
