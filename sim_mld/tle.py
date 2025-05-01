@@ -2,12 +2,7 @@ import math
 from datetime import datetime
 from skyfield.api import load, EarthSatellite, wgs84
 from sgp4.api import SatrecArray
-import logging
 import numpy as np
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 def load_url_tle_data(url: str, reload: bool = True) -> tuple:
     """
@@ -24,14 +19,14 @@ def load_url_tle_data(url: str, reload: bool = True) -> tuple:
     satellites = load.tle_file(url, reload=reload)
     if not satellites:
         raise Exception("No Starlink satellites were loaded; check the TLE URL.")
-    logger.debug("Loaded %d Starlink satellites from %s", len(satellites), url)
+    print("Loaded %d Starlink satellites from %s" % (len(satellites), url))
 
     valid_satellites = []
     for sat in satellites:
         pos = sat.at(ts.now())
         if np.isnan(pos.position.km).any():
             message = pos.message if pos.message else "position is invalid"
-            logger.warning("Skipping %s due to error: %s", sat.name, message)
+            print("Skipping %s due to error: %s" % (sat.name, message))
             continue
         valid_satellites.append(sat)
 
@@ -99,7 +94,7 @@ def fetch_valid_sat_from_tle_list(tle_list):
         pos = sat.at(ts.now())
         if np.isnan(pos.position.km).any():
             message = pos.message if pos.message else "position is invalid"
-            logger.warning("Skipping %s due to error: %s", sat.name, message)
+            print("Skipping %s due to error: %s" % (sat.name, message))
             continue
         valid_satellites.append(sat)
 

@@ -25,11 +25,6 @@ from sim_mld.simulation import Simulation
 from vispy import app
 import logging
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-np.set_printoptions(precision=3, suppress=True)
-
 class DualSimulation(Simulation):
     def set_solver(self, solver):
         self.solver:mr_solver = solver
@@ -38,7 +33,7 @@ class DualSimulation(Simulation):
     def run_step(self):
         # Check the constellation connectivity
         connected, comp = self.solver.check_connected()
-        logger.debug(f"Constellation is connected: {connected}")
+        print(f"Constellation is connected: {connected}")
          
         
         # Evaluate g(lambda)
@@ -47,9 +42,9 @@ class DualSimulation(Simulation):
         p_o = self.solver.get_prim_objective()
         
         # Compute the gap.
-        print(f"Gap: {p_o - d_o}, Exp: {np.exp(-(p_o - d_o))}")
+        print(f"Gap: {p_o - d_o}, Exp: {np.exp(-(p_o - d_o))}, d_o: {d_o}, p_o: {p_o}")
         
-        self.solver.update_step_edge_prices()
+        self.solver.update_step_rates_prices()
         # self.srouting = self.solver.get_dual_srouting()
         # logger.debug(f"Routing shape: {self.srouting.shape}")
         # self._update_o_lisl(satp=self.srouting[:,0:2].astype(np.int64), edge_weight=None, viz=self.viz_list[1]) 
@@ -70,15 +65,16 @@ class DualSimulation(Simulation):
 
 
 
-
-logger.level = logging.DEBUG
 # Load tle data.
 ts, valid_satellites, sat_array = generate_walker_constellation_add_planes()
 
 # Create simulation instance.
 simulation = DualSimulation(ts, sat_array)
 
+
 solver = mr_solver()
+
+solver._debug()
 simulation.set_solver(solver)
 
 simulation.run()

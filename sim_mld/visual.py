@@ -8,12 +8,6 @@ from vispy.visuals.filters import TextureFilter
 from vispy.visuals.transforms import MatrixTransform, STTransform
 from vispy import gloo
 
-
-import logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-np.set_printoptions(precision=3, suppress=True)
-
 def compute_face_texcoords(vertices: np.ndarray) -> list:
     """
     Compute texture coordinates for a single face of vertices.
@@ -96,7 +90,7 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
     try:
         texture_image = Image.open(texture_path)
     except Exception as e:
-        logger.error("Error loading texture image: %s", e)
+        print("Error loading texture image: %s" % e)
         raise
 
     texture = np.array(texture_image)

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 
 import numpy as np
-import torch
+
 def p_true(probability_of_true):
     return np.random.choice([True, False], p=[probability_of_true, 1 - probability_of_true])
 
@@ -18,24 +18,28 @@ def DbToRatio(a):
 def RatioToDb(a):
     return 10.0 * math.log10(a)
 
-USE_CUDA = torch.cuda.is_available()
-FLOAT = torch.cuda.FloatTensor if USE_CUDA else torch.FloatTensor
-LONG_TYPE = torch.cuda.LongTensor if USE_CUDA else torch.LongTensor
+try:
+    import torch
+    USE_CUDA = torch.cuda.is_available()
+    FLOAT = torch.cuda.FloatTensor if USE_CUDA else torch.FloatTensor
+    LONG_TYPE = torch.cuda.LongTensor if USE_CUDA else torch.LongTensor
 
-def to_numpy(var):
-    return var.cpu().data.numpy() if USE_CUDA else var.data.numpy()
+    def to_numpy(var):
+        return var.cpu().data.numpy() if USE_CUDA else var.data.numpy()
 
-def to_tensor(ndarray, requires_grad=False, dtype=FLOAT):
-    t = torch.from_numpy(ndarray)
-    t.requires_grad_(requires_grad)
-    if USE_CUDA:
-        return t.type(dtype).to(torch.cuda.current_device())
-    else:
-        return t.type(dtype)
-def to_device(var):
-    if USE_CUDA:
-        return var.to(torch.cuda.current_device())
-    return var
+    def to_tensor(ndarray, requires_grad=False, dtype=FLOAT):
+        t = torch.from_numpy(ndarray)
+        t.requires_grad_(requires_grad)
+        if USE_CUDA:
+            return t.type(dtype).to(torch.cuda.current_device())
+        else:
+            return t.type(dtype)
+    def to_device(var):
+        if USE_CUDA:
+            return var.to(torch.cuda.current_device())
+        return var
+except ImportError:
+    print("torch not found")
 
 def cat_str_dot_txt(sl):
     ret = ""
@@ -115,6 +119,7 @@ class STATS_OBJECT:
     N_STEP = 0
     DISABLE_ALL_DEBUG = False
     DEBUG_STEP = 100
+    PRINTING_DEBUG_STEPS = 3
     DEBUG = False
 
     MOVING_AVERAGE_TIME_WINDOW = 100
@@ -166,12 +171,22 @@ class STATS_OBJECT:
             pprint.pprint(vars(self))
 
     def _print(self, *args, **kwargs):
-        if self.DEBUG and not STATS_OBJECT.DISABLE_ALL_DEBUG and (
-                self.N_STEP % self.DEBUG_STEP == 0 or self.N_STEP % self.DEBUG_STEP == 1 or self.N_STEP % self.DEBUG_STEP == 2):
-            print(("%6d\t" % self.N_STEP) + " ".join(map(str, args)), **kwargs)
+        # only proceed if debugging is enabled
+        if not (self.DEBUG and not STATS_OBJECT.DISABLE_ALL_DEBUG):
+            return
+
+        # check if N_STEP modulo DEBUG_STEP is 0, 1, or 2
+        if (self.N_STEP % self.DEBUG_STEP) < self.PRINTING_DEBUG_STEPS:
+            # build prefix once, then print all args directly
+            prefix = f"{self.N_STEP:6d}\t{self.__class__.__name__:10s}\t"
+            # use sep='' so we don’t introduce extra spaces
+            print(prefix + " ".join(map(str, args)), **kwargs)
+
 
     def _printalltime(self, *args, **kwargs):
-        print(("%6d\t" % self.N_STEP) + ("%10s\t" % self.__class__.__name__) + " ".join(map(str, args)), **kwargs)
+        # build prefix with step and class name
+        prefix = f"{self.N_STEP:6d}\t{self.__class__.__name__:10s}\t"
+        print(prefix + " ".join(map(str, args)), **kwargs)
 
     def _moving_average(self, key, new_value):
         if not self.INIT_MOVING_AVERAGE:
@@ -194,9 +209,10 @@ class STATS_OBJECT:
         else:
             return 0.
 
-    def _debug(self, ENABLE ,debug_step=100):
+    def _debug(self, ENABLE=True,debug_step=100, print_steps=100):
         self.DEBUG = ENABLE
         self.DEBUG_STEP = debug_step
+        self.PRINTING_DEBUG_STEPS = print_steps
 
     def _get_tic(self):
         if not self.INIT_TIMEING_OBJECT:
@@ -215,7 +231,6 @@ class STATS_OBJECT:
                 self.timers.remove(t)
                 return (time()-tim)*1e6
         raise Exception("no timer is found.")
-
 
 
 class CSV_WRITER_OBJECT:

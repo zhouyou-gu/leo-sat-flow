@@ -14,13 +14,9 @@ from sim_mld.constellation import *
 
 from sim_mld.solver import mr_solver
 
-import logging
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-np.set_printoptions(precision=3, suppress=True)
+from sim_src.util import STATS_OBJECT
 
-class Simulation:
+class Simulation(STATS_OBJECT):
     FOR_THETA: float = 30.0  # Angle in degrees for the satellite LT direction.
     LISL_MAX_DISTANCE: float = 3000.0  # Maximum distance for LISL in km.
     TIME_SCALE: float = 10.0
@@ -146,11 +142,11 @@ class Simulation:
         t_now = self.get_simulation_time()
         gmst_hours = t_now.gmst
         rotation_angle_deg = gmst_hours * 15  # 15° per hour.
-        logger.debug("GMST: %.2f hours, Rotation angle: %.2f degrees", gmst_hours, rotation_angle_deg)
+        self._print("GMST: %.2f hours, Rotation angle: %.2f degrees", gmst_hours, rotation_angle_deg)
         return rotation_angle_deg
 
     def _update_earth_rotation(self):
-        logger.debug(f'Updating Earth rotation... {self.update_count}')
+        self._print(f'Updating Earth rotation... {self.update_count}')
         """Update the Earth's rotation transformation."""
         rotation_angle = self.compute_rotation()
         for viz in self.viz_list:
@@ -158,7 +154,7 @@ class Simulation:
             viz['sphere_visual'].transform.rotate(rotation_angle, (0, 0, 1))
 
     def _update_satellite_positions(self):
-        logger.debug(f'Updating satellite positions and velocities... {self.update_count}')
+        self._print(f'Updating satellite positions and velocities... {self.update_count}')
         """Update satellite positions and velocities."""
         current_time = self.get_simulation_time()
         error_upd, pos_upd, vel_upd = self.sat_array.sgp4(
@@ -179,7 +175,7 @@ class Simulation:
             viz['scatter'].set_data(self.positions, face_color=[0, 0, 0, 0.5], size=10, edge_width=0)
 
     def _update_satellite_arrows(self):
-        logger.debug(f'Updating satellite arrows... {self.update_count}')
+        self._print(f'Updating satellite arrows... {self.update_count}')
         """Update satellite LT direction arrows."""
         self.front, self.back, self.down, self.right, self.left = update_arrows(self.velocities, self.positions)
         if self.PLOT_SATELLITE_LCTS:
@@ -199,7 +195,7 @@ class Simulation:
                 viz['arrow'].set_data(pos=a_data, width=1, connect='segments')
 
     def _update_p_satp(self):
-        logger.debug(f'Updating potential satellite pairs... {self.update_count}')
+        self._print(f'Updating potential satellite pairs... {self.update_count}')
         """Updating potential satellite pairs using KDTree."""
         
         # Compute the KDTree for efficient nearest neighbor search.
@@ -225,7 +221,7 @@ class Simulation:
         self.profiled_time['view_stacks'] = toc - tic
     
     def _update_p_lisl(self):
-        logger.debug(f'Updating potential LISL... {self.update_count}')
+        self._print(f'Updating potential LISL... {self.update_count}')
         """Update potential LISL visualizations."""
         # Generate boolean indicators using the precomputed threshold.
         tic = time.perf_counter()
@@ -267,7 +263,7 @@ class Simulation:
         start_time = time.perf_counter()
         cpu_usage = psutil.cpu_percent()
         mem_usage = psutil.Process().memory_info().rss / 1e6
-        logger.debug(f"CPU Usage: {cpu_usage}%, Memory Usage: {mem_usage:.2f} MB")
+        self._print(f"CPU Usage: {cpu_usage}%, Memory Usage: {mem_usage:.2f} MB")
 
         try:
             tic = time.perf_counter()
@@ -332,7 +328,7 @@ class Simulation:
                     viz['text_top_right'].text = text
                     
         except Exception as e:
-            logger.error("Unexpected error during update: %s", e)
+            print("Unexpected error during update: %s" % e)
             # Stop the simulation
             app.quit()
             exit(1)
@@ -377,40 +373,40 @@ class Simulation:
         """
         Update the simulation at each timer tick.
         """
-        logger.debug(f"Timer event triggered. Update count: {self.update_count}")
+        self._print(f"Timer event triggered. Update count: {self.update_count}")
         self.update_count += 1
         try:
             self.run_step()
         except Exception as e:
-            logger.error("Error during update: %s", e, exc_info=True)
+            print("Error during update: %s" % e)
             # Stop the simulation
             app.quit()
             exit(1)
         cpu_usage = psutil.cpu_percent()
         mem_usage = psutil.Process().memory_info().rss / 1e6
-        logger.debug(f"CPU Usage: {cpu_usage}%, Memory Usage: {mem_usage:.2f} MB")    
+        self._print(f"CPU Usage: {cpu_usage}%, Memory Usage: {mem_usage:.2f} MB")    
   
     def run_step(self):
         # Check the constellation connectivity
         connected, comp = self.solver.check_connected()
-        logger.debug(f"Constellation is connected: {connected}")
+        self._print(f"Constellation is connected: {connected}")
         
         # Compute the dual matching.
         self.connected_sat, self.connected_lct = self.solver.get_dual_matching()
-        logger.debug(f"Connected SATP: {self.connected_sat.shape[0]}, Connected LISL: {self.connected_lct.shape[0]}")
+        self._print(f"Connected SATP: {self.connected_sat.shape[0]}, Connected LISL: {self.connected_lct.shape[0]}")
         
         # Show capacity and distance
         distance = np.linalg.norm(self.positions[self.connected_sat[:, 0]] - self.positions[self.connected_sat[:, 1]], axis=1)
         connected_capacity = self.solver.compute_capacity(distance)
-        logger.debug(f"Connected Capacity: {connected_capacity}, distance: {distance}")
-        logger.debug(f"Max Capacity: {np.max(connected_capacity):.2f}, Min Capacity: {np.min(connected_capacity):.2f}")
+        self._print(f"Connected Capacity: {connected_capacity}, distance: {distance}")
+        self._print(f"Max Capacity: {np.max(connected_capacity):.2f}, Min Capacity: {np.min(connected_capacity):.2f}")
         
         edge_weight = 1-np.exp(-connected_capacity)
         self._update_o_lisl(satp=self.connected_sat, edge_weight=edge_weight, viz=self.viz_list[0])
         
         # Compute the dual srouting.
         self.srouting = self.solver.get_dual_srouting()
-        logger.debug(f"Routing shape: {self.srouting.shape}")
+        self._print(f"Routing shape: {self.srouting.shape}")
         self._update_o_lisl(satp=self.srouting[:,0:2].astype(np.int64), edge_weight=None, viz=self.viz_list[1]) 
         
         # Update the step edge prices.
@@ -429,7 +425,7 @@ class Simulation:
         """
         Run the simulation.
         """
-        logger.debug("Starting simulation...")
+        self._print("Starting simulation...")
 
         for i in range(N_STEPS):
             # self.canvas.update()         # schedule a redraw
