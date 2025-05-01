@@ -1,6 +1,7 @@
 gp*.php*
 /controller/ns3gym
 *-ail
+*-ail/*
 .idea/*
 .DS_Store
 # Byte-compiled / optimized / DLL files

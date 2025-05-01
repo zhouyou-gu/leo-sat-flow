@@ -155,7 +155,7 @@ class mr_solver(STATS_OBJECT):
     MIN_CAPACITY = 1
     
     def __init__(self):
-        self.ALPHA = 0.1
+        self.ALPHA = 0.05
                 
         self.n_sat = 0
         self.positions = None
@@ -187,7 +187,6 @@ class mr_solver(STATS_OBJECT):
         # Set initial positions
         self.positions = positions
         self.n_sat = positions.shape[0]
-        self.update_edge_capacity()
         
         self.price_graph = price_graph(self.n_sat, self.possible_sat_pair_expanded)
     
@@ -207,21 +206,22 @@ class mr_solver(STATS_OBJECT):
         indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, np.ones(self.possible_sat_pair_expanded.shape[0]))
         comp = graph_partition(self.n_sat, indptr, indices)
         num_components = np.unique(comp).shape[0]
+        self._print(f"Number of components: {num_components}")
         return num_components == 1, comp
 
     def update_source_target_pairs(self, n_pair=1, data_rate=0.):
         self.data_source, self.data_target = random_source_target_pairs(self.n_sat, n_pair)
         self.s_t_data_rate = np.ones(self.data_source.shape[0]) * data_rate
-    
-    def update_edge_capacity(self):
-        distance = np.linalg.norm(self.positions[self.possible_sat_pair_expanded[:, 0]] - self.positions[self.possible_sat_pair_expanded[:, 1]], axis=1)
-        self.edge_capacity = self.compute_capacity(distance)
         
     def get_dual_matching(self):
         self._print("Computing dual matching")
         prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
-        edge_weights_pr = prices * self.edge_capacity
-        self._print(f"Ec: max: {np.max(self.edge_capacity)}, min: {np.min(self.edge_capacity)}")
+        capacity = self.compute_capacity(
+            np.linalg.norm(self.positions[self.possible_sat_pair_expanded[:, 0]] - self.positions[self.possible_sat_pair_expanded[:, 1]], axis=1)
+        )
+        
+        edge_weights_pr = prices * capacity
+        self._print(f"Ec: max: {np.max(capacity)}, min: {np.min(capacity)}")
         self._print(f"Mw: max: {np.max(edge_weights_pr)}, min: {np.min(edge_weights_pr)}")
         weighted_edges = np.column_stack((self.possible_lct_pair_expanded, edge_weights_pr))
         matching = greedy_max_weight_matching(weighted_edges)
@@ -230,7 +230,7 @@ class mr_solver(STATS_OBJECT):
                                   for x in pair), dtype=int, count=2*m)
         connected_lct = flat_array.reshape(-1, 2)
         connected_sat = connected_lct // self.N_LCT_PER_SAT
-        self._print("Computing dual  done")
+        self._print("Computing dual done")
         return connected_sat, connected_lct
     
     def get_dual_srouting(self, debug=False):
@@ -238,7 +238,6 @@ class mr_solver(STATS_OBJECT):
         prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
         indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
         self._print("build csr done")
-        print(f"source: {self.data_source}, target: {self.data_target}, data rate: {self.s_t_data_rate}")
         # costs, lengths, paths_all = multi_dijkstra_with_paths_aw_b(self.n_sat, indptr, indices, self.data_source, self.data_target, data, self.s_t_data_rate, np.ones_like(self.s_t_data_rate))
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
         self._print("Computing dual srouting done")
@@ -259,18 +258,20 @@ class mr_solver(STATS_OBJECT):
         self._print("Computing dual objective")
         connected_sat, connected_lct = self.get_dual_matching()
         costs, lengths, paths_all = self.get_dual_srouting()
-        if np.any(costs < 1):
-            return -np.inf
-        else:
-            # Compute the edge capacity for the connected satellites
-            capacity_on_graph = self.compute_capacity(
-                np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
-            )
-            prices = self.price_graph.get_prices(connected_sat)
-            lambda_times_capacity = np.sum(prices * capacity_on_graph)
-            return -lambda_times_capacity
 
-    def get_prim_objective(self):
+        # Compute the edge capacity for the connected satellites
+        capacity_on_graph = self.compute_capacity(
+            np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
+        )
+        prices = self.price_graph.get_prices(connected_sat)
+        lambda_times_capacity = np.sum(prices * capacity_on_graph)
+        if costs.min() > 0:
+            lambda_times_capacity /= costs.min()
+        else:
+            return -np.inf
+        return -lambda_times_capacity
+
+    def get_prim_objective(self, with_rates=False):
         self._print("Computing prim objective")
         connected_sat, connected_lct = self.get_dual_matching()
         prices = self.price_graph.get_prices(connected_sat)
@@ -281,10 +282,13 @@ class mr_solver(STATS_OBJECT):
             self.data_source, self.data_target, costs, lengths, paths_all
         )
         
-        print("srouting", srouting.__class__)
         rates = self.get_max_rate(srouting)
-        return -np.sum(rates)
-         
+        self._printalltime(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
+        if not with_rates:
+            return -np.sum(rates)
+        else:
+            return -np.sum(rates), rates, srouting
+             
     def get_max_rate(self, srouting):
         self._print("Computing max rate")
         if np.asarray(srouting).size == 0:
@@ -341,9 +345,19 @@ class mr_solver(STATS_OBJECT):
             self.data_source, self.data_target, costs, lengths, paths_all
         )
         
-        self._print(f"Maximize rate: {srouting.shape}")
-        self.s_t_data_rate -= (self.ALPHA/np.sqrt(self.N_STEP)) * (-1 + costs)
+        self._print(f"Maximize rate: {srouting.shape}")            
+        self.s_t_data_rate -= self.ALPHA * (-1 + costs)
         self.s_t_data_rate = np.clip(self.s_t_data_rate, 0, None)
+        # tmp_rate = self.get_prim_objective(with_rates=True)[1]
+        # if np.sum(self.s_t_data_rate) <= np.sum(tmp_rate):
+        #     self.s_t_data_rate = tmp_rate
+        # self.s_t_data_rate = self.get_max_rate(srouting)
+        
+        # _, self.s_t_data_rate, srouting = self.get_prim_objective(with_rates=True)
+        
+        
+        self._printalltime(f"Appr rate: MAX: {np.max(self.s_t_data_rate)}, MIN: {np.min(self.s_t_data_rate)}")
+        self._printalltime(f"Cost path: MAX: {np.max(costs)}, MIN: {np.min(costs)}")
         
         srouting = construct_edges_matrix_all_in_one(
             self.data_source, self.data_target, self.s_t_data_rate, lengths, paths_all
@@ -354,8 +368,9 @@ class mr_solver(STATS_OBJECT):
             qx_csr = sp.csr_matrix((self.n_sat, self.n_sat))
         else:
             traffic = srouting[:,4]
+            self._printalltime(f"Tr: max: {np.max(traffic)}, min: {np.min(traffic)}")
             qx = build_csr(self.n_sat, srouting[:,0:2], traffic, merging_method='sum')
-            self._print(f"qx: max: {np.max(qx[2])}, min: {np.min(qx[2])}")
+            self._printalltime(f"qx: max: {np.max(qx[2])}, min: {np.min(qx[2])}")
             qx_csr = sp.csr_matrix((qx[2], qx[1], qx[0]), shape=(self.n_sat, self.n_sat))
 
         self._print(f"Compute rc: {connected_sat.shape}")
@@ -367,18 +382,18 @@ class mr_solver(STATS_OBJECT):
             )
             self._print(f"Cm: max: {np.max(capacity_matched)}, min: {np.min(capacity_matched)}")
             rc = build_csr(self.n_sat, connected_sat, capacity_matched, merging_method='sum')
-            self._print(f"rc: max: {np.max(rc[2])}, min: {np.min(rc[2])}")
+            self._printalltime(f"rc: max: {np.max(rc[2])}, min: {np.min(rc[2])}")
             rc_csr = sp.csr_matrix((rc[2], rc[1], rc[0]), shape=(self.n_sat, self.n_sat))
         
         # Update edge prices
         old_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
         self._print(f"Oe: max: {np.max(old_price)}, min: {np.min(old_price)}")
         
-        d_price_graph = (self.ALPHA/np.sqrt(self.N_STEP)) * (qx_csr - rc_csr)
+        d_price_graph = self.ALPHA * (qx_csr - rc_csr)
         self.price_graph.add_prices(d_price_graph)     
         
         new_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
-        self._print(f"Ne: max: {np.max(new_price)}, min: {np.min(new_price)}")
+        self._printalltime(f"Ne: max: {np.max(new_price)}, min: {np.min(new_price)}")
         
         self._print(f"Sz: {self.ALPHA/np.sqrt(self.N_STEP)}")
         return new_price

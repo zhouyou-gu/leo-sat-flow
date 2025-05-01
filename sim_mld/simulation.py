@@ -431,7 +431,5 @@ class Simulation(STATS_OBJECT):
             # self.canvas.update()         # schedule a redraw
             # app.process_events()   # keep GUI alive
             self.update(None)
-            time.sleep(0.001)
         
         print("Simulation completed.")
-        exit(0)

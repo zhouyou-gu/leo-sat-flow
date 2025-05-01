@@ -292,7 +292,6 @@ def plot_a_array(arr, mavg_n = 20, name= "", script_file = None, postfix = "", i
         plt.plot(idx[:data.size],data)
     else:
         plt.plot(np.arange(start=1, stop=data.size+1),data)
-
     if show:
         plt.show()
     if save_path:
@@ -301,7 +300,8 @@ def plot_a_array(arr, mavg_n = 20, name= "", script_file = None, postfix = "", i
         else:
             FIG_NAME = "-".join([name,postfix,get_current_time_str()])
         try:
-            os.mkdir(os.path.join(save_path,"saved_figures"))
+            os.mkdir(os.path.join(save_path,"saved_figures-ail"))
         except:
             pass
-        fig.savefig(os.path.join(save_path,"saved_figures",FIG_NAME))
+        
+        fig.savefig(os.path.join(save_path,"saved_figures-ail",FIG_NAME))

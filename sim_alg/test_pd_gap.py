@@ -25,6 +25,7 @@ from sim_mld.simulation import Simulation
 from vispy import app
 import logging
 
+np.set_printoptions(precision=4, suppress=True)
 class DualSimulation(Simulation):
     def set_solver(self, solver):
         self.solver:mr_solver = solver
@@ -33,18 +34,21 @@ class DualSimulation(Simulation):
     def run_step(self):
         # Check the constellation connectivity
         connected, comp = self.solver.check_connected()
-        print(f"Constellation is connected: {connected}")
+        self.solver.update_step_rates_prices()
          
-        
         # Evaluate g(lambda)
         d_o = self.solver.get_dual_objective()
         # Compute the prim p.
         p_o = self.solver.get_prim_objective()
         
+        gap = p_o - d_o
         # Compute the gap.
-        print(f"Gap: {p_o - d_o}, Exp: {np.exp(-(p_o - d_o))}, d_o: {d_o}, p_o: {p_o}")
+        print(f"Gap: {gap:.3f}, Exp: {np.exp(-(gap)):.3f}, d_o: {d_o:.3f}, p_o: {p_o:.3f}")
+        avg_p_o = self._moving_average("p_o", p_o)
+        print(f"avg: {avg_p_o}")
+        self._add_np_log("gap", self.N_STEP, np.array([gap]))
+        self._add_np_log("p_o", self.N_STEP, np.array([p_o]))
         
-        self.solver.update_step_rates_prices()
         # self.srouting = self.solver.get_dual_srouting()
         # logger.debug(f"Routing shape: {self.srouting.shape}")
         # self._update_o_lisl(satp=self.srouting[:,0:2].astype(np.int64), edge_weight=None, viz=self.viz_list[1]) 
@@ -66,7 +70,7 @@ class DualSimulation(Simulation):
 
 
 # Load tle data.
-ts, valid_satellites, sat_array = generate_walker_constellation_add_planes()
+ts, valid_satellites, sat_array = generate_walker_constellation_add_planes(planes=4)
 
 # Create simulation instance.
 simulation = DualSimulation(ts, sat_array)
@@ -74,8 +78,19 @@ simulation = DualSimulation(ts, sat_array)
 
 solver = mr_solver()
 
-solver._debug()
+# solver._debug()
 simulation.set_solver(solver)
 
-simulation.run()
+solver.update_source_target_pairs(20)
 
+simulation.run(N_STEPS=1000)
+
+from sim_src.util import plot_a_array, LOGGED_NP_DATA_HEADER_SIZE
+import os
+path = os.path.join(os.path.dirname(__file__))
+
+gap = simulation.LOGGED_NP_DATA["gap"][:,LOGGED_NP_DATA_HEADER_SIZE]
+gap = gap[gap < np.inf]
+if np.asarray(gap).size != 0:
+    plot_a_array(gap, name="gap", save_path=path)
+plot_a_array(simulation.LOGGED_NP_DATA["p_o"][:,LOGGED_NP_DATA_HEADER_SIZE], name="p_o", save_path=path)
