@@ -428,8 +428,8 @@ class Simulation(STATS_OBJECT):
         self._print("Starting simulation...")
 
         for i in range(N_STEPS):
-            # self.canvas.update()         # schedule a redraw
-            # app.process_events()   # keep GUI alive
+            self.canvas.update()         # schedule a redraw
+            app.process_events()   # keep GUI alive
             self.update(None)
         
         print("Simulation completed.")

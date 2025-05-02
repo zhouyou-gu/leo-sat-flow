@@ -154,6 +154,8 @@ class mr_solver(STATS_OBJECT):
     
     MIN_CAPACITY = 1
     
+    INIT_PRICES = 0.
+    
     def __init__(self):
         self.ALPHA = 0.05
                 
@@ -188,7 +190,7 @@ class mr_solver(STATS_OBJECT):
         self.positions = positions
         self.n_sat = positions.shape[0]
         
-        self.price_graph = price_graph(self.n_sat, self.possible_sat_pair_expanded)
+        self.price_graph = price_graph(self.n_sat, self.possible_sat_pair_expanded, self.INIT_PRICES)
     
         self.update_source_target_pairs()
     
@@ -209,8 +211,17 @@ class mr_solver(STATS_OBJECT):
         self._print(f"Number of components: {num_components}")
         return num_components == 1, comp
 
-    def update_source_target_pairs(self, n_pair=1, data_rate=0.):
-        self.data_source, self.data_target = random_source_target_pairs(self.n_sat, n_pair)
+    def update_source_target_pairs(self, n_pair=1, data_rate=0., seed=0):
+        rng = np.random.default_rng(seed)
+        
+        sources = rng.integers(0, self.n_sat, n_pair)
+        targets = rng.integers(0, self.n_sat, n_pair)
+        while np.any(sources == targets):
+            mask = (sources == targets)
+            targets[mask] = rng.integers(0, self.n_sat, np.sum(mask))
+        
+        self.data_source, self.data_target = sources, targets
+        print(f"Source: {self.data_source}, Target: {self.data_target}")
         self.s_t_data_rate = np.ones(self.data_source.shape[0]) * data_rate
         
     def get_dual_matching(self):
@@ -264,11 +275,9 @@ class mr_solver(STATS_OBJECT):
             np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
         )
         prices = self.price_graph.get_prices(connected_sat)
+        if costs.min() < 1:
+            prices /= (costs.min()+1e-1)
         lambda_times_capacity = np.sum(prices * capacity_on_graph)
-        if costs.min() > 0:
-            lambda_times_capacity /= costs.min()
-        else:
-            return -np.inf
         return -lambda_times_capacity
 
     def get_prim_objective(self, with_rates=False):
@@ -354,7 +363,6 @@ class mr_solver(STATS_OBJECT):
         # self.s_t_data_rate = self.get_max_rate(srouting)
         
         # _, self.s_t_data_rate, srouting = self.get_prim_objective(with_rates=True)
-        
         
         self._printalltime(f"Appr rate: MAX: {np.max(self.s_t_data_rate)}, MIN: {np.min(self.s_t_data_rate)}")
         self._printalltime(f"Cost path: MAX: {np.max(costs)}, MIN: {np.min(costs)}")

@@ -77,6 +77,7 @@ simulation = DualSimulation(ts, sat_array)
 
 
 solver = mr_solver()
+solver.INIT_PRICES = 0.
 
 # solver._debug()
 simulation.set_solver(solver)
@@ -91,6 +92,8 @@ path = os.path.join(os.path.dirname(__file__))
 
 gap = simulation.LOGGED_NP_DATA["gap"][:,LOGGED_NP_DATA_HEADER_SIZE]
 gap = gap[gap < np.inf]
+
+title = f"Init price {solver.INIT_PRICES}"
 if np.asarray(gap).size != 0:
-    plot_a_array(gap, name="gap", save_path=path)
-plot_a_array(simulation.LOGGED_NP_DATA["p_o"][:,LOGGED_NP_DATA_HEADER_SIZE], name="p_o", save_path=path)
+    plot_a_array(gap, name="gap", title=title, save_path=path)
+plot_a_array(simulation.LOGGED_NP_DATA["p_o"][:,LOGGED_NP_DATA_HEADER_SIZE], name="p_o", title=title, save_path=path)

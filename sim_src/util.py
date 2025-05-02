@@ -285,13 +285,17 @@ def GET_FILE_NAME_FOR_SIM_SCRIPT(file):
     FILE_NAME = os.path.splitext(os.path.basename(file))[0]
     return FILE_NAME
 
-def plot_a_array(arr, mavg_n = 20, name= "", script_file = None, postfix = "", idx = None , show = False, save_path = None):
+def plot_a_array(arr, mavg_n = 20, name= "", title= "",script_file = None, postfix = "", idx = None , show = False, save_path = None):
     fig = plt.figure(figsize=(16, 6), dpi=80)
     data = np.convolve(arr, np.ones(mavg_n)/mavg_n, mode='valid')
     if idx:
         plt.plot(idx[:data.size],data)
     else:
         plt.plot(np.arange(start=1, stop=data.size+1),data)
+    plt.title(title)
+    plt.xlabel("Step")
+    plt.ylabel(name)
+    plt.grid()
     if show:
         plt.show()
     if save_path:
