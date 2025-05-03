@@ -265,7 +265,7 @@ class mr_solver(STATS_OBJECT):
         
         return costs, lengths, paths_all
 
-    def get_dual_objective(self):
+    def get_dual_objective(self, with_prices=False):
         self._print("Computing dual objective")
         connected_sat, connected_lct = self.get_dual_matching()
         costs, lengths, paths_all = self.get_dual_srouting()
@@ -276,9 +276,13 @@ class mr_solver(STATS_OBJECT):
         )
         prices = self.price_graph.get_prices(connected_sat)
         if costs.min() < 1:
-            prices /= (costs.min()+1e-1)
+            prices += (1-costs.min())
+            
         lambda_times_capacity = np.sum(prices * capacity_on_graph)
-        return -lambda_times_capacity
+        if with_prices:
+            return -lambda_times_capacity, np.concatenate((self.possible_sat_pair_expanded,self.price_graph.get_prices(self.possible_sat_pair_expanded).reshape(-1,1)), axis=1)
+        else:
+            return -lambda_times_capacity
 
     def get_prim_objective(self, with_rates=False):
         self._print("Computing prim objective")

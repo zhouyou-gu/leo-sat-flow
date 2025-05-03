@@ -37,9 +37,9 @@ class DualSimulation(Simulation):
         self.solver.update_step_rates_prices()
          
         # Evaluate g(lambda)
-        d_o = self.solver.get_dual_objective()
+        d_o, edge_prices = self.solver.get_dual_objective(with_prices=True)
         # Compute the prim p.
-        p_o = self.solver.get_prim_objective()
+        p_o, rates, srouting = self.solver.get_prim_objective(with_rates=True)
         
         gap = p_o - d_o
         # Compute the gap.
@@ -51,7 +51,10 @@ class DualSimulation(Simulation):
         
         # self.srouting = self.solver.get_dual_srouting()
         # logger.debug(f"Routing shape: {self.srouting.shape}")
-        # self._update_o_lisl(satp=self.srouting[:,0:2].astype(np.int64), edge_weight=None, viz=self.viz_list[1]) 
+        self._update_o_lisl(satp=srouting[:,0:2].astype(np.int64), edge_weight=None, viz=self.viz_list[0]) 
+
+        vis_prices = edge_prices[:,2]/np.max(edge_prices[:,2])
+        self._update_o_lisl(satp=edge_prices[:,0:2].astype(np.int64), edge_weight=vis_prices, viz=self.viz_list[1]) 
         
         # # Update the step edge prices.
         # self.solver.update_step_edge_prices(self.connected_lct, self.srouting)
@@ -64,10 +67,6 @@ class DualSimulation(Simulation):
         # overflow = traffic_load_and_capacity[:,2] > traffic_load_and_capacity[:,3]
         # overflow = overflow.astype(np.float32).flatten()
         # self._update_o_lisl(satp=traffic_load_and_capacity[:,0:2].astype(np.int64), edge_weight=overflow, viz=self.viz_list[3], binary=True)
-        
-
-
-
 
 # Load tle data.
 ts, valid_satellites, sat_array = generate_walker_constellation_add_planes(planes=4)
@@ -75,16 +74,15 @@ ts, valid_satellites, sat_array = generate_walker_constellation_add_planes(plane
 # Create simulation instance.
 simulation = DualSimulation(ts, sat_array)
 
-
 solver = mr_solver()
 solver.INIT_PRICES = 0.
 
 # solver._debug()
 simulation.set_solver(solver)
 
-solver.update_source_target_pairs(20)
+solver.update_source_target_pairs(20,seed=123)
 
-simulation.run(N_STEPS=1000)
+simulation.run(N_STEPS=2000,visualize=True)
 
 from sim_src.util import plot_a_array, LOGGED_NP_DATA_HEADER_SIZE
 import os

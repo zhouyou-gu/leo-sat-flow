@@ -379,6 +379,8 @@ class Simulation(STATS_OBJECT):
             self.run_step()
         except Exception as e:
             print("Error during update: %s" % e)
+            import traceback
+            traceback.print_exc()
             # Stop the simulation
             app.quit()
             exit(1)
@@ -421,15 +423,16 @@ class Simulation(STATS_OBJECT):
         overflow = overflow.astype(np.float32).flatten()
         self._update_o_lisl(satp=traffic_load_and_capacity[:,0:2].astype(np.int64), edge_weight=overflow, viz=self.viz_list[3], binary=True)
         
-    def run(self, N_STEPS=1000):
+    def run(self, N_STEPS=1000, visualize=False):
         """
         Run the simulation.
         """
         self._print("Starting simulation...")
 
         for i in range(N_STEPS):
-            self.canvas.update()         # schedule a redraw
-            app.process_events()   # keep GUI alive
+            if visualize:
+                self.canvas.update()         # schedule a redraw
+                app.process_events()   # keep GUI alive
             self.update(None)
         
         print("Simulation completed.")
