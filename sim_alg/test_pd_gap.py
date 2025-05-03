@@ -80,7 +80,7 @@ solver.INIT_PRICES = 0.
 # solver._debug()
 simulation.set_solver(solver)
 
-solver.update_source_target_pairs(20,seed=123)
+solver.update_source_target_pairs(20,seed=0)
 
 simulation.run(N_STEPS=2000,visualize=True)
 
