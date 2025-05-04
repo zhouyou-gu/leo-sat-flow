@@ -199,11 +199,11 @@ import os
 path = os.path.join(os.path.dirname(__file__))
 
 gap = simulation.LOGGED_NP_DATA["gap"][:,LOGGED_NP_DATA_HEADER_SIZE]
-gap = gap[gap < np.inf]
-
+gap_value = gap[gap < np.inf]
+gap_idx = np.arange(gap.size)[gap < np.inf]
 title = f"Init price {solver.INIT_PRICES}"
-if np.asarray(gap).size != 0:
-    plot_a_array(gap, name="gap", title=title, save_path=path)
+if np.asarray(gap_value).size != 0:
+    plot_a_array(gap_value, idx=gap_idx, name="gap", title=title, save_path=path)
 else:
     plot_a_array(np.zeros_like((simulation.LOGGED_NP_DATA["p_o"][:,LOGGED_NP_DATA_HEADER_SIZE])), name="gap", title=title, save_path=path)
 plot_a_array(simulation.LOGGED_NP_DATA["p_o"][:,LOGGED_NP_DATA_HEADER_SIZE], name="p_o", title=title, save_path=path)
