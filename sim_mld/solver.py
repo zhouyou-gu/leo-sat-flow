@@ -157,7 +157,7 @@ class mr_solver(STATS_OBJECT):
     INIT_PRICES = 0.
     
     def __init__(self):
-        self.ALPHA = 0.05
+        self.ALPHA = 0.1
                 
         self.n_sat = 0
         self.positions = None
@@ -262,7 +262,8 @@ class mr_solver(STATS_OBJECT):
                 else:
                     print("Query {}: from {} to {} is unreachable.".format(
                         i, self.data_source[i], self.data_target[i]))
-        
+        if np.any(lengths == 0):
+            raise ValueError("No valid lengths found, The graph is not connected")
         return costs, lengths, paths_all
 
     def get_dual_objective(self, with_prices=False):
@@ -276,9 +277,13 @@ class mr_solver(STATS_OBJECT):
         )
         prices = self.price_graph.get_prices(connected_sat)
         if costs.min() < 1:
-            prices += (1-costs.min())
-            
-        lambda_times_capacity = np.sum(prices * capacity_on_graph)
+            idx = np.where(costs == costs.min())
+            l = lengths[idx]
+            prices += (1-costs.min())/l.min()
+        if costs.min() < 1:
+            lambda_times_capacity = np.inf
+        else:
+            lambda_times_capacity = np.sum(prices * capacity_on_graph)
         if with_prices:
             return -lambda_times_capacity, np.concatenate((self.possible_sat_pair_expanded,self.price_graph.get_prices(self.possible_sat_pair_expanded).reshape(-1,1)), axis=1)
         else:
