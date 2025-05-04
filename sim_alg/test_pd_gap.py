@@ -30,23 +30,30 @@ np.set_printoptions(precision=4, suppress=True)
 class testsolver(mr_solver):
     def update_step_rates_prices(self):
         self.N_STEP += 1
+        step_size = self.ALPHA / (self.N_STEP ** 0.2)
         self._print("Updating edge prices")
+
+        # qx_csr = sp.csr_matrix((self.n_sat, self.n_sat))
         
         prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
         indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
         self._print(f"do routing: max: {np.max(prices)}, min: {np.min(prices)}")
 
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
+        srouting = construct_edges_matrix_all_in_one(
+            self.data_source, self.data_target, costs, lengths, paths_all
+        )
+        
+        self._print(f"Maximize rate: {srouting.shape}")            
+        self.s_t_data_rate -= step_size * (-1 + costs)
+        self.s_t_data_rate = np.clip(self.s_t_data_rate, 0, None)
+        
+        self._printalltime(f"Appr rate: MAX: {np.max(self.s_t_data_rate)}, MIN: {np.min(self.s_t_data_rate)}")
         self._printalltime(f"Cost path: MAX: {np.max(costs)}, MIN: {np.min(costs)}")
         
-        data_rate = np.zeros_like(costs)
-        data_rate[costs < 1] = 100
-        data_rate[costs >= 1] = 0
         srouting = construct_edges_matrix_all_in_one(
-            self.data_source, self.data_target, data_rate, lengths, paths_all
+            self.data_source, self.data_target, self.s_t_data_rate, lengths, paths_all
         )
-        qx_csr = sp.csr_matrix((self.n_sat, self.n_sat))
-
         self._print(f"Compute qx: {srouting.shape}")
         if np.asarray(srouting).size == 0:
             qx_csr = sp.csr_matrix((self.n_sat, self.n_sat))
@@ -74,21 +81,9 @@ class testsolver(mr_solver):
         old_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
         self._printalltime(f"Oe: max: {np.max(old_price)}, min: {np.min(old_price)}")
         
-        step_size = self.ALPHA / (self.N_STEP ** 0.5)
+        self._printalltime(f"diff: {(qx_csr>rc_csr).mean()}")
+        
         dif_price_graph = step_size * (qx_csr - rc_csr)
-        
-        # new_price_graph = self.price_graph.price_graph + dif_price_graph
-        # new_price_graph.data = np.clip(new_price_graph.data, 0, None)
-        # edge_price_on_graph_idx_wgt = csr_to_edge_list(new_price_graph.indptr, new_price_graph.indices, new_price_graph.data)
-        # tmp_prices = extract_weights(self.possible_sat_pair_expanded, edge_price_on_graph_idx_wgt)
-        
-        # print(tmp_prices)
-        
-        # indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, tmp_prices)
-        # costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
-        # if costs.min() < 1:
-        #     self._printalltime(f"Reject update: {costs.min()}")
-        #     return
         
         self.price_graph.add_prices(dif_price_graph)     
         new_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
@@ -97,23 +92,46 @@ class testsolver(mr_solver):
         self._print(f"Sz: {step_size}")        
         return new_price    
 
-    def get_prim_objective(self, with_rates=False):
-        self._print("Computing prim objective")
-        connected_sat, connected_lct = self.get_dual_matching()
-        prices = self.price_graph.get_prices(connected_sat)
-        indptr, indices, data = build_csr(self.n_sat, connected_sat, prices)
-        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
+    # def get_prim_objective(self, with_rates=False):
+    #     self._printalltime("Computing prim objective SPF first")
+    #     prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
+    #     indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
+    #     costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
+    #     srouting = construct_edges_matrix_all_in_one(
+    #         self.data_source, self.data_target, self.s_t_data_rate, lengths, paths_all
+    #     )
+    #     indptr, indices, data = build_csr(self.n_sat, srouting[:,0:2], srouting[:,4], merging_method='sum')
+    #     traffic_on_graph_idx_wgt = csr_to_edge_list(indptr, indices, data)
+    #     traffic_on_graph_idx_wgt = extract_weights(self.possible_sat_pair_expanded, traffic_on_graph_idx_wgt)
+    #     capacity = self.compute_capacity(
+    #         np.linalg.norm(self.positions[self.possible_sat_pair_expanded[:, 0]] - self.positions[self.possible_sat_pair_expanded[:, 1]], axis=1)
+    #     )
+    #     weights  = (capacity + 1e-2)
         
-        srouting = construct_edges_matrix_all_in_one(
-            self.data_source, self.data_target, costs, lengths, paths_all
-        )
+    #     weighted_edges = np.column_stack((self.possible_lct_pair_expanded, weights))
+    #     matching = greedy_max_weight_matching(weighted_edges)
+    #     m = len(matching)
+    #     flat_array = np.fromiter((x for pair in ((min(e), max(e)) for e in matching)
+    #                               for x in pair), dtype=int, count=2*m)
+    #     connected_lct = flat_array.reshape(-1, 2)
+    #     connected_sat = connected_lct // self.N_LCT_PER_SAT
         
-        rates = self.get_max_rate(srouting)
-        self._printalltime(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
-        if not with_rates:
-            return -np.sum(rates)
-        else:
-            return -np.sum(rates), rates, srouting
+        
+    #     self._printalltime(f"Redo routing")
+    #     prices = self.price_graph.get_prices(connected_sat)
+    #     indptr, indices, data = build_csr(self.n_sat, connected_sat, prices)
+    #     costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
+        
+    #     srouting = construct_edges_matrix_all_in_one(
+    #         self.data_source, self.data_target, costs, lengths, paths_all
+    #     )
+                
+    #     rates = self.get_max_rate(srouting)
+    #     self._printalltime(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
+    #     if not with_rates:
+    #         return -np.sum(rates)
+    #     else:
+    #         return -np.sum(rates), rates, srouting
 
 
 
@@ -167,14 +185,14 @@ ts, valid_satellites, sat_array = generate_walker_constellation(planes=20)
 simulation = DualSimulation(ts, sat_array)
 
 solver = testsolver()
-solver.INIT_PRICES = 1.
+solver.INIT_PRICES = 0.
 
 # solver._debug()
 simulation.set_solver(solver)
 
-solver.update_source_target_pairs(20,seed=0)
+solver.update_source_target_pairs(20,data_rate=0,seed=0)
 
-simulation.run(N_STEPS=500,visualize=True)
+simulation.run(N_STEPS=1000,visualize=True)
 
 from sim_src.util import plot_a_array, LOGGED_NP_DATA_HEADER_SIZE
 import os
@@ -186,4 +204,6 @@ gap = gap[gap < np.inf]
 title = f"Init price {solver.INIT_PRICES}"
 if np.asarray(gap).size != 0:
     plot_a_array(gap, name="gap", title=title, save_path=path)
+else:
+    plot_a_array(np.zeros_like((simulation.LOGGED_NP_DATA["p_o"][:,LOGGED_NP_DATA_HEADER_SIZE])), name="gap", title=title, save_path=path)
 plot_a_array(simulation.LOGGED_NP_DATA["p_o"][:,LOGGED_NP_DATA_HEADER_SIZE], name="p_o", title=title, save_path=path)

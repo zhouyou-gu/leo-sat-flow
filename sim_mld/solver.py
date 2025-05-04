@@ -277,10 +277,6 @@ class mr_solver(STATS_OBJECT):
         )
         prices = self.price_graph.get_prices(connected_sat)
         if costs.min() < 1:
-            idx = np.where(costs == costs.min())
-            l = lengths[idx]
-            prices += (1-costs.min())/l.min()
-        if costs.min() < 1:
             lambda_times_capacity = np.inf
         else:
             lambda_times_capacity = np.sum(prices * capacity_on_graph)
@@ -308,6 +304,7 @@ class mr_solver(STATS_OBJECT):
             return -np.sum(rates), rates, srouting
              
     def get_max_rate(self, srouting):
+        #TODO: Handle the case when there are multiple LISL connections between the same pair of satellites
         self._print("Computing max rate")
         if np.asarray(srouting).size == 0:
             return np.zeros(self.data_source.shape[0])
@@ -366,12 +363,6 @@ class mr_solver(STATS_OBJECT):
         self._print(f"Maximize rate: {srouting.shape}")            
         self.s_t_data_rate -= self.ALPHA * (-1 + costs)
         self.s_t_data_rate = np.clip(self.s_t_data_rate, 0, None)
-        # tmp_rate = self.get_prim_objective(with_rates=True)[1]
-        # if np.sum(self.s_t_data_rate) <= np.sum(tmp_rate):
-        #     self.s_t_data_rate = tmp_rate
-        # self.s_t_data_rate = self.get_max_rate(srouting)
-        
-        # _, self.s_t_data_rate, srouting = self.get_prim_objective(with_rates=True)
         
         self._printalltime(f"Appr rate: MAX: {np.max(self.s_t_data_rate)}, MIN: {np.min(self.s_t_data_rate)}")
         self._printalltime(f"Cost path: MAX: {np.max(costs)}, MIN: {np.min(costs)}")
