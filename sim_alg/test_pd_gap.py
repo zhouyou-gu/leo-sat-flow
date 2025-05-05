@@ -201,6 +201,8 @@ path = os.path.join(os.path.dirname(__file__))
 gap = simulation.LOGGED_NP_DATA["gap"][:,LOGGED_NP_DATA_HEADER_SIZE]
 gap_value = gap[gap < np.inf]
 gap_idx = np.arange(gap.size)[gap < np.inf]
+print(f"Gap: {gap_value}")
+print(f"Gap idx: {gap_idx}")
 title = f"Init price {solver.INIT_PRICES}"
 if np.asarray(gap_value).size != 0:
     plot_a_array(gap_value, idx=gap_idx, name="gap", title=title, save_path=path)

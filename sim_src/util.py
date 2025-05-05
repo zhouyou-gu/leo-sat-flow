@@ -288,7 +288,7 @@ def GET_FILE_NAME_FOR_SIM_SCRIPT(file):
 def plot_a_array(arr, mavg_n = 20, name= "", title= "",script_file = None, postfix = "", idx = None , show = False, save_path = None):
     fig = plt.figure(figsize=(16, 6), dpi=80)
     data = np.convolve(arr, np.ones(mavg_n)/mavg_n, mode='valid')
-    if idx:
+    if idx is not None:
         plt.plot(idx[:data.size],data)
     else:
         plt.plot(np.arange(start=1, stop=data.size+1),data)

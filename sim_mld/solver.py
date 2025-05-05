@@ -277,13 +277,13 @@ class mr_solver(STATS_OBJECT):
         )
         prices = self.price_graph.get_prices(connected_sat)
         if costs.min() < 1:
-            lambda_times_capacity = np.inf
+            lambda_times_capacity = (-1+ costs[costs < 1]).sum()*10000 - np.sum(prices * capacity_on_graph)
         else:
-            lambda_times_capacity = np.sum(prices * capacity_on_graph)
+            lambda_times_capacity = -np.sum(prices * capacity_on_graph)
         if with_prices:
-            return -lambda_times_capacity, np.concatenate((self.possible_sat_pair_expanded,self.price_graph.get_prices(self.possible_sat_pair_expanded).reshape(-1,1)), axis=1)
+            return lambda_times_capacity, np.concatenate((self.possible_sat_pair_expanded,self.price_graph.get_prices(self.possible_sat_pair_expanded).reshape(-1,1)), axis=1)
         else:
-            return -lambda_times_capacity
+            return lambda_times_capacity
 
     def get_prim_objective(self, with_rates=False):
         self._print("Computing prim objective")
