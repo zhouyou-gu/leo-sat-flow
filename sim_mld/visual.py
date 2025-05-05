@@ -74,11 +74,11 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
     # gloo.set_state(depth_test=True, depth_mask=True, blend=False, cull_face=False)
 
     # Global arrow for reference
-    global_arrow = scene.visuals.Arrow(
-        pos=np.array([[0, 0, 0], [1, 1, 1]]), color='black', width=3, arrow_size=20,
-        arrow_type='stealth', parent=view.scene
-    )
-    view.add(global_arrow)
+    # global_arrow = scene.visuals.Arrow(
+    #     pos=np.array([[0, 0, 0], [1, 1, 1]]), color='black', width=3, arrow_size=20,
+    #     arrow_type='stealth', parent=view.scene
+    # )
+    # view.add(global_arrow)
 
     # Axes with scaling.
     axes = scene.visuals.XYZAxis(parent=view.scene)
@@ -135,9 +135,9 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
     view.add(o_lisl)
     # Create Text visual
     
+    WAITING_TEXT = "..."
     FONT_SIZE = 10
-    text_top_left = scene.visuals.Text(text="Waiting..." + str(idx),
-            color='black',
+    text_top_left = scene.visuals.Text(text=WAITING_TEXT,
             face='FreeMono',  # Change font here
             font_size=FONT_SIZE,
             bold=False,
@@ -147,7 +147,7 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
             parent=view.parent,
             )
     
-    text_bot_left = scene.visuals.Text(text="Waiting..." + str(idx),
+    text_bot_left = scene.visuals.Text(text=WAITING_TEXT,
             color='black',
             face='FreeMono',  # Change font here
             font_size=FONT_SIZE,
@@ -158,7 +158,7 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
             parent=view.parent,
             )
     
-    text_top_right = scene.visuals.Text(text="Waiting..." + str(idx),
+    text_top_right = scene.visuals.Text(text=WAITING_TEXT,
             color='black',
             face='FreeMono',  # Change font here
             font_size=FONT_SIZE,
@@ -169,7 +169,7 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
             parent=view.parent,
             )
 
-    text_bot_right = scene.visuals.Text(text="Waiting..." + str(idx),
+    text_bot_right = scene.visuals.Text(text=WAITING_TEXT,
             color='black',
             face='FreeMono',  # Change font here
             font_size=FONT_SIZE,
@@ -180,16 +180,30 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
             parent=view.parent,
             )
 
+    top_middle_coord = (top_left_coord[0] + top_right_coord[0]) / 2, top_left_coord[1]
+    text_title = scene.visuals.Text(text="Title-" + str(idx),
+            color='black',
+            face='FreeMono',  # Change font here
+            font_size=FONT_SIZE+5,
+            bold=True,
+            pos=top_middle_coord,
+            anchor_x='center',  # horizontal alignment
+            anchor_y='bottom',  # vertical alignment
+            parent=view.parent,
+            )
+
     # Position the text at the center
     # text.transform = scene.STTransform(translate=(1, 1))
 
     return {
+        "index": idx,
         "view": view,
         "sphere_visual": sphere_visual,
         "scatter": scatter,
         "arrow": satellite_arrow,
         "p_lisl": p_lisl,
         "o_lisl": o_lisl,
+        "text_title": text_title,
         "text_top_left": text_top_left,
         "text_bot_left": text_bot_left,
         "text_top_right": text_top_right,
@@ -207,7 +221,7 @@ def setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(3, 3)):
     for i in range(shape[0]):
         for j in range(shape[1]):
             view = grid.add_view(row=i, col=j)
-            view.pos = (i * (sceen_size[0] // shape[1]), j * (sceen_size[1] // shape[0]))
+            view.pos = (j * (sceen_size[0] // shape[1]), i * (sceen_size[1] // shape[0]))
             view.size = (sceen_size[0] // shape[1], sceen_size[1] // shape[0])
             view.camera = camera
             ret.append(setup_visualization(view=view, idx=(i, j)))

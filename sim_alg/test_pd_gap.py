@@ -92,49 +92,6 @@ class testsolver(mr_solver):
         self._print(f"Sz: {step_size}")        
         return new_price    
 
-    # def get_prim_objective(self, with_rates=False):
-    #     self._printalltime("Computing prim objective SPF first")
-    #     prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
-    #     indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
-    #     costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
-    #     srouting = construct_edges_matrix_all_in_one(
-    #         self.data_source, self.data_target, self.s_t_data_rate, lengths, paths_all
-    #     )
-    #     indptr, indices, data = build_csr(self.n_sat, srouting[:,0:2], srouting[:,4], merging_method='sum')
-    #     traffic_on_graph_idx_wgt = csr_to_edge_list(indptr, indices, data)
-    #     traffic_on_graph_idx_wgt = extract_weights(self.possible_sat_pair_expanded, traffic_on_graph_idx_wgt)
-    #     capacity = self.compute_capacity(
-    #         np.linalg.norm(self.positions[self.possible_sat_pair_expanded[:, 0]] - self.positions[self.possible_sat_pair_expanded[:, 1]], axis=1)
-    #     )
-    #     weights  = (capacity + 1e-2)
-        
-    #     weighted_edges = np.column_stack((self.possible_lct_pair_expanded, weights))
-    #     matching = greedy_max_weight_matching(weighted_edges)
-    #     m = len(matching)
-    #     flat_array = np.fromiter((x for pair in ((min(e), max(e)) for e in matching)
-    #                               for x in pair), dtype=int, count=2*m)
-    #     connected_lct = flat_array.reshape(-1, 2)
-    #     connected_sat = connected_lct // self.N_LCT_PER_SAT
-        
-        
-    #     self._printalltime(f"Redo routing")
-    #     prices = self.price_graph.get_prices(connected_sat)
-    #     indptr, indices, data = build_csr(self.n_sat, connected_sat, prices)
-    #     costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
-        
-    #     srouting = construct_edges_matrix_all_in_one(
-    #         self.data_source, self.data_target, costs, lengths, paths_all
-    #     )
-                
-    #     rates = self.get_max_rate(srouting)
-    #     self._printalltime(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
-    #     if not with_rates:
-    #         return -np.sum(rates)
-    #     else:
-    #         return -np.sum(rates), rates, srouting
-
-
-
 class DualSimulation(Simulation):
     def set_solver(self, solver):
         self.solver:mr_solver = solver
@@ -150,6 +107,8 @@ class DualSimulation(Simulation):
         # Compute the prim p.
         p_o, rates, srouting = self.solver.get_prim_objective(with_rates=True)
         
+        s_t = np.column_stack((self.solver.data_source, self.solver.data_target))
+        
         gap = p_o - d_o
         # Compute the gap.
         print(f"Gap: {gap:.3f}, Exp: {np.exp(-(gap)):.3f}, d_o: {d_o:.3f}, p_o: {p_o:.3f}")
@@ -158,25 +117,65 @@ class DualSimulation(Simulation):
         self._add_np_log("gap", self.N_STEP, np.array([gap]))
         self._add_np_log("p_o", self.N_STEP, np.array([p_o]))
         
-        # self.srouting = self.solver.get_dual_srouting()
-        # logger.debug(f"Routing shape: {self.srouting.shape}")
+        self._update_traffic_flow(satp=s_t, edge_weight=rates/rates.max(), viz=self.viz_list[3])
+
+        connected_sat, connected_lct = self.solver.get_dual_matching()
+        capacity = self.solver.compute_capacity(
+            np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
+        )
+        self._update_o_lisl(satp=connected_sat, viz=self.viz_list[1], edge_weight=capacity/capacity.max())
+
         self._update_o_lisl(satp=srouting[:,0:2].astype(np.int64), edge_weight=None, viz=self.viz_list[0]) 
 
         vis_prices = edge_prices[:,2]/np.max(edge_prices[:,2])
-        self._update_o_lisl(satp=edge_prices[:,0:2].astype(np.int64), edge_weight=vis_prices, viz=self.viz_list[1]) 
-        
-        # # Update the step edge prices.
-        # self.solver.update_step_edge_prices(self.connected_lct, self.srouting)
-        # prices = self.solver.price_graph.get_prices(self.filtered_repeated)
-        # edge_weight = prices/np.max(prices)
-        # self._update_o_lisl(satp=self.filtered_repeated, edge_weight=edge_weight, viz=self.viz_list[2])
+        self._update_o_lisl(satp=edge_prices[:,0:2].astype(np.int64), edge_weight=vis_prices, viz=self.viz_list[2]) 
     
-        # # Compute the prim srouting.
-        # traffic_load_and_capacity = self.solver.get_prim_srouting()
-        # overflow = traffic_load_and_capacity[:,2] > traffic_load_and_capacity[:,3]
-        # overflow = overflow.astype(np.float32).flatten()
-        # self._update_o_lisl(satp=traffic_load_and_capacity[:,0:2].astype(np.int64), edge_weight=overflow, viz=self.viz_list[3], binary=True)
+    def _update_traffic_flow(self, satp, edge_weight=None, viz=None):
+        if viz is None:
+            return
+        if "traffic_flow" in viz:
+            edge_from = self.positions[satp[:, 0]]
+            edge_to = self.positions[satp[:, 1]]
+            if edge_weight is None:
+                edge_weight = np.ones(satp.shape[0], dtype=self.EDGE_COLOR.dtype)
+            
+            COLOR_FROM_BASE = 0.25
+            color_data_to = np.zeros((edge_weight.shape[0], 4), dtype=self.EDGE_COLOR.dtype)
+            edge_weight = np.tanh(edge_weight).clip(0, 1)*(1-COLOR_FROM_BASE) +COLOR_FROM_BASE
+            color_data_to[:, 3] = edge_weight
+            color_data_from = np.zeros((edge_weight.shape[0], 4), dtype=self.EDGE_COLOR.dtype)
+            color_data_from[:, 3] = COLOR_FROM_BASE
+            color_data = np.concatenate((color_data_from, color_data_to), axis=1).reshape(-1, 4)
+            pos_data = np.concatenate((edge_from, edge_to), axis=1).reshape(-1, 3)
+            
+            arrow_dir = np.concatenate((edge_from, edge_to), axis=1)
+            
+            viz['traffic_flow'].set_data(pos=pos_data, color=color_data,
+                                         width=5, connect='segments', arrows=arrow_dir)
 
+    def run(self, N_STEPS=1000, visualize=False):
+        """
+        Run the simulation.
+        """
+        self._print("Starting simulation...")
+        self.viz_list[3]['sphere_visual'].visible = False
+        traffic_flow = scene.visuals.Arrow()
+        self.viz_list[3]['view'].add(traffic_flow)
+        self.viz_list[3]['traffic_flow'] = traffic_flow
+        self.viz_list[0]['text_title'].text = "WSPF Routing"
+        self.viz_list[1]['text_title'].text = "MWM Matching"
+        self.viz_list[2]['text_title'].text = "Edge Pricing"
+        self.viz_list[3]['text_title'].text = "Traffic Flow"
+        
+        # self.viz_list[1]['text_top_left'].text = "hello"
+        for i in range(N_STEPS):
+            if visualize:
+                self.canvas.update()         # schedule a redraw
+                app.process_events()   # keep GUI alive
+            self.update(None)
+        
+        print("Simulation completed.")        
+        
 # Load tle data.
 # ts, valid_satellites, sat_array = generate_walker_constellation_add_planes(planes=20)
 ts, valid_satellites, sat_array = generate_walker_constellation(planes=20)
@@ -201,8 +200,8 @@ path = os.path.join(os.path.dirname(__file__))
 gap = simulation.LOGGED_NP_DATA["gap"][:,LOGGED_NP_DATA_HEADER_SIZE]
 gap_value = gap[gap < np.inf]
 gap_idx = np.arange(gap.size)[gap < np.inf]
-print(f"Gap: {gap_value}")
-print(f"Gap idx: {gap_idx}")
+# print(f"Gap: {gap_value}")
+# print(f"Gap idx: {gap_idx}")
 title = f"Init price {solver.INIT_PRICES}"
 if np.asarray(gap_value).size != 0:
     plot_a_array(gap_value, idx=gap_idx, name="gap", title=title, save_path=path)

@@ -172,7 +172,7 @@ class Simulation(STATS_OBJECT):
 
         for viz in self.viz_list:
             # Update the satellite markers.
-            viz['scatter'].set_data(self.positions, face_color=[0, 0, 0, 0.5], size=10, edge_width=0)
+            viz['scatter'].set_data(self.positions, face_color=[0, 0, 0, 0.5], size=5, edge_width_rel=0)
 
     def _update_satellite_arrows(self):
         self._print(f'Updating satellite arrows... {self.update_count}')
@@ -344,7 +344,7 @@ class Simulation(STATS_OBJECT):
             edge_from = self.positions[satp[:, 0]]
             edge_to = self.positions[satp[:, 1]]
             if edge_weight is None:
-                edge_weight = np.ones(satp.shape[0], dtype=self.EDGE_COLOR.dtype)
+                edge_weight = np.ones(satp.shape[0], dtype=self.EDGE_COLOR.dtype)*0.5
 
             edge_weight = edge_weight.reshape(-1, 1)
             edge_from = edge_from * (1 + 0.0001 * edge_weight)
@@ -364,7 +364,7 @@ class Simulation(STATS_OBJECT):
                 edge_weight_green = (edge_weight < 0.5).astype(np.float32)
                 edges_color_data[:, 0] = np.concatenate((edge_weight_red, edge_weight_red), axis=1).reshape(-1)
                 edges_color_data[:, 1] = np.concatenate((edge_weight_green, edge_weight_green), axis=1).reshape(-1)
-            viz['o_lisl'].set_data(pos=o_lisl_data, color=edges_color_data, width=1, connect='segments')
+            viz['o_lisl'].set_data(pos=o_lisl_data, color=edges_color_data, width=2, connect='segments')
         
         toc = time.perf_counter()
         self.profiled_time['draw_matching'] = toc - tic
