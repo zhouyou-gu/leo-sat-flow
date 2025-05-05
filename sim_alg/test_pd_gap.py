@@ -133,6 +133,7 @@ class DualSimulation(Simulation):
     def _update_traffic_flow(self, satp, edge_weight=None, viz=None):
         if viz is None:
             return
+        
         if "traffic_flow" in viz:
             edge_from = self.positions[satp[:, 0]]
             edge_to = self.positions[satp[:, 1]]
