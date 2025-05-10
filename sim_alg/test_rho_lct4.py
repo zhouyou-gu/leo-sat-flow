@@ -225,7 +225,7 @@ for rho in rho_list:
 
         solver.update_source_target_pairs(20,data_rate=0,seed=i)
 
-        simulation.run(N_STEPS=1,visualize=False)
+        simulation.run(N_STEPS=500,visualize=False)
         
         p_o, rates, srouting, srouting_tuple = solver.get_prim_objective(with_rates=True)
         print(f"p_o: {p_o:.3f}, rates: {rates.mean():.3f}")
