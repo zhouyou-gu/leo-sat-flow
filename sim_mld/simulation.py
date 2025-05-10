@@ -247,6 +247,9 @@ class Simulation(STATS_OBJECT):
         toc = time.perf_counter()
         self.profiled_time['expand_edges'] = toc - tic
         
+        if np.asarray(self.filtered_expanded).size == 0:
+            self._print("No potential LISL edges found.")
+            return
         # Filter view stacks for valid edges and compute pairwise minimum.
         tic = time.perf_counter()
         self.view_LT_pair_min_cos = compute_view_LT_pair_min_cos(filtered_view_from_stack, filtered_view_to_stack, p_lisl_LT_pair.reshape(-1))

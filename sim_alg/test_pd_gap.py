@@ -208,7 +208,7 @@ ts, valid_satellites, sat_array = generate_walker_constellation(planes=20)
 # Create simulation instance.
 simulation = DualSimulation(ts, sat_array)
 simulation.PLOT_POTENTIAL_LISL = True
-simulation.config_l_mask(lct2_rho=0.1, lct4_rho=0.1, seed=SEED)
+simulation.config_l_mask(lct2_rho=0., lct4_rho=0.5, seed=SEED)
 simulation.update_space()
 
 solver = testsolver()
