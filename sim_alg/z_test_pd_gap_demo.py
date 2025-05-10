@@ -34,7 +34,7 @@ class testsolver(mr_solver):
         self._print("Updating edge prices")
 
         # qx_csr = sp.csr_matrix((self.n_sat, self.n_sat))
-
+        
         prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
         indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
         self._print(f"do routing: max: {np.max(prices)}, min: {np.min(prices)}")
@@ -97,24 +97,7 @@ class DualSimulation(Simulation):
         self.solver:mr_solver = solver
         self.solver.init_constellation(self.filtered_repeated, self.filtered_expanded, self.positions)
 
-    def config_l_mask(self, lct2_rho=0., lct4_rho=0., seed=0):
-        assert lct2_rho + lct4_rho <= 1, "lct2_rho + lct4_rho must be less than or equal to 1"
-        n_lct2_sat = int(self.n_sat * lct2_rho)
-        n_lct4_sat = int(self.n_sat * lct4_rho)
-        
-        rng = np.random.default_rng(seed)
-        
-        permuted_indices = rng.permutation(np.arange(0, self.n_sat))
-        self.lct2_indices = permuted_indices[:n_lct2_sat]
-        self.lct4_indices = permuted_indices[n_lct2_sat:n_lct2_sat + n_lct4_sat]
-        
-        self.lct_mask = np.zeros((self.n_sat, self.N_LCT_PER_SAT), dtype=np.float32)
-        self.lct_mask[self.lct2_indices] = np.array([1, 1, 0, 0], dtype=np.float32)
-        self.lct_mask[self.lct4_indices] = np.array([1, 1, 1, 1], dtype=np.float32)
-        
     def run_step(self):
-        if self.filtered_expanded.size == 0:
-            return
         # Check the constellation connectivity
         connected, comp = self.solver.check_connected()
         self.solver.update_step_rates_prices()
@@ -149,7 +132,7 @@ class DualSimulation(Simulation):
         self._update_o_lisl(satp=edge_prices[:,0:2].astype(np.int64), edge_weight=vis_prices, viz=self.viz_list[2]) 
     
         self.viz_list[0]['text_title'].text = f"Weighted Shortest Path Routing\n - Average Hops {srouting_tuple[1].mean():.2f}" 
-        self.viz_list[1]['text_title'].text = f"Maximum Weight Laser Matching\n - Average Per Link Rate (Gbps) {capacity.mean():.2f}" 
+        self.viz_list[1]['text_title'].text = f"Maximum Weight Laser Matching\n - Average Per Link Rate (Gbps){capacity.mean():.2f}" 
         self.viz_list[2]['text_title'].text = f"Laser Link Pricing (Dual Variables)\n - Average Price (Gbps Per Hop) {edge_prices[:,2].mean():.2f}"
         self.viz_list[3]['text_title'].text = f"Source-to-Target Traffic Flow\n - Average Rate (Gbps) {dual_rates.mean():.2f}"
     
@@ -181,44 +164,41 @@ class DualSimulation(Simulation):
         """
         Run the simulation.
         """
-        self.update_space()
         self._print("Starting simulation...")
         self.viz_list[3]['sphere_visual'].visible = False
         traffic_flow = scene.visuals.Arrow()
         self.viz_list[3]['view'].add(traffic_flow)
         self.viz_list[3]['traffic_flow'] = traffic_flow
+
+        
         
         # self.viz_list[1]['text_top_left'].text = "hello"
         for i in range(N_STEPS):
             self.viz_list[0]['text_top_left'].text = f"Step {i+1}/{N_STEPS}"
             self.viz_list[0]['text_bot_left'].text = f"Time {time.perf_counter()-self.real_start_time:.2f}s"
             if visualize:
-                self.canvas.update()   # schedule a redraw
+                self.canvas.update()         # schedule a redraw
                 app.process_events()   # keep GUI alive
             self.update(None)
             self.update_space()
+            # self.solver.init_constellation(self.filtered_repeated, self.filtered_expanded, self.positions)
         
         print("Simulation completed.")        
         
-        
-SEED = 0
 # Load tle data.
+# ts, valid_satellites, sat_array = generate_walker_constellation_add_planes(planes=20)
 ts, valid_satellites, sat_array = generate_walker_constellation(planes=20)
 
 # Create simulation instance.
 simulation = DualSimulation(ts, sat_array)
-simulation.PLOT_POTENTIAL_LISL = True
-simulation.config_l_mask(lct2_rho=0.1, lct4_rho=0.1, seed=SEED)
-simulation.update_space()
 
 solver = testsolver()
 solver.INIT_PRICES = 0.
 
-solver._debug()
-simulation._debug()
+# solver._debug()
 simulation.set_solver(solver)
 
-solver.update_source_target_pairs(20,data_rate=0,seed=SEED)
+solver.update_source_target_pairs(20,data_rate=0,seed=0)
 
 simulation.run(N_STEPS=1000,visualize=True)
 

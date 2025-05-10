@@ -263,7 +263,7 @@ def single_dijkstra_with_path(num_nodes, indptr, indices, data, source, target):
                 heap_size = heap_push(heap_cost, heap_node, heap_size, new_cost, v)
     
     if dist[target] == INF:
-        return 0, 0, -np.ones(num_nodes, dtype=np.int64)
+        return INF, 0, -np.ones(num_nodes, dtype=np.int64)
     
     count = 0
     cur = target

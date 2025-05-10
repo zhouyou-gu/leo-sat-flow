@@ -85,9 +85,9 @@ def update_arrows(velocities, positions):
         back[i, 2] = -front[i, 2]
 
         # Normalize the position vector for the "down" arrow
-        p0 = positions[i, 0]
-        p1 = positions[i, 1]
-        p2 = positions[i, 2]
+        p0 = -positions[i, 0]
+        p1 = -positions[i, 1]
+        p2 = -positions[i, 2]
         norm_p = math.sqrt(p0*p0 + p1*p1 + p2*p2)
         down[i, 0] = p0 / norm_p
         down[i, 1] = p1 / norm_p
@@ -447,45 +447,30 @@ def compute_view_stacks(lct_directions, edges, direction):
 
     return view_from_stack, view_to_stack
 
-# @njit(parallel=True,cache=True)
-# def compute_view_stacks(front, back, right, left, edges, direction):
-#     """
-#     Compute dot products for source and destination sides in parallel.
-
-#     Parameters:
-#         front, back, right, left (np.ndarray): Arrays of shape (N, 3) representing direction vectors.
-#         edges (np.ndarray): Array of shape (num_edges, 2) containing indices.
-#         direction (np.ndarray): Array of shape (num_edges, 3) representing normalized directions.
-
-#     Returns:
-#         tuple: Two arrays of shape (num_edges, 4) for view_from_stack and view_to_stack.
-#     """
-#     num_edges = edges.shape[0]
-#     # Pre-allocate output arrays.
-#     view_from_stack = np.empty((num_edges, 4), dtype=direction.dtype)
-#     view_to_stack = np.empty((num_edges, 4), dtype=direction.dtype)
+@njit(parallel=True,cache=True)
+def apply_mask_to_view(mask, edges, view_from_stack, view_to_stack):
+    num_edges = edges.shape[0]
+    # Pre-allocate output arrays.
+    ret_view_from_stack = np.empty_like(view_from_stack)
+    ret_view_to_stack = np.empty_like(view_to_stack)
     
-#     for i in prange(num_edges):
-#         # Get the source and destination indices for this edge.
-#         src = edges[i, 0]
-#         dst = edges[i, 1]
-#         d0 = direction[i, 0]
-#         d1 = direction[i, 1]
-#         d2 = direction[i, 2]
+    for i in prange(num_edges):
+        # Get the source and destination indices for this edge.
+        src = edges[i, 0]
+        dst = edges[i, 1]
         
-#         # Compute dot products for source side.
-#         view_from_stack[i, 0] = front[src, 0]*d0 + front[src, 1]*d1 + front[src, 2]*d2
-#         view_from_stack[i, 1] = back[src, 0]*d0 + back[src, 1]*d1 + back[src, 2]*d2
-#         view_from_stack[i, 2] = right[src, 0]*d0 + right[src, 1]*d1 + right[src, 2]*d2
-#         view_from_stack[i, 3] = left[src, 0]*d0 + left[src, 1]*d1 + left[src, 2]*d2
+        # Compute dot products for source side.
+        ret_view_from_stack[i, 0] = mask[src, 0] * view_from_stack[i, 0]
+        ret_view_from_stack[i, 1] = mask[src, 1] * view_from_stack[i, 1]
+        ret_view_from_stack[i, 2] = mask[src, 2] * view_from_stack[i, 2]
+        ret_view_from_stack[i, 3] = mask[src, 3] * view_from_stack[i, 3]
+        
+        ret_view_to_stack[i, 0] = mask[dst, 0] * view_to_stack[i, 0]
+        ret_view_to_stack[i, 1] = mask[dst, 1] * view_to_stack[i, 1]
+        ret_view_to_stack[i, 2] = mask[dst, 2] * view_to_stack[i, 2]
+        ret_view_to_stack[i, 3] = mask[dst, 3] * view_to_stack[i, 3]
 
-#         # Compute dot products for destination side with -direction.
-#         view_to_stack[i, 0] = front[dst, 0]*(-d0) + front[dst, 1]*(-d1) + front[dst, 2]*(-d2)
-#         view_to_stack[i, 1] = back[dst, 0]*(-d0) + back[dst, 1]*(-d1) + back[dst, 2]*(-d2)
-#         view_to_stack[i, 2] = right[dst, 0]*(-d0) + right[dst, 1]*(-d1) + right[dst, 2]*(-d2)
-#         view_to_stack[i, 3] = left[dst, 0]*(-d0) + left[dst, 1]*(-d1) + left[dst, 2]*(-d2)
-        
-#     return view_from_stack, view_to_stack
+    return ret_view_from_stack, ret_view_to_stack
 
 
 @njit(parallel=True,cache=True)

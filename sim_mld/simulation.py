@@ -19,19 +19,17 @@ from sim_src.util import STATS_OBJECT
 class Simulation(STATS_OBJECT):
     FOR_THETA: float = 30.0  # Angle in degrees for the satellite LT direction.
     LISL_MAX_DISTANCE: float = 3000.0  # Maximum distance for LISL in km.
-    TIME_SCALE: float = 10.0
+    TIME_SCALE: float = 15.0
     EARTH_RADIUS: float = 6371.0  # Earth's radius in km.
     
     N_LCT_PER_SAT: int = 4  # Number of LCTs per satellite.
-    
-    JITTER_SIGMA_URAD = 10
-    
+        
     PLOT_POTENTIAL_LISL: bool = False    
     PLOT_SATELLITE_LCTS: bool = True
     PLOT_TEXT: bool = False
     
     FRONT_COLOR = np.array([0, 0, 0.85, 1])
-    BACK_COLOR = np.array([0.05, 0.75, 0.05, 1])
+    BACK_COLOR = np.array([0.1, 0.6, 0.1, 1])
     RIGHT_COLOR = np.array([1, 0, 0, 1])
     LEFT_COLOR = np.array([0.75, 0.75, 0, 1])
     
@@ -54,6 +52,7 @@ class Simulation(STATS_OBJECT):
                 
         self.simulation_start_time = self.ts.now()
         self.real_start_time = time.perf_counter()
+        self.current_time = self._update_simulation_time()
         self.update_count = 0
         self.accumulated_update_time = 0
         self.average_update_time = 1
@@ -96,8 +95,10 @@ class Simulation(STATS_OBJECT):
         self.srouting = None
 
         self.profiled_time = {}       
-
-        self.update_space()
+        
+        self.lct2_indices = None
+        self.lct4_indices = None
+        self.lct_mask = None
         
         self.solver = None
     
@@ -119,6 +120,14 @@ class Simulation(STATS_OBJECT):
     def setup_visualization(self):
         return setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(2, 2))        
 
+    def _update_simulation_time(self):
+        elapsed_real = time.perf_counter() - self.real_start_time
+        elapsed_scaled = elapsed_real * self.TIME_SCALE
+        delta_days = elapsed_scaled / 86400  # Convert seconds to days.
+        new_tt_jd = self.simulation_start_time.tt + delta_days
+        self.current_time = self.ts.tt(jd=new_tt_jd)
+        return self.current_time
+    
     def get_simulation_time(self):
         """
         Compute the current simulation time based on the time scaling factor.
@@ -126,11 +135,7 @@ class Simulation(STATS_OBJECT):
         Returns:
             Skyfield Time: The current simulation time.
         """
-        elapsed_real = time.perf_counter() - self.real_start_time
-        elapsed_scaled = elapsed_real * self.TIME_SCALE
-        delta_days = elapsed_scaled / 86400  # Convert seconds to days.
-        new_tt_jd = self.simulation_start_time.tt + delta_days
-        return self.ts.tt(jd=new_tt_jd)
+        return self.current_time
 
     def compute_rotation(self) -> float:
         """
@@ -183,16 +188,16 @@ class Simulation(STATS_OBJECT):
             a_to = np.concatenate((self.front, self.back, self.right, self.left), axis=0) * 0.01 + a_from
             a_data = np.concatenate((a_from, a_to), axis=1).reshape(-1, 3)
 
-            # num_arrows = self.positions.shape[0] * 8
-            # arrow_color = np.zeros((num_arrows, self.N_LCT_PER_SAT))
-            # arrow_color[: num_arrows // self.N_LCT_PER_SAT, :] = self.FRONT_COLOR
-            # arrow_color[num_arrows // self.N_LCT_PER_SAT: num_arrows // 2, :] = self.BACK_COLOR
-            # arrow_color[num_arrows // 2: 3 * num_arrows // self.N_LCT_PER_SAT, :] = self.RIGHT_COLOR
-            # arrow_color[3 * num_arrows // self.N_LCT_PER_SAT:, :] = self.LEFT_COLOR
-
+            num_arrows = self.positions.shape[0] * 8
+            arrow_color = np.zeros((num_arrows, self.N_LCT_PER_SAT))
+            arrow_color[: num_arrows // self.N_LCT_PER_SAT, :] = self.FRONT_COLOR
+            arrow_color[num_arrows // self.N_LCT_PER_SAT: num_arrows // 2, :] = self.BACK_COLOR
+            arrow_color[num_arrows // 2: 3 * num_arrows // self.N_LCT_PER_SAT, :] = self.RIGHT_COLOR
+            arrow_color[3 * num_arrows // self.N_LCT_PER_SAT:, :] = self.LEFT_COLOR
+            arrow_color[:, 3] = 1
             for viz in self.viz_list:
                 # Update the satellite arrows.
-                viz['arrow'].set_data(pos=a_data, width=1, connect='segments')
+                viz['arrow'].set_data(pos=a_data, color=arrow_color, width=1, connect='segments')
 
     def _update_p_satp(self):
         self._print(f'Updating potential satellite pairs... {self.update_count}')
@@ -219,6 +224,11 @@ class Simulation(STATS_OBJECT):
         )
         toc = time.perf_counter()
         self.profiled_time['view_stacks'] = toc - tic
+    
+    def _apply_lt_mask(self):
+        self._print(f'Updating LCT mask... {self.update_count}')
+        if self.lct_mask is not None:
+            self.view_from_stack, self.view_to_stack = apply_mask_to_view(self.lct_mask, self.edges, self.view_from_stack, self.view_to_stack)
     
     def _update_p_lisl(self):
         self._print(f'Updating potential LISL... {self.update_count}')
@@ -251,7 +261,7 @@ class Simulation(STATS_OBJECT):
             edges_color_data[:, 3] = 0.25
             for viz in self.viz_list:
                 # Update the potential LISL lines.
-                viz['p_lisl'].set_data(pos=p_lisl_data, color=edges_color_data, width=0.0001, connect='segments')
+                viz['p_lisl'].set_data(pos=p_lisl_data, color=edges_color_data, width=0.01, connect='segments')
             
         toc = time.perf_counter()
         self.profiled_time['draw_p_lisl'] = toc - tic
@@ -290,6 +300,11 @@ class Simulation(STATS_OBJECT):
             self._update_p_satp()
             toc = time.perf_counter()
             self.profiled_time['_update_p_satp'] = toc - tic
+            
+            tic = time.perf_counter()
+            self._apply_lt_mask()
+            toc = time.perf_counter()
+            self.profiled_time['_apply_lt_mask'] = toc - tic
             
             tic = time.perf_counter()
             self._update_p_lisl()
@@ -339,6 +354,8 @@ class Simulation(STATS_OBJECT):
 
     def _update_o_lisl(self, satp = None, edge_weight=None, viz=None, binary=False):
         # Update optional LISL lines.
+        if np.asarray(satp).size == 0:
+            return
         tic = time.perf_counter()
         if viz is not None:
             edge_from = self.positions[satp[:, 0]]
