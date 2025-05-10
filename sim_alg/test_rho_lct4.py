@@ -147,7 +147,7 @@ class DualSimulation(Simulation):
 
         self._update_o_lisl(satp=srouting[:,0:2].astype(np.int64), edge_weight=None, viz=self.viz_list[0]) 
 
-        vis_prices = edge_prices[:,2]/np.max(edge_prices[:,2])
+        vis_prices = edge_prices[:,2]/np.max(edge_prices[:,2]+1e-10)
         self._update_o_lisl(satp=edge_prices[:,0:2].astype(np.int64), edge_weight=vis_prices, viz=self.viz_list[2]) 
     
         self.viz_list[0]['text_title'].text = f"Weighted Shortest Path Routing\n - Average Hops {srouting_tuple[1].mean():.2f}" 
