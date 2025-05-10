@@ -297,8 +297,8 @@ class mr_solver(STATS_OBJECT):
         )
         
         rates = self.get_max_rate(srouting)
-        self._printalltime(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
-        self._printalltime(f"Appr rate: MAX: {np.max(self.s_t_data_rate)}, MIN: {np.min(self.s_t_data_rate)}")
+        self._print(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
+        self._print(f"Appr rate: MAX: {np.max(self.s_t_data_rate)}, MIN: {np.min(self.s_t_data_rate)}")
         if not with_rates:
             return -np.sum(rates)
         else:
