@@ -409,40 +409,8 @@ class Simulation(STATS_OBJECT):
         self._print(f"CPU Usage: {cpu_usage}%, Memory Usage: {mem_usage:.2f} MB")    
   
     def run_step(self):
-        # Check the constellation connectivity
-        connected, comp = self.solver.check_connected()
-        self._print(f"Constellation is connected: {connected}")
-        
-        # Compute the dual matching.
-        self.connected_sat, self.connected_lct = self.solver.get_dual_matching()
-        self._print(f"Connected SATP: {self.connected_sat.shape[0]}, Connected LISL: {self.connected_lct.shape[0]}")
-        
-        # Show capacity and distance
-        distance = np.linalg.norm(self.positions[self.connected_sat[:, 0]] - self.positions[self.connected_sat[:, 1]], axis=1)
-        connected_capacity = self.solver.compute_capacity(distance)
-        self._print(f"Connected Capacity: {connected_capacity}, distance: {distance}")
-        self._print(f"Max Capacity: {np.max(connected_capacity):.2f}, Min Capacity: {np.min(connected_capacity):.2f}")
-        
-        edge_weight = 1-np.exp(-connected_capacity)
-        self._update_o_lisl(satp=self.connected_sat, edge_weight=edge_weight, viz=self.viz_list[0])
-        
-        # Compute the dual srouting.
-        self.srouting = self.solver.get_dual_srouting()
-        self._print(f"Routing shape: {self.srouting.shape}")
-        self._update_o_lisl(satp=self.srouting[:,0:2].astype(np.int64), edge_weight=None, viz=self.viz_list[1]) 
-        
-        # Update the step edge prices.
-        self.solver.update_step_edge_prices(self.connected_lct, self.srouting)
-        prices = self.solver.price_graph.get_prices(self.filtered_repeated)
-        edge_weight = prices/np.max(prices)
-        self._update_o_lisl(satp=self.filtered_repeated, edge_weight=edge_weight, viz=self.viz_list[2])
+        pass
     
-        # Compute the prim srouting.
-        traffic_load_and_capacity = self.solver.get_prim_srouting()
-        overflow = traffic_load_and_capacity[:,2] > traffic_load_and_capacity[:,3]
-        overflow = overflow.astype(np.float32).flatten()
-        self._update_o_lisl(satp=traffic_load_and_capacity[:,0:2].astype(np.int64), edge_weight=overflow, viz=self.viz_list[3], binary=True)
-        
     def run(self, N_STEPS=1000, visualize=False):
         """
         Run the simulation.
