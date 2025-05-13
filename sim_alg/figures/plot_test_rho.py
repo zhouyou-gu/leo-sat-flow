@@ -26,7 +26,7 @@ def moving_average(data, window_size=100):
 from working_dir_path import get_working_dir_path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
-data_name_list = ["Adp-B"]
+data_name_list = ["LPD","MDM","SPF"]
 
 # Create subplots
 fig, axs = plt.subplots(1, 1)
@@ -35,7 +35,9 @@ fig.set_size_inches(fig_width_in, fig_height_in)
 
 # Define the paths to your three data files
 folder = [
-    os.path.join(get_working_dir_path(), "sim_alg/selected_results/test_rho"),
+    os.path.join(get_working_dir_path(), "sim_alg/selected_results/test_rho_lct4/"),
+    os.path.join(get_working_dir_path(), "sim_alg/selected_results/test_mwm_lct4/"),
+    os.path.join(get_working_dir_path(), "sim_alg/selected_results/test_spf_lct4/"),
 ]
 
 data_list = []
@@ -48,16 +50,19 @@ for idx, f in enumerate(folder):
     thr = np.mean(thr.reshape(-1, 10), axis=1)
     data_list.append(thr)
 
-
+rho_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 lines = []
-line, = axs.plot(data_list[0],linewidth=1.5,markerfacecolor='none')
-lines.append(line)
+for idx, data in enumerate(data_list):
+    # Plot the data
+    line, = axs.plot(rho_list,-data, linewidth=1.5, markerfacecolor='none')
+    lines.append(line)
 
 # Add a legend
 fig.legend(lines, data_name_list ,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.175, 0.915, 0.75, 0.1), ncol = 3 , borderaxespad=0.1,handlelength=1.5,fancybox=True, framealpha=1,mode='expand' )
 # axs[0].legend(fontsize=8, loc='lower left', bbox_to_anchor=(0, 1.02, 5,0.1), ncol=3,borderaxespad=0.)
 # plt.subplots_adjust(left=0.175, right=0.95,bottom=0.175,top=0.95)
 
+axs.grid()
 
 # Save the figure as a PDF
 output_path = os.path.join(current_dir, os.path.splitext(os.path.basename(__file__))[0]) + '.pdf'
