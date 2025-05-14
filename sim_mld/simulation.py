@@ -95,9 +95,7 @@ class Simulation(STATS_OBJECT):
         self.srouting = None
 
         self.profiled_time = {}       
-        
-        self.lct2_indices = None
-        self.lct4_indices = None
+
         self.lct_mask = None
         
         self.solver = None

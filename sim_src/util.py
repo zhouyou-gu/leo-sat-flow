@@ -287,9 +287,12 @@ def GET_FILE_NAME_FOR_SIM_SCRIPT(file):
 
 def plot_a_array(arr, mavg_n = 20, name= "", title= "",script_file = None, postfix = "", idx = None , show = False, save_path = None):
     fig = plt.figure(figsize=(16, 6), dpi=80)
-    if arr.size < mavg_n:
-        mavg_n = arr.size
-    data = np.convolve(arr, np.ones(mavg_n)/mavg_n, mode='valid')
+    if isinstance(mavg_n, int):
+        if arr.size < mavg_n:
+            mavg_n = arr.size
+        data = np.convolve(arr, np.ones(mavg_n)/mavg_n, mode='valid')
+    else:
+        data = arr
     if idx is not None:
         plt.plot(idx[:data.size],data)
     else:

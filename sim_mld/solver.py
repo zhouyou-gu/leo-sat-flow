@@ -221,7 +221,7 @@ class mr_solver(STATS_OBJECT):
             targets[mask] = rng.integers(0, self.n_sat, np.sum(mask))
         
         self.data_source, self.data_target = sources, targets
-        print(f"Source: {self.data_source}, Target: {self.data_target}")
+        self._print(f"Source: {self.data_source}, Target: {self.data_target}")
         self.s_t_data_rate = np.ones(self.data_source.shape[0]) * data_rate
         
     def get_dual_matching(self):
@@ -304,7 +304,7 @@ class mr_solver(STATS_OBJECT):
         else:
             return -np.sum(rates), rates, srouting, (costs, lengths, paths_all)
              
-    def get_max_rate(self, srouting):
+    def get_max_rate(self, srouting, mode="maxsum"):
         #TODO: Handle the case when there are multiple LISL connections between the same pair of satellites
         self._print("Computing max rate")
         if np.asarray(srouting).size == 0:
@@ -330,7 +330,12 @@ class mr_solver(STATS_OBJECT):
 
         # --- LP solve -------------------------------------------------------------
         r = cp.Variable(F, nonneg=True)
-        prob = cp.Problem(cp.Maximize(cp.sum(r)), [P @ r <= capacity])
+        if mode == "maxmin":
+            prob = cp.Problem(cp.Maximize(cp.min(r)), [P @ r <= capacity])
+        elif mode == "maxlog":
+            prob = cp.Problem(cp.Maximize(cp.sum(cp.log(r+1))), [P @ r <= capacity])
+        else:
+            prob = cp.Problem(cp.Maximize(cp.sum(r)), [P @ r <= capacity])
         prob.solve(solver=cp.SCS)
 
         opt = r.value
