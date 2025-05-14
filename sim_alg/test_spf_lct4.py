@@ -29,25 +29,17 @@ from sim_src.util import GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT
 
 np.set_printoptions(precision=4, suppress=True)
 
-class spfsolver(mr_solver):
-    def update_step_rates_prices(self):
-        self.N_STEP += 1
-        new_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
-        self._print(f"Ne: max: {np.max(new_price)}, min: {np.min(new_price)}")        
-        return new_price
-    
+class spfsolver(mr_solver):    
     def get_prim_objective(self, with_rates=False):
-        self._print("Computing prim objective")
-        connected_sat, connected_lct = self.get_dual_matching()
-        prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
-        indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
+        self._print("Computing get_prim_objective_srouting_first")
+        indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, np.ones(self.possible_sat_pair_expanded.shape[0]))
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
         
         srouting = construct_edges_matrix_all_in_one(
             self.data_source, self.data_target, costs, lengths, paths_all
         )
         
-        indptr, indices, path_selected = build_csr(self.n_sat, srouting[:, 0:2], np.ones(srouting.shape[0], dtype=np.float32))
+        indptr, indices, path_selected = build_csr(self.n_sat, srouting[:, 0:2], np.ones_like(srouting[:,4]), merging_method="sum")
 
         edge_list_path_selected = csr_to_edge_list(indptr, indices, path_selected)
         weights = extract_weights(self.possible_sat_pair_expanded, edge_list_path_selected)
@@ -59,22 +51,19 @@ class spfsolver(mr_solver):
         connected_lct = flat_array.reshape(-1, 2)
         connected_sat = connected_lct // self.N_LCT_PER_SAT
 
-
-        prices = self.price_graph.get_prices(connected_sat)
-        indptr, indices, data = build_csr(self.n_sat, connected_sat, prices)
+        indptr, indices, data = build_csr(self.n_sat, connected_sat, np.ones(connected_sat.shape[0]))
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
         
         srouting = construct_edges_matrix_all_in_one(
             self.data_source, self.data_target, costs, lengths, paths_all
         )
         
-        rates = self.get_max_rate(srouting,mode="maxlog")
+        rates = self.get_rates(srouting, connected_lct, mode=self.objective_mode)
         self._print(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
-        self._print(f"Appr rate: MAX: {np.max(self.s_t_data_rate)}, MIN: {np.min(self.s_t_data_rate)}")
         if not with_rates:
             return -np.sum(rates)
         else:
-            return -np.sum(rates), rates, srouting, (costs, lengths, paths_all)
+            return -np.sum(rates), rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct
       
 
 class DualSimulation(Simulation):
@@ -94,6 +83,7 @@ class DualSimulation(Simulation):
         self.lct4_indices = permuted_indices[n_lct2_sat:n_lct2_sat + n_lct4_sat]
         
         self.lct_mask = np.zeros((self.n_sat, self.N_LCT_PER_SAT), dtype=np.float32)
+        self.lct_mask[:,1] = 1
         self.lct_mask[self.lct2_indices] = np.array([1, 1, 0, 0], dtype=np.float32)
         self.lct_mask[self.lct4_indices] = np.array([1, 1, 1, 1], dtype=np.float32)   
         
@@ -109,7 +99,7 @@ rho = 0.3
 i = 0
 print(f"Running simulation with rho={rho}, SEED={i}")
 simulation = DualSimulation(ts, sat_array)
-simulation.config_l_mask(lct4_rho=rho, seed=i)
+simulation.config_l_mask(lct2_rho=rho,lct4_rho=rho, seed=i)
 simulation.update_space()
 
 solver = spfsolver()
@@ -119,12 +109,12 @@ simulation.set_solver(solver)
 
 solver.update_source_target_pairs(1000,data_rate=0,seed=i)
 
-p_o, rates, srouting, srouting_tuple = solver.get_prim_objective(with_rates=True)
+p_o, rates, srouting, srouting_tuple, connected_sat, connected_lct = solver.get_prim_objective(with_rates=True)
 
 print(f"p_o: {p_o:.3f}, rates: {rates.mean():.3f}， rates max: {rates.max():.3f}, rates min: {rates.min():.3f}")
 LOG_OBJ._add_np_log("p_o", i, np.array([p_o]))
-print(f"log_rates: {np.log(rates+1).mean():.3f}， log_rates max: {np.log(rates+1).max():.3f}, log_rates min: {np.log(rates+1).min():.3f}")       
-  
+print(f"log_rates: {np.log(rates+0.1).mean():.3f}， log_rates max: {np.log(rates+1).max():.3f}, log_rates min: {np.log(rates+1).min():.3f}")       
+print(f"null_count: {np.sum(rates == 0)}")
 from sim_src.util import plot_a_array, LOGGED_NP_DATA_HEADER_SIZE
 import os
 path = os.path.join(os.path.dirname(__file__))

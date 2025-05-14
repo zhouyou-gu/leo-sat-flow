@@ -158,7 +158,9 @@ class mr_solver(STATS_OBJECT):
     
     def __init__(self):
         self.ALPHA = 0.1
-                
+        
+        self.objective_mode = "maxlog"
+        
         self.n_sat = 0
         self.positions = None
         self.possible_sat_pair_expanded = None
@@ -296,15 +298,24 @@ class mr_solver(STATS_OBJECT):
             self.data_source, self.data_target, costs, lengths, paths_all
         )
         
-        rates = self.get_max_rate(srouting)
+        rates = self.get_rates(srouting)
         self._print(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
         self._print(f"Appr rate: MAX: {np.max(self.s_t_data_rate)}, MIN: {np.min(self.s_t_data_rate)}")
         if not with_rates:
             return -np.sum(rates)
         else:
             return -np.sum(rates), rates, srouting, (costs, lengths, paths_all)
-             
-    def get_max_rate(self, srouting, mode="maxsum"):
+      
+    def get_rates(self, srouting, matching, mode="maxsum"):
+        # Compute the edge capacity for the connected satellites
+        connected_sat = matching // self.N_LCT_PER_SAT
+        capacity = self.compute_capacity(
+            np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
+        )
+        indptr, indices, data = build_csr(self.n_sat, connected_sat, capacity, merging_method="sum")
+        edge_capacity = csr_to_edge_list(indptr, indices, data)
+        
+        
         #TODO: Handle the case when there are multiple LISL connections between the same pair of satellites
         self._print("Computing max rate")
         if np.asarray(srouting).size == 0:
@@ -325,8 +336,7 @@ class mr_solver(STATS_OBJECT):
         
         # --- Capacity constraints ------------------------------------------------
         uv = uniq_uv_view.reshape(-1, 2).astype(np.int64)
-        dists = np.linalg.norm(self.positions[uv[:, 0]] - self.positions[uv[:, 1]], axis=1)
-        capacity = self.compute_capacity(dists)
+        capacity = extract_weights(uv, edge_capacity)
 
         # --- LP solve -------------------------------------------------------------
         r = cp.Variable(F, nonneg=True)

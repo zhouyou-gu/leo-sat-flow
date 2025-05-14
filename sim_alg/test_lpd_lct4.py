@@ -29,7 +29,7 @@ from sim_src.util import GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT
 
 np.set_printoptions(precision=4, suppress=True)
 
-class testsolver(mr_solver):
+class lpdsolver(mr_solver):
     def update_step_rates_prices(self):
         self.N_STEP += 1
         step_size = self.ALPHA / (self.N_STEP ** 0.2)
@@ -97,6 +97,32 @@ class testsolver(mr_solver):
     def get_prim_objective(self, with_rates=False):
         self._print("Computing prim objective")
         connected_sat, connected_lct = self.get_dual_matching()
+        prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
+        indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
+        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
+        
+        srouting = construct_edges_matrix_all_in_one(
+            self.data_source, self.data_target, costs, lengths, paths_all
+        )
+        rates = self.get_max_rate(srouting,mode="maxlog")
+ 
+        srouting = construct_edges_matrix_all_in_one(
+            self.data_source, self.data_target, rates, lengths, paths_all
+        )
+        
+        indptr, indices, path_selected = build_csr(self.n_sat, srouting[:, 0:2], srouting[:, 4], merging_method="sum")
+
+        edge_list_path_selected = csr_to_edge_list(indptr, indices, path_selected)
+        weights = extract_weights(self.possible_sat_pair_expanded, edge_list_path_selected)
+        weighted_edges = np.column_stack((self.possible_lct_pair_expanded, weights))
+        matching = greedy_max_weight_matching(weighted_edges)
+        m = len(matching)
+        flat_array = np.fromiter((x for pair in ((min(e), max(e)) for e in matching)
+                                  for x in pair), dtype=int, count=2*m)
+        connected_lct = flat_array.reshape(-1, 2)
+        connected_sat = connected_lct // self.N_LCT_PER_SAT
+
+
         prices = self.price_graph.get_prices(connected_sat)
         indptr, indices, data = build_csr(self.n_sat, connected_sat, prices)
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
@@ -130,9 +156,10 @@ class DualSimulation(Simulation):
         self.lct4_indices = permuted_indices[n_lct2_sat:n_lct2_sat + n_lct4_sat]
         
         self.lct_mask = np.zeros((self.n_sat, self.N_LCT_PER_SAT), dtype=np.float32)
+        self.lct_mask[:,1] = 1
         self.lct_mask[self.lct2_indices] = np.array([1, 1, 0, 0], dtype=np.float32)
-        self.lct_mask[self.lct4_indices] = np.array([1, 1, 1, 1], dtype=np.float32)
-        
+        self.lct_mask[self.lct4_indices] = np.array([1, 1, 1, 1], dtype=np.float32)   
+
     def run_step(self):
         if self.filtered_expanded.size == 0:
             return
@@ -233,10 +260,10 @@ rho = 0.3
 i = 0
 print(f"Running simulation with rho={rho}, SEED={i}")
 simulation = DualSimulation(ts, sat_array)
-simulation.config_l_mask(lct4_rho=rho, seed=i)
+simulation.config_l_mask(lct2_rho=rho, lct4_rho=rho, seed=i)
 simulation.update_space()
 
-solver = testsolver()
+solver = lpdsolver()
 solver.INIT_PRICES = 0.
 
 simulation.set_solver(solver)
@@ -249,8 +276,8 @@ p_o, rates, srouting, srouting_tuple = solver.get_prim_objective(with_rates=True
 
 print(f"p_o: {p_o:.3f}, rates: {rates.mean():.3f}， rates max: {rates.max():.3f}, rates min: {rates.min():.3f}")
 LOG_OBJ._add_np_log("p_o", i, np.array([p_o]))
-print(f"log_rates: {np.log(rates+1).mean():.3f}， log_rates max: {np.log(rates+1).max():.3f}, log_rates min: {np.log(rates+1).min():.3f}")       
-       
+print(f"log_rates: {np.log(rates+0.1).mean():.3f}， log_rates max: {np.log(rates+1).max():.3f}, log_rates min: {np.log(rates+1).min():.3f}")       
+print(f"null_count: {np.sum(rates == 0)}")
 from sim_src.util import plot_a_array, LOGGED_NP_DATA_HEADER_SIZE
 import os
 path = os.path.join(os.path.dirname(__file__))
