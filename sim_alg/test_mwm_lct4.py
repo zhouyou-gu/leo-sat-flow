@@ -111,4 +111,4 @@ import os
 path = os.path.join(os.path.dirname(__file__))
 
 rates.sort()
-plot_a_array(rates, mavg_n=None,name="rate-mwm", title="spf", save_path=path)
+plot_a_array(rates, mavg_n=None,name="rate-mwm", title="mwm", save_path=path)

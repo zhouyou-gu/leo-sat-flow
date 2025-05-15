@@ -97,31 +97,6 @@ class lpdsolver(mr_solver):
     def get_prim_objective(self, with_rates=False):
         self._print("Computing prim objective")
         connected_sat, connected_lct = self.get_dual_matching()
-        prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
-        indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
-        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
-        
-        srouting = construct_edges_matrix_all_in_one(
-            self.data_source, self.data_target, costs, lengths, paths_all
-        )
-        rates = self.get_max_rate(srouting,mode="maxlog")
- 
-        srouting = construct_edges_matrix_all_in_one(
-            self.data_source, self.data_target, rates, lengths, paths_all
-        )
-        
-        indptr, indices, path_selected = build_csr(self.n_sat, srouting[:, 0:2], srouting[:, 4], merging_method="sum")
-
-        edge_list_path_selected = csr_to_edge_list(indptr, indices, path_selected)
-        weights = extract_weights(self.possible_sat_pair_expanded, edge_list_path_selected)
-        weighted_edges = np.column_stack((self.possible_lct_pair_expanded, weights))
-        matching = greedy_max_weight_matching(weighted_edges)
-        m = len(matching)
-        flat_array = np.fromiter((x for pair in ((min(e), max(e)) for e in matching)
-                                  for x in pair), dtype=int, count=2*m)
-        connected_lct = flat_array.reshape(-1, 2)
-        connected_sat = connected_lct // self.N_LCT_PER_SAT
-
 
         prices = self.price_graph.get_prices(connected_sat)
         indptr, indices, data = build_csr(self.n_sat, connected_sat, prices)
@@ -131,13 +106,13 @@ class lpdsolver(mr_solver):
             self.data_source, self.data_target, costs, lengths, paths_all
         )
         
-        rates = self.get_max_rate(srouting,mode="maxlog")
+        rates = self.get_rates(srouting,connected_lct,mode=self.objective_mode)
         self._print(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
         self._print(f"Appr rate: MAX: {np.max(self.s_t_data_rate)}, MIN: {np.min(self.s_t_data_rate)}")
         if not with_rates:
             return -np.sum(rates)
         else:
-            return -np.sum(rates), rates, srouting, (costs, lengths, paths_all)
+            return -np.sum(rates), rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct
 
 class DualSimulation(Simulation):
     def set_solver(self, solver):
@@ -170,7 +145,7 @@ class DualSimulation(Simulation):
         # Evaluate g(lambda)
         d_o, edge_prices = self.solver.get_dual_objective(with_prices=True)
         # Compute the prim p.
-        p_o, rates, srouting, srouting_tuple = self.solver.get_prim_objective(with_rates=True)
+        p_o, rates, srouting, srouting_tuple, connected_sat, connected_lct = self.solver.get_prim_objective(with_rates=True)
         
         s_t = np.column_stack((self.solver.data_source, self.solver.data_target))
         
@@ -272,7 +247,8 @@ solver.update_source_target_pairs(1000,data_rate=0,seed=i)
 
 simulation.run(N_STEPS=500,visualize=False)
 
-p_o, rates, srouting, srouting_tuple = solver.get_prim_objective(with_rates=True)
+p_o, rates, srouting, srouting_tuple, connected_sat, connected_lct = solver.get_prim_objective(with_rates=True)
+print(srouting_tuple)
 
 print(f"p_o: {p_o:.3f}, rates: {rates.mean():.3f}， rates max: {rates.max():.3f}, rates min: {rates.min():.3f}")
 LOG_OBJ._add_np_log("p_o", i, np.array([p_o]))
@@ -283,4 +259,4 @@ import os
 path = os.path.join(os.path.dirname(__file__))
 
 rates.sort()
-plot_a_array(rates, mavg_n=None,name="lpd", title="lpd", save_path=path)
+plot_a_array(rates, mavg_n=None,name="rate-lpd", title="lpd", save_path=path)

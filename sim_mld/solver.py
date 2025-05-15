@@ -159,7 +159,7 @@ class mr_solver(STATS_OBJECT):
     def __init__(self):
         self.ALPHA = 0.1
         
-        self.objective_mode = "maxlog"
+        self.objective_mode = "maxsum"
         
         self.n_sat = 0
         self.positions = None
