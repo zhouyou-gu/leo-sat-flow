@@ -32,7 +32,7 @@ np.set_printoptions(precision=4, suppress=True)
 class lpdsolver(mr_solver):
     def update_step_rates_prices(self):
         self.N_STEP += 1
-        step_size = self.ALPHA / (self.N_STEP ** 0.2)
+        step_size = self.ALPHA / (self.N_STEP ** 0.1)
         self._print("Updating edge prices")
 
         # qx_csr = sp.csr_matrix((self.n_sat, self.n_sat))
