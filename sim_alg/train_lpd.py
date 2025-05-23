@@ -26,11 +26,11 @@ from sim_mld.simulation import Simulation
 from vispy import app
 import logging
 
-from sim_src.util import GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT
+from sim_src.util import GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT, counted
 from working_dir_path import get_working_dir_path
 
-from torch_geometric.data import Data
-
+import torch
+torch.set_float32_matmul_precision('medium')
 
 np.set_printoptions(precision=4, suppress=True)
 
@@ -52,6 +52,10 @@ class gnnsolver(mr_solver):
         
         qrates, prices = self.model.get_output_np_edge_weight(self.positions, cp_edge_list[:, 0:2], cp_edge_list[:, 2], st_edge_index)
         
+        self._printalltime(f"qrates: max: {np.max(qrates)}, min: {np.min(qrates)}, avg: {np.mean(qrates)}")
+        self._printalltime(f"prices: max: {np.max(prices)}, min: {np.min(prices)}, avg: {np.mean(prices)}")
+        
+        print("shapes", qrates.shape, prices.shape)
         edge_weights_pr = prices * capacity
         
         edge_weights_pr_list = np.column_stack((cp_edge_list[:, 0:2], edge_weights_pr))
@@ -73,10 +77,11 @@ class gnnsolver(mr_solver):
 
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
         
+        valid_costs = costs[lengths > 0]
+        self._printalltime(f"costs : max: {np.max(valid_costs)}, min: {np.min(valid_costs)}, avg: {np.mean(valid_costs)}")
+
         connected_st = lengths > 0
-        
-        print("shapes", self.data_source.shape, self.data_target.shape, qrates.shape, lengths.shape, paths_all.shape)
-        
+                
         srouting = construct_edges_matrix_all_in_one(
             self.data_source, self.data_target, qrates, lengths, paths_all
         )
@@ -152,27 +157,31 @@ class DualSimulation(Simulation):
         self.lct_mask[self.lct2_indices] = np.array([1, 1, 0, 0], dtype=np.float32)
         self.lct_mask[self.lct4_indices] = np.array([1, 1, 1, 1], dtype=np.float32)   
 
+    @counted
     def run_step(self):
         if self.filtered_expanded.size == 0:
             return
         # Check the constellation connectivity
         self.solver.update_step_rates_prices()
-        p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective(with_rates=True)
-        print(f"Prim objective: {p_o}")
-        
+        if self.N_STEP % 20 == 0:
+            p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective(with_rates=True)
+            p_o_mwm, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective_mwm(with_rates=True)
+            self._printalltime(f"Prim objective: {p_o}, MWM: {p_o_mwm}")
+            
 
     def run(self, N_STEPS=1000, visualize=False):
         """
         Run the simulation.
         """
-        self.update_space()
         for i in range(N_STEPS):
-            solver.update_source_target_pairs(1000,seed=i)
+            self.config_l_mask(lct2_rho=rho, lct4_rho=rho, seed=i)
+            self.update_space()
+            self._init_solver()
+            self.solver.update_source_target_pairs(1000, seed=i)
             self.update(None)
 
-        
-        print("Simulation completed.")        
-        
+        print("Simulation completed.")
+
 
 # Load tle data.
 ts, valid_satellites, sat_array = generate_walker_constellation(planes=20)
@@ -182,10 +191,8 @@ LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
 
 # Create simulation instance.
 rho = 0.3
-i = 0
-print(f"Running simulation with rho={rho}, SEED={i}")
+print(f"Running simulation with rho={rho}")
 simulation = DualSimulation(ts, sat_array)
-simulation.config_l_mask(lct2_rho=rho, lct4_rho=rho, seed=i)
 simulation.update_space()
 
 solver = gnnsolver()
@@ -193,4 +200,4 @@ solver.init_gnn()
 
 simulation.set_solver(solver)
 
-simulation.run(N_STEPS=500,visualize=False)
+simulation.run(N_STEPS=10000,visualize=False)

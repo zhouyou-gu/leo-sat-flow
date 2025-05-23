@@ -108,6 +108,10 @@ class Simulation(STATS_OBJECT):
             solver: The solver instance to be used.
         """
         self.solver:mr_solver = solver
+        self._init_solver()
+    
+    def _init_solver(self):
+        # Initialize the solver with the current constellation data.
         self.solver.init_constellation(self.filtered_repeated, self.filtered_expanded, self.positions)
 
     def _assign_lct(self):

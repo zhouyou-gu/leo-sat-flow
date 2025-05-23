@@ -6,7 +6,7 @@ from scipy.sparse import csr_matrix
 from sim_src.util import *
 
 from sim_mld.ml.base_model import base_model
-from sim_mld.ml.sgl.nn import FlowGNN 
+from sim_mld.ml.sgl.nn import LpdGNN 
 from torch_geometric.utils import to_undirected
 from torch_geometric.data import Data, Batch
 from torch_geometric.loader import DataLoader
@@ -50,22 +50,27 @@ class ReplayMemory(Dataset):
         """
         if batch_size > len(self.buffer):
             return None
-        return random.sample(self.buffer, batch_size)
+        ret = random.sample(self.buffer, batch_size)
+        # clear the buffer
+        self.buffer.clear()
+        return ret
 
 
 
 class lpd_model(base_model):
-    def __init__(self, LR =0.001):
+    def __init__(self, LR =0.0001):
         base_model.__init__(self, LR = LR, WITH_TARGET = False)
         self.batch_size = 5
-        self.data_set = ReplayMemory(20)
+        self.data_set = ReplayMemory(self.batch_size)
         
     def init_model(self):
-        self.model = FlowGNN(in_node_dim=3, in_edge_dim=1, hidden=64, num_layers=3)
-    
+        self.model = LpdGNN(in_node_dim=3, in_edge_dim=1, hidden=64, num_layers=3)
+        if hasattr(torch, 'compile'):
+            self.model = torch.compile(self.model)
+
     def _add_graph(self, data):
         """
-        Add a new graph to the dataset, assuming the setup is 
+        Add a new graph to the dataset, assuming the setup is
         data["x"] = self.positions
         data["cp_edge_index"] = cp_edge_list[:, 0:2]
         data["cp_edge_attr"] = cp_edge_list[:, 2]
@@ -110,7 +115,8 @@ class lpd_model(base_model):
         if not batch:
             print("None batch in step", self.N_STEP)
             return
-                
+        else:
+            print("training with batch", self.N_STEP, batch.size)
         qrates, prices = self.model.forward(batch.x, batch.cp_edge_index, batch.cp_edge_attr, batch.st_edge_index)   
 
         loss_q = qrates * (batch.st_edge_attr - 1)

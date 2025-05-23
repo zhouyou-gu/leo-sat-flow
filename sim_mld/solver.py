@@ -305,7 +305,36 @@ class mr_solver(STATS_OBJECT):
             return -np.sum(rates)
         else:
             return -np.sum(rates), rates, srouting, (costs, lengths, paths_all)
-      
+
+    def get_prim_objective_mwm(self, with_rates=False):
+        capacity = self.compute_capacity(
+            np.linalg.norm(self.positions[self.possible_sat_pair_expanded[:, 0]] - self.positions[self.possible_sat_pair_expanded[:, 1]], axis=1)
+        )        
+        edge_weights_pr =  capacity**2
+        weighted_edges = np.column_stack((self.possible_lct_pair_expanded, edge_weights_pr))
+        matching = greedy_max_weight_matching(weighted_edges)
+        m = len(matching)
+        flat_array = np.fromiter((x for pair in ((min(e), max(e)) for e in matching)
+                                  for x in pair), dtype=int, count=2*m)
+        connected_lct = flat_array.reshape(-1, 2)
+        connected_sat = connected_lct // self.N_LCT_PER_SAT
+        distance = np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
+        capacity = self.compute_capacity(distance)
+
+        indptr, indices, data = build_csr(self.n_sat, connected_sat, 1/capacity)
+        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
+        
+        srouting = construct_edges_matrix_all_in_one(
+            self.data_source, self.data_target, costs, lengths, paths_all
+        )
+        
+        rates = self.get_rates(srouting, connected_lct, mode=self.objective_mode)
+        self._print(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
+        if not with_rates:
+            return -np.sum(rates)
+        else:
+            return -np.sum(rates), rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct
+
     def get_rates(self, srouting, matching, mode="maxsum"):
         # Compute the edge capacity for the connected satellites
         connected_sat = matching // self.N_LCT_PER_SAT
