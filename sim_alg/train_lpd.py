@@ -41,8 +41,6 @@ class gnnsolver(mr_solver):
     
     def update_step_rates_prices(self):
         self.N_STEP += 1
-        
-        
         capacity = self.compute_capacity(
             np.linalg.norm(self.positions[self.possible_sat_pair_expanded[:, 0]] - self.positions[self.possible_sat_pair_expanded[:, 1]], axis=1)
         )
@@ -96,7 +94,7 @@ class gnnsolver(mr_solver):
         )
         rc = build_csr(self.n_sat, connected_sat, capacity_matched, merging_method='sum')
         rc_edge_list = csr_to_edge_list(rc[0], rc[1], rc[2])
-        rc_weights =  extract_weights(possible_sat_pair_non_expanded, rc_edge_list)
+        rc_weights = extract_weights(possible_sat_pair_non_expanded, rc_edge_list)
         rc_edge_list = np.column_stack((possible_sat_pair_non_expanded, rc_weights))
         
         
@@ -113,10 +111,29 @@ class gnnsolver(mr_solver):
 
         self.model.step(data)
 
+        self.price_graph.price_graph = sp.csr_matrix((prices_edge_list[:, 2], (prices_edge_list[:, 0], prices_edge_list[:, 1])), shape=(self.n_sat, self.n_sat))
         return
 
     def get_prim_objective(self, with_rates=False):
-        pass
+        self._print("Computing prim objective")
+        connected_sat, connected_lct = self.get_dual_matching()
+
+        prices = self.price_graph.get_prices(connected_sat)
+        indptr, indices, data = build_csr(self.n_sat, connected_sat, prices)
+        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
+        
+        srouting = construct_edges_matrix_all_in_one(
+            self.data_source, self.data_target, costs, lengths, paths_all
+        )
+        
+        rates = self.get_rates(srouting,connected_lct,mode=self.objective_mode)
+        self._print(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
+        self._print(f"Appr rate: MAX: {np.max(self.s_t_data_rate)}, MIN: {np.min(self.s_t_data_rate)}")
+        if not with_rates:
+            return -np.sum(rates)
+        else:
+            return -np.sum(rates), rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct
+
 
 class DualSimulation(Simulation):
     def config_l_mask(self, lct2_rho=0., lct4_rho=0., seed=0):
@@ -140,7 +157,9 @@ class DualSimulation(Simulation):
             return
         # Check the constellation connectivity
         self.solver.update_step_rates_prices()
-    
+        p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective(with_rates=True)
+        print(f"Prim objective: {p_o}")
+        
 
     def run(self, N_STEPS=1000, visualize=False):
         """

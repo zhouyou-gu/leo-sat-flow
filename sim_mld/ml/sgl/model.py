@@ -61,7 +61,7 @@ class lpd_model(base_model):
         self.data_set = ReplayMemory(20)
         
     def init_model(self):
-        self.model = FlowGNN(in_node_dim=3, in_edge_dim=1, hidden=64, num_layers=5)
+        self.model = FlowGNN(in_node_dim=3, in_edge_dim=1, hidden=64, num_layers=3)
     
     def _add_graph(self, data):
         """
