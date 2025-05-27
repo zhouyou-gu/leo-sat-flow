@@ -46,11 +46,11 @@ class gnnsolver(mr_solver):
         )
         indptr, indices, capacity = build_csr(self.n_sat, self.possible_sat_pair_expanded, capacity, merging_method='sum')
         cp_edge_list = csr_to_edge_list(indptr, indices, capacity)
-        possible_sat_pair_non_expanded  = cp_edge_list[:, 0:2]
-
+        possible_sat_pair_non_expanded = cp_edge_list[:, 0:2]
+        possible_capacity_non_expanded = cp_edge_list[:, 2]
         st_edge_index = np.column_stack((self.data_source, self.data_target))
         
-        qrates, prices = self.model.get_output_np_edge_weight(self.positions, cp_edge_list[:, 0:2], cp_edge_list[:, 2], st_edge_index)
+        qrates, prices = self.model.get_output_np_edge_weight(self.positions, possible_sat_pair_non_expanded, possible_capacity_non_expanded, st_edge_index, use_target=True)
         
         self._printalltime(f"qrates: max: {np.max(qrates)}, min: {np.min(qrates)}, avg: {np.mean(qrates)}")
         self._printalltime(f"prices: max: {np.max(prices)}, min: {np.min(prices)}, avg: {np.mean(prices)}")
@@ -58,7 +58,7 @@ class gnnsolver(mr_solver):
         print("shapes", qrates.shape, prices.shape)
         edge_weights_pr = prices * capacity
         
-        edge_weights_pr_list = np.column_stack((cp_edge_list[:, 0:2], edge_weights_pr))
+        edge_weights_pr_list = np.column_stack((possible_sat_pair_non_expanded, edge_weights_pr))
         edge_weights_pr = extract_weights(self.possible_sat_pair_expanded, edge_weights_pr_list)
         
         weighted_edges = np.column_stack((self.possible_lct_pair_expanded, edge_weights_pr))
@@ -70,7 +70,7 @@ class gnnsolver(mr_solver):
         connected_sat = connected_lct // self.N_LCT_PER_SAT
         
         
-        prices_edge_list = np.column_stack((cp_edge_list[:, 0:2], prices))
+        prices_edge_list = np.column_stack((possible_sat_pair_non_expanded, prices))
         prices = extract_weights(self.possible_sat_pair_expanded, prices_edge_list)
         indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
         self._printalltime(f"prices: max: {np.max(prices)}, min: {np.min(prices)}")
@@ -116,7 +116,9 @@ class gnnsolver(mr_solver):
 
         self.model.step(data)
 
-        self.price_graph.price_graph = sp.csr_matrix((prices_edge_list[:, 2], (prices_edge_list[:, 0], prices_edge_list[:, 1])), shape=(self.n_sat, self.n_sat))
+        _, new_prices = self.model.get_output_np_edge_weight(self.positions, possible_sat_pair_non_expanded, possible_capacity_non_expanded, st_edge_index, use_target=True)
+
+        self.price_graph.price_graph = sp.csr_matrix((new_prices, (possible_sat_pair_non_expanded[:, 0], possible_sat_pair_non_expanded[:, 1])), shape=(self.n_sat, self.n_sat))
         return
 
     def get_prim_objective(self, with_rates=False):
@@ -167,7 +169,7 @@ class DualSimulation(Simulation):
             p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective(with_rates=True)
             p_o_mwm, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective_mwm(with_rates=True)
             self._printalltime(f"Prim objective: {p_o}, MWM: {p_o_mwm}")
-            
+            self._add_np_log("objective", self.N_STEP, [p_o, p_o_mwm])
 
     def run(self, N_STEPS=1000, visualize=False):
         """
@@ -200,4 +202,6 @@ solver.init_gnn()
 
 simulation.set_solver(solver)
 
-simulation.run(N_STEPS=10000,visualize=False)
+simulation.run(N_STEPS=5000)
+
+simulation.save_np(LOG_DIR,"final")

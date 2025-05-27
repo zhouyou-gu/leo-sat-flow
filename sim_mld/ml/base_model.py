@@ -1,8 +1,11 @@
 import os.path
 
+import random
+from collections import deque
 import numpy as np
 import torch
 from torch import optim
+from torch_geometric.data import Dataset, Data, Batch
 
 from sim_src.util import USE_CUDA, STATS_OBJECT, hard_update_inplace, soft_update_inplace
 
@@ -78,3 +81,41 @@ class base_model(STATS_OBJECT):
             self.model.eval()
         if self.model_target is not None:
             self.model_target.eval()
+            
+            
+            
+class ReplayMemory(Dataset):
+    def __init__(self, capacity: int):
+        """
+        Fixed-size replay buffer for PyG Data objects.
+        """
+        self.capacity = capacity
+        # deque with maxlen gives automatic FIFO drops
+        self.buffer = deque(maxlen=capacity)
+    
+    def push(self, data: Data):
+        """
+        Add a new graph Data object to the buffer.
+        If full, the oldest graph is discarded.
+        """
+        # Optionally clone or deepcopy if data reused externally
+        self.buffer.append(data)
+    
+    def __len__(self) -> int:
+        # Current number of stored graphs
+        return len(self.buffer)
+    
+    def __getitem__(self, idx: int) -> Data:
+        # Indexing into the deque is O(1) in CPython
+        return self.buffer[idx]
+    
+    def sample(self, batch_size: int) -> list[Data]:
+        """
+        Utility to sample a raw list of Data graphs without DataLoader.
+        """
+        if batch_size > len(self.buffer):
+            return None
+        ret = random.sample(self.buffer, batch_size)
+        # clear the buffer
+        self.buffer.clear()
+        return ret

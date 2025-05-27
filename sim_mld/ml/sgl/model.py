@@ -1,70 +1,27 @@
-import random
 import torch
-import torch.nn as nn
-from scipy.sparse import csr_matrix
 
 from sim_src.util import *
 
-from sim_mld.ml.base_model import base_model
+from sim_mld.ml.base_model import base_model, ReplayMemory
 from sim_mld.ml.sgl.nn import LpdGNN 
-from torch_geometric.utils import to_undirected
-from torch_geometric.data import Data, Batch
-from torch_geometric.loader import DataLoader
 
-from torch import optim
+from torch_geometric.data import Data, Batch
 
 torch.autograd.set_detect_anomaly(True)
 
-
-from collections import deque
-from torch_geometric.data import Dataset, Data
-
-class ReplayMemory(Dataset):
-    def __init__(self, capacity: int):
-        """
-        Fixed-size replay buffer for PyG Data objects.
-        """
-        self.capacity = capacity
-        # deque with maxlen gives automatic FIFO drops
-        self.buffer = deque(maxlen=capacity)
-    
-    def push(self, data: Data):
-        """
-        Add a new graph Data object to the buffer.
-        If full, the oldest graph is discarded.
-        """
-        # Optionally clone or deepcopy if data reused externally
-        self.buffer.append(data)
-    
-    def __len__(self) -> int:
-        # Current number of stored graphs
-        return len(self.buffer)
-    
-    def __getitem__(self, idx: int) -> Data:
-        # Indexing into the deque is O(1) in CPython
-        return self.buffer[idx]
-    
-    def sample(self, batch_size: int) -> list[Data]:
-        """
-        Utility to sample a raw list of Data graphs without DataLoader.
-        """
-        if batch_size > len(self.buffer):
-            return None
-        ret = random.sample(self.buffer, batch_size)
-        # clear the buffer
-        self.buffer.clear()
-        return ret
-
+from torch_geometric.data import Data
 
 
 class lpd_model(base_model):
     def __init__(self, LR =0.0001):
-        base_model.__init__(self, LR = LR, WITH_TARGET = False)
+        base_model.__init__(self, LR = LR, TAU=0.001, WITH_TARGET = True)
         self.batch_size = 5
         self.data_set = ReplayMemory(self.batch_size)
         
     def init_model(self):
         self.model = LpdGNN(in_node_dim=3, in_edge_dim=1, hidden=64, num_layers=3)
+        self.model_target = LpdGNN(in_node_dim=3, in_edge_dim=1, hidden=64, num_layers=3)
+        self.update_target_nn(hard=True)
         if hasattr(torch, 'compile'):
             self.model = torch.compile(self.model)
 
@@ -138,15 +95,19 @@ class lpd_model(base_model):
         loss.backward()
         self.model_optim.step()
         self.model_optim.zero_grad()
+        
+        self.update_target_nn(hard=False)
 
     @torch.no_grad()
-    def get_output_np_edge_weight(self, x, cp_edge_index, cp_edge_attr, st_edge_index):
+    def get_output_np_edge_weight(self, x, cp_edge_index, cp_edge_attr, st_edge_index, use_target=False):
         x = to_tensor(x)
         cp_edge_index = to_tensor(cp_edge_index, dtype=LONG_TYPE).T
         cp_edge_attr = to_tensor(cp_edge_attr)
         st_edge_index = to_tensor(st_edge_index, dtype=LONG_TYPE).T
-        q_rates, prices = self.model.forward(x, cp_edge_index, cp_edge_attr, st_edge_index)
-        
+        if use_target:
+            q_rates, prices = self.model_target.forward(x, cp_edge_index, cp_edge_attr, st_edge_index)
+        else:
+            q_rates, prices = self.model.forward(x, cp_edge_index, cp_edge_attr, st_edge_index)
         return to_numpy(q_rates), to_numpy(prices)
 
     
