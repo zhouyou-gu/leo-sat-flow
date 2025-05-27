@@ -37,7 +37,7 @@ plt.close(fig)
 # --- Step 2: Force the saved image to be strictly black and white ---
 # Open the image using Pillow.
 img = Image.open(temp_filename)
-
+print(f"Image size: {img.size}, Ratio: {img.size[0] / img.size[1]}")
 # Convert the image to 1-bit pixels (black and white)
 bw_img = img.convert('1')
 

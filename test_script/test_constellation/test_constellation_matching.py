@@ -691,7 +691,7 @@ def setup_visualization() -> dict:
     axes.transform = STTransform(scale=(2, 2, 2))
 
     # Load texture image for the Earth sphere.
-    texture_path = "land_sea_texture.png"
+    texture_path = "population_density_texture.png"
     try:
         texture_image = Image.open(texture_path)
     except Exception as e:
@@ -1080,12 +1080,12 @@ class Simulation:
 
 def main():
     # Load Starlink data.
-    # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle'
+    satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle'
     # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=tle'
     # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'
     # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=eutelsat&FORMAT=tle'
     # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium&FORMAT=tle'
-    satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=tle'
+    # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=tle'
     # satellite_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'
     
     ts, valid_satellites, sat_array = load_starlink_data(satellite_url, reload=True)

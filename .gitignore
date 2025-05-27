@@ -1,3 +1,6 @@
+*.tif
+*.tiff
+
 gp*.php*
 /controller/ns3gym
 *-ail
