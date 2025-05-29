@@ -121,6 +121,10 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
     # Create markers for satellite positions.
     scatter = scene.visuals.Markers()
     view.add(scatter)
+    
+    # Create markers for opional points
+    o_scatter = scene.visuals.Markers()
+    view.add(o_scatter)
 
     # Satellite arrows for LT directions.
     satellite_arrow = scene.visuals.Arrow()
@@ -200,6 +204,7 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
         "view": view,
         "sphere_visual": sphere_visual,
         "scatter": scatter,
+        "o_scatter": o_scatter,
         "arrow": satellite_arrow,
         "p_lisl": p_lisl,
         "o_lisl": o_lisl,

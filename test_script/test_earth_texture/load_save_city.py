@@ -4,8 +4,22 @@ import pandas as pd
 # Load the CSV file (adjust the file name/path as needed)
 df = pd.read_csv('worldcities.csv')
 
+
+
 # Drop rows missing key columns (lat, lng, or population)
 df = df.dropna(subset=['lat', 'lng', 'population'])
+
+# list the top K city of each country
+K = 10  # Number of top cities to select per country
+topkcity = df.sort_values(by=['country', 'population'], ascending=[True, False])
+topkcity = topkcity.groupby('country').head(K).reset_index(drop=True)
+
+# Filter out cities with missing latitude or longitude
+topkcity = topkcity.dropna(subset=['lat', 'lng'])
+# Select only the relevant columns: lat, lng, and population
+topkcity = topkcity[['lat', 'lng', 'population']]
+topkcity.to_csv('topkcity.csv', index=False, header=False)
+
 
 # Define latitude and longitude bin edges (10-degree bins)
 lat_bins = np.arange(-90, 91, 10)   # from -90 to 90

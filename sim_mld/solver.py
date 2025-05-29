@@ -159,42 +159,21 @@ class mr_solver(STATS_OBJECT):
     def __init__(self):
         self.ALPHA = 0.1
         
+        # solver states
         self.objective_mode = "maxsum"
-        
+        self.price_graph: price_graph = None
+
         self.n_sat = 0
         self.positions = None
         self.possible_sat_pair_expanded = None
         self.possible_lct_pair_expanded = None 
-        
-        self.possible_lct_pair_edge_capacity = None
-        
+                
         self.data_source = None
         self.data_target = None
-        self.s_t_data_rate = None
         
-        self.price_graph: price_graph = None
-                
-    def init_constellation(self, possible_sat_pair_expanded, possible_lct_pair_expanded, positions):
-        self.possible_sat_pair_expanded = possible_sat_pair_expanded
-        self.possible_lct_pair_expanded = possible_lct_pair_expanded
+        self.source_rate = None
+        self.target_rate = None
         
-        capacity = self.compute_capacity(
-            np.linalg.norm(positions[self.possible_sat_pair_expanded[:, 0]] - positions[self.possible_sat_pair_expanded[:, 1]], axis=1)
-        )
-        self.possible_sat_pair_expanded = self.possible_sat_pair_expanded[capacity > self.MIN_CAPACITY]
-        self.possible_lct_pair_expanded = self.possible_lct_pair_expanded[capacity > self.MIN_CAPACITY]
-        
-        # Initialize edge capacities
-        num_edges = len(possible_lct_pair_expanded)
-        self.possible_lct_pair_edge_capacity = np.zeros(num_edges)
-        
-        # Set initial positions
-        self.positions = positions
-        self.n_sat = positions.shape[0]
-        
-        self.price_graph = price_graph(self.n_sat, self.possible_sat_pair_expanded, self.INIT_PRICES)
-    
-        self.update_source_target_pairs()
     
     @classmethod
     def compute_capacity(cls, distance):
@@ -213,19 +192,6 @@ class mr_solver(STATS_OBJECT):
         self._print(f"Number of components: {num_components}")
         return num_components == 1, comp
 
-    def update_source_target_pairs(self, n_pair=1, data_rate=0., seed=0):
-        rng = np.random.default_rng(seed)
-        
-        sources = rng.integers(0, self.n_sat, n_pair)
-        targets = rng.integers(0, self.n_sat, n_pair)
-        while np.any(sources == targets):
-            mask = (sources == targets)
-            targets[mask] = rng.integers(0, self.n_sat, np.sum(mask))
-        
-        self.data_source, self.data_target = sources, targets
-        self._print(f"Source: {self.data_source}, Target: {self.data_target}")
-        self.s_t_data_rate = np.ones(self.data_source.shape[0]) * data_rate
-        
     def get_dual_matching(self):
         self._print("Computing dual matching")
         prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
@@ -251,7 +217,6 @@ class mr_solver(STATS_OBJECT):
         prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
         indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
         self._print("build csr done")
-        # costs, lengths, paths_all = multi_dijkstra_with_paths_aw_b(self.n_sat, indptr, indices, self.data_source, self.data_target, data, self.s_t_data_rate, np.ones_like(self.s_t_data_rate))
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
         self._print("Computing dual srouting done")
 
@@ -288,23 +253,7 @@ class mr_solver(STATS_OBJECT):
             return lambda_times_capacity
 
     def get_prim_objective(self, with_rates=False):
-        self._print("Computing prim objective")
-        connected_sat, connected_lct = self.get_dual_matching()
-        prices = self.price_graph.get_prices(connected_sat)
-        indptr, indices, data = build_csr(self.n_sat, connected_sat, prices)
-        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
-        
-        srouting = construct_edges_matrix_all_in_one(
-            self.data_source, self.data_target, costs, lengths, paths_all
-        )
-        
-        rates = self.get_rates(srouting)
-        self._print(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
-        self._print(f"Appr rate: MAX: {np.max(self.s_t_data_rate)}, MIN: {np.min(self.s_t_data_rate)}")
-        if not with_rates:
-            return -np.sum(rates)
-        else:
-            return -np.sum(rates), rates, srouting, (costs, lengths, paths_all)
+        pass
 
     def get_prim_objective_mwm(self, with_rates=False):
         capacity = self.compute_capacity(

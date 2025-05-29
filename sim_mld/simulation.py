@@ -8,13 +8,14 @@ from scipy.spatial import cKDTree
 from skyfield.api import load
 from skyfield.sgp4lib import TEME
 
+from sim_mld.terrain import terrain
 from sim_mld.visual import *
 from sim_mld.tle import *
 from sim_mld.constellation import *
 
 from sim_mld.solver import mr_solver
 
-from sim_src.util import STATS_OBJECT
+from sim_src.util import STATS_OBJECT, counted
 
 class Simulation(STATS_OBJECT):
     FOR_THETA: float = 30.0  # Angle in degrees for the satellite LT direction.
@@ -44,9 +45,13 @@ class Simulation(STATS_OBJECT):
             sat_array: Vectorized satellite propagation array.
         """
         self.ts = ts
+        self.earth_rotation_angle = 0.0
+        self.terrain:terrain = terrain()  # Placeholder for terrain data.
+        
         self.sat_array = sat_array
 
         self.n_sat = len(sat_array)
+        self.sat_cKDtree = None
         
         self.canvas, self.viz_list = self.setup_visualization()
                 
@@ -60,6 +65,9 @@ class Simulation(STATS_OBJECT):
         # Initialize satellite positions and velocities.
         self.positions = None
         self.velocities = None
+        
+        # Initialize LCT on indicator.
+        self.lct_mask = None
         
         # Initialize directional vectors.
         self.front = None
@@ -95,9 +103,7 @@ class Simulation(STATS_OBJECT):
         self.srouting = None
 
         self.profiled_time = {}       
-
-        self.lct_mask = None
-        
+                
         self.solver = None
     
     def set_solver(self, solver):
@@ -108,11 +114,20 @@ class Simulation(STATS_OBJECT):
             solver: The solver instance to be used.
         """
         self.solver:mr_solver = solver
-        self._init_solver()
+        self.update_solver_states()
     
-    def _init_solver(self):
+    def set_terrain(self, terrain:terrain):
+        assert isinstance(terrain, terrain), "terrain must be an instance of the terrain class"
+        self.terrain = terrain
+    
+    def update_solver_states(self, seed=0):
         # Initialize the solver with the current constellation data.
-        self.solver.init_constellation(self.filtered_repeated, self.filtered_expanded, self.positions)
+        self.solver.n_sat = self.n_sat
+        self.solver.positions = self.positions        
+        self.solver.possible_sat_pair_expanded = self.filtered_repeated
+        self.solver.possible_lct_pair_expanded = self.filtered_expanded
+
+        self.solver.data_source, self.solver.data_target, self.solver.source_rate, self.solver.target_rate = self.terrain.get_traffic_info(seed=seed)
 
     def _assign_lct(self):
         sat_with_lct_list = np.random.randint(0, 2, size=(self.n_sat, 1))
@@ -152,13 +167,14 @@ class Simulation(STATS_OBJECT):
         self._print("GMST: %.2f hours, Rotation angle: %.2f degrees", gmst_hours, rotation_angle_deg)
         return rotation_angle_deg
 
-    def _update_earth_rotation(self):
+    def _update_earth(self):
         self._print(f'Updating Earth rotation... {self.update_count}')
         """Update the Earth's rotation transformation."""
-        rotation_angle = self.compute_rotation()
+        self.earth_rotation_angle = self.compute_rotation()
+        self.terrain.update_earth_rotation(self.earth_rotation_angle)
         for viz in self.viz_list:
             viz['sphere_visual'].transform.reset()
-            viz['sphere_visual'].transform.rotate(rotation_angle, (0, 0, 1))
+            viz['sphere_visual'].transform.rotate(self.earth_rotation_angle, (0, 0, 1))
 
     def _update_satellite_positions(self):
         self._print(f'Updating satellite positions and velocities... {self.update_count}')
@@ -207,9 +223,9 @@ class Simulation(STATS_OBJECT):
         
         # Compute the KDTree for efficient nearest neighbor search.
         tic = time.perf_counter()
-        tree = cKDTree(self.positions)
+        self.sat_cKDtree = cKDTree(self.positions)
         distance_threshold = self.LISL_MAX_DISTANCE / self.EARTH_RADIUS
-        self.edges = tree.query_pairs(r=distance_threshold, output_type='ndarray')
+        self.edges = self.sat_cKDtree.query_pairs(r=distance_threshold, output_type='ndarray')
         toc = time.perf_counter()
         self.profiled_time['kdtree'] = toc - tic
         
@@ -282,7 +298,7 @@ class Simulation(STATS_OBJECT):
 
         try:
             tic = time.perf_counter()
-            self._update_earth_rotation()
+            self._update_earth()
             toc = time.perf_counter()
             self.profiled_time['earth_rotation'] = toc - tic
             
@@ -391,6 +407,7 @@ class Simulation(STATS_OBJECT):
         toc = time.perf_counter()
         self.profiled_time['draw_matching'] = toc - tic
 
+    @counted
     def update(self, event):
         """
         Update the simulation at each timer tick.

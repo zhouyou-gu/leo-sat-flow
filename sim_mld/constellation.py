@@ -3,6 +3,105 @@ import numpy as np
 import math
 
 @njit(parallel=True,cache=True)
+def lat_lon_to_xyz(lat_lon, r=1.):
+    """
+    Convert latitude and longitude arrays (in radians) to 3D Cartesian coordinates on a sphere.
+
+    Parameters
+    ----------
+    lat_lon : np.ndarray
+        Array of shape (n, 2) where each row is [latitude, longitude] in radians.
+    r : float, optional
+        Radius of the sphere (default is 1.1).
+
+    Returns
+    -------
+    np.ndarray
+        Array of shape (n, 3) with Cartesian coordinates [x, y, z].
+                
+    """
+    n = lat_lon.shape[0]
+    xyz = np.empty((n, 3), dtype=lat_lon.dtype)
+    
+    for i in prange(n):
+        lat = lat_lon[i, 0]
+        lon = lat_lon[i, 1]
+        xyz[i, 0] = r * np.cos(lat) * np.sin(lon)
+        xyz[i, 1] = r * np.sin(lat)
+        xyz[i, 2] = r * np.cos(lat) * np.cos(lon)
+    
+    return xyz
+
+@njit(parallel=True,cache=True)
+def xyz_to_lat_lon(xyz: np.ndarray) -> np.ndarray:
+    """
+    Convert Cartesian coordinates (x, y, z) to spherical coordinates (lat, lon, r).
+
+    Parameters
+    ----------
+    xyz : np.ndarray
+        Array of shape (n, 3) with Cartesian coordinates [x, y, z].
+    Returns
+    -------
+    np.ndarray
+        Array of shape (n, 2) with spherical coordinates [latitude, longitude] in radians.
+    """
+    n = xyz.shape[0]
+    lat_lon = np.empty((n, 2), dtype=xyz.dtype)
+    
+    for i in prange(n):
+        x = xyz[i, 0]
+        y = xyz[i, 1]
+        z = xyz[i, 2]
+        r = math.sqrt(x*x + y*y + z*z)
+        lat_lon[i, 0] = math.asin(y / r)
+        lat_lon[i, 1] = math.atan2(x, z)
+
+    return lat_lon
+
+@njit(parallel=True,cache=True)
+def rotate_deg_in_vector(vectors: np.ndarray, angle_deg: float, anglar_vector: np.ndarray = np.array([0,0,1])) -> np.ndarray:
+    '''
+    Rotate vectors by given angles around a specified angular vector.
+    Parameters
+    ----------
+    vectors : np.ndarray
+        Array of shape (n, 3) containing vectors to be rotated.
+    angle_deg : float
+        Angle in degrees by which to rotate the vectors.
+    anglar_vector : np.ndarray
+        Angular vector of shape (3,) around which to rotate the vectors.
+    Returns
+    -------
+    np.ndarray
+        Array of shape (n, 3) containing the rotated vectors.
+    '''
+    n = vectors.shape[0]
+    angle_rad = np.deg2rad(angle_deg)
+    cos_angle = np.cos(angle_rad)
+    sin_angle = np.sin(angle_rad)
+    anglar_vector_norm = anglar_vector[0]**2 + anglar_vector[1]**2 + anglar_vector[2]**2
+    anglar_vector_norm = math.sqrt(anglar_vector_norm)
+    if anglar_vector_norm == 0:
+        raise ValueError("Angular vector cannot be zero vector.")
+    anglar_vector = anglar_vector / anglar_vector_norm  # Normalize the angular vector
+    ux, uy, uz = anglar_vector
+    rotated_vectors = np.empty_like(vectors)
+    for i in prange(n):
+        x, y, z = vectors[i]
+        # Apply Rodrigues' rotation formula
+        rotated_vectors[i, 0] = (x * (cos_angle + ux * ux * (1 - cos_angle)) +
+                                  y * (ux * uy * (1 - cos_angle) - uz * sin_angle) +
+                                  z * (ux * uz * (1 - cos_angle) + uy * sin_angle))
+        rotated_vectors[i, 1] = (x * (uy * ux * (1 - cos_angle) + uz * sin_angle) +
+                                  y * (cos_angle + uy * uy * (1 - cos_angle)) +
+                                  z * (uy * uz * (1 - cos_angle) - ux * sin_angle))
+        rotated_vectors[i, 2] = (x * (uz * ux * (1 - cos_angle) - uy * sin_angle) +
+                                  y * (uz * uy * (1 - cos_angle) + ux * sin_angle) +
+                                  z * (cos_angle + uz * uz * (1 - cos_angle)))
+    return rotated_vectors
+
+@njit(parallel=True,cache=True)
 def rotation_matmul(A: np.ndarray, rot: np.ndarray) -> np.ndarray:
     """
     Perform parallel matrix multiplication of an (k x 3) matrix A with a (3 x 3) matrix B.
