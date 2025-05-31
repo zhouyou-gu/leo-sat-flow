@@ -1,14 +1,76 @@
 import pandas as pd
 import numpy as np
+from scipy.spatial import cKDTree
+from numba import njit
 from sim_mld.constellation import *
 
 
+@njit(parallel=True,cache=True)
+def query_user_distribution(sat_lat_lon_positions, user_distribution_repeated, cell_size_in_idx):
+    """
+    Query the user distribution for the given satellite positions.
+    
+    Parameters:
+        sat_positions (np.ndarray): Satellite positions in Cartesian coordinates.
+        user_distribution (np.ndarray): User distribution data.
+        seed (int): Random seed for reproducibility.
+        
+    Returns:
+        np.ndarray: User distribution values at the satellite positions.
+    """
+    n_sat = sat_lat_lon_positions.shape[0]
+    user_values = np.zeros(sat_lat_lon_positions.shape[0])
+    shape_x = user_distribution_repeated.shape[0]
+    shape_y = user_distribution_repeated.shape[1]
+    
+    centre_x = shape_x // 2
+    centre_y = shape_y // 2
+    
+    for i in prange(n_sat):
+        lat, lon = sat_lat_lon_positions[i]
+        lat_idx = int((lat + np.pi / 2) / (np.pi / shape_x)) + centre_x
+        lon_idx = int((lon + np.pi) / (2 * np.pi / shape_y)) + centre_y
+
+        # get the box bounds around the lat/lon
+        # and sum the values in the box
+        # This is a simple nearest neighbor approach, could be improved with interpolation
+        # sum the values in the tile box
+        lat_start = max(0, lat_idx - cell_size_in_idx // 2)
+        lat_end = min(shape_x, lat_idx + cell_size_in_idx // 2 + 1)
+        lon_start = max(0, lon_idx - cell_size_in_idx // 2)
+        lon_end = min(shape_y, lon_idx + cell_size_in_idx // 2 + 1)
+        for j in range(lat_start, lat_end):
+            for k in range(lon_start, lon_end):
+                user_values[i] += user_distribution_repeated[j, k]
+    return user_values
+
+
 class terrain:
+    EARTH_RADIUS = 6371.0  # in kilometers
+    EQUATOR_CIRCUMFERENCE = 2 * np.pi * EARTH_RADIUS  # in kilometers
+    CELL_SIZE = 200  # in kilometers, size of the cell for user distribution
+    ACTIVE_USER_PERCENTAGE = 1e-4 # percentage of active users
+    SOURCE_DL_RATE = 0.1  # traffic source rate in Gbps
+    SOURCE_UL_RATE = 0.05  # traffic source rate in Gbps
+    TARGET_DL_RATE = 20 # target downlink rate in Gbps
+    TARGET_UL_RATE = 20  # target uplink rate in Gbps
+    GW_RANGE = 600.0  # in kilometers, range of the ground station
+    
     def __init__(self):
         self.earth_rotation_deg = 0.0
         
         self.ground_station_positions = self._load_ground_station_positions()
-        self.ground_station_positions_rotated = rotate_deg_in_vector(self.ground_station_positions, self.earth_rotation_deg)
+        self.ground_station_positions_rotated = None
+        self.ground_station_positions_rotated_kd_tree = None
+        self.update_earth_rotation(self.earth_rotation_deg)
+
+        self.user_distribution_repeated = self._load_user_distribution()
+
+    def _load_user_distribution(self):
+        npy_path = "population_density_texture.npy"
+        user_distribution = np.load(npy_path)
+        user_distribution_repeated = np.concatenate((user_distribution, user_distribution), axis=1)
+        return user_distribution_repeated
 
     def _load_ground_station_positions(self):
         """
@@ -32,7 +94,8 @@ class terrain:
         """
         self.earth_rotation_deg = earth_rotation_deg
         self.ground_station_positions_rotated = rotate_deg_in_vector(self.ground_station_positions, self.earth_rotation_deg)
-        
+        self.ground_station_positions_rotated_kd_tree = cKDTree(self.ground_station_positions_rotated)
+    
     def get_ground_station_positions(self):
         """
         Get the ground station positions in Cartesian coordinates.
@@ -42,10 +105,63 @@ class terrain:
         """
         return self.ground_station_positions_rotated
 
-    def get_traffic_info(self, positions, seed=0):
-        pass
+    def get_traffic_info(self, sat_positions, seed=0):
+        rng = np.random.default_rng(seed)
+        n_sat = sat_positions.shape[0]
+        n_pair = 1000
+        rng = np.random.default_rng(seed)
+        
+        sources = rng.integers(0, n_sat, n_pair)
+        targets = rng.integers(0, n_sat, n_pair)
+        while np.any(sources == targets):
+            mask = (sources == targets)
+            targets[mask] = rng.integers(0, n_sat, np.sum(mask))
+        
+        data_source, data_target = sources, targets
+        
+        return data_source, data_target
 
+    def get_traffic_info_test(self, sat_positions, seed=0):
+        sat_lat_lon_positions = xyz_to_lat_lon(sat_positions)
+        cell_size_in_idx = int(self.CELL_SIZE / self.EQUATOR_CIRCUMFERENCE * self.user_distribution_repeated.shape[1]/2.)
 
+        user_distribution_values = query_user_distribution(sat_lat_lon_positions, self.user_distribution_repeated, cell_size_in_idx)
+        user_distribution_values += self.CELL_SIZE ** 2
+        print("user_distribution_values:", user_distribution_values.mean(), user_distribution_values.max(), user_distribution_values.min())
+
+        rng = np.random.default_rng(seed)
+        # exponential distribution for user traffic
+        user_per_sat = rng.poisson(lam=user_distribution_values)
+        
+        active_users = user_per_sat * self.ACTIVE_USER_PERCENTAGE
+
+        traffic_dl_rate_source = active_users * self.SOURCE_DL_RATE
+        traffic_ul_rate_source = active_users * self.SOURCE_UL_RATE
+
+        # find the ground stations that are within range of the satellite positions
+        distance, index = self.ground_station_positions_rotated_kd_tree.query(sat_positions, distance_upper_bound=self.GW_RANGE / self.EARTH_RADIUS, workers=-1)
+
+        connected_to_ground_stations = index != self.ground_station_positions_rotated_kd_tree.n
+        traffic_dl_rate_target = connected_to_ground_stations.astype(float) * self.TARGET_DL_RATE
+        traffic_ul_rate_target = connected_to_ground_stations.astype(float) * self.TARGET_UL_RATE
+
+        print("connected_to_ground_stations:", connected_to_ground_stations.sum())
+
+        print("traffic_dl_rate_source:", traffic_dl_rate_source)
+        forward_traffic_capacity = np.clip(traffic_ul_rate_target - traffic_dl_rate_source, 0, None)
+        reverse_traffic_capacity = np.clip(traffic_dl_rate_target - traffic_ul_rate_source, 0, None)
+
+        forward_traffic_demand = np.clip(traffic_dl_rate_source - traffic_ul_rate_target, 0, None)
+        reverse_traffic_demand = np.clip(traffic_ul_rate_source - traffic_dl_rate_target, 0, None)
+
+        
+        fc_id = np.nonzero(forward_traffic_capacity)[0]
+        fd_id = np.nonzero(forward_traffic_demand)[0]
+        
+        I, J = np.meshgrid(fc_id, fd_id, indexing='ij')
+        pairs = np.vstack((I.ravel(), J.ravel())).T
+        print("pairs shape:", pairs.shape)
+        return pairs[:, 0], pairs[:, 1]
 
 if __name__ == "__main__":
     pass

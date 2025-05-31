@@ -2,6 +2,8 @@ from numba import njit, prange
 import numpy as np
 import math
 
+
+
 @njit(parallel=True,cache=True)
 def lat_lon_to_xyz(lat_lon, r=1.):
     """
@@ -12,7 +14,7 @@ def lat_lon_to_xyz(lat_lon, r=1.):
     lat_lon : np.ndarray
         Array of shape (n, 2) where each row is [latitude, longitude] in radians.
     r : float, optional
-        Radius of the sphere (default is 1.1).
+        Radius of the sphere (default is 1.).
 
     Returns
     -------
@@ -26,10 +28,10 @@ def lat_lon_to_xyz(lat_lon, r=1.):
     for i in prange(n):
         lat = lat_lon[i, 0]
         lon = lat_lon[i, 1]
-        xyz[i, 0] = r * np.cos(lat) * np.sin(lon)
-        xyz[i, 1] = r * np.sin(lat)
-        xyz[i, 2] = r * np.cos(lat) * np.cos(lon)
-    
+        xyz[i, 0] = r * math.cos(lat) * math.cos(lon)  # x
+        xyz[i, 1] = r * math.cos(lat) * math.sin(lon)  # y
+        xyz[i, 2] = r * math.sin(lat)  # z
+
     return xyz
 
 @njit(parallel=True,cache=True)
@@ -53,10 +55,17 @@ def xyz_to_lat_lon(xyz: np.ndarray) -> np.ndarray:
         x = xyz[i, 0]
         y = xyz[i, 1]
         z = xyz[i, 2]
-        r = math.sqrt(x*x + y*y + z*z)
-        lat_lon[i, 0] = math.asin(y / r)
-        lat_lon[i, 1] = math.atan2(x, z)
-
+        r = math.sqrt(x * x + y * y + z * z)
+        if r == 0:
+            lat_lon[i, 0] = 0.0
+            lat_lon[i, 1] = 0.0
+        else:
+            x /= r
+            y /= r
+            z /= r
+            # Compute latitude and longitude
+            lat_lon[i, 0] = math.asin(z)  # latitude
+            lat_lon[i, 1] = math.atan2(y, x)  # longitude
     return lat_lon
 
 @njit(parallel=True,cache=True)
@@ -91,14 +100,15 @@ def rotate_deg_in_vector(vectors: np.ndarray, angle_deg: float, anglar_vector: n
         x, y, z = vectors[i]
         # Apply Rodrigues' rotation formula
         rotated_vectors[i, 0] = (x * (cos_angle + ux * ux * (1 - cos_angle)) +
-                                  y * (ux * uy * (1 - cos_angle) - uz * sin_angle) +
-                                  z * (ux * uz * (1 - cos_angle) + uy * sin_angle))
+                                    y * (ux * uy * (1 - cos_angle) - uz * sin_angle) + 
+                                    z * (ux * uz * (1 - cos_angle) + uy * sin_angle))
         rotated_vectors[i, 1] = (x * (uy * ux * (1 - cos_angle) + uz * sin_angle) +
-                                  y * (cos_angle + uy * uy * (1 - cos_angle)) +
-                                  z * (uy * uz * (1 - cos_angle) - ux * sin_angle))
+                                    y * (cos_angle + uy * uy * (1 - cos_angle)) +
+                                    z * (uy * uz * (1 - cos_angle) - ux * sin_angle))
         rotated_vectors[i, 2] = (x * (uz * ux * (1 - cos_angle) - uy * sin_angle) +
-                                  y * (uz * uy * (1 - cos_angle) + ux * sin_angle) +
-                                  z * (cos_angle + uz * uz * (1 - cos_angle)))
+                                    y * (uz * uy * (1 - cos_angle) + ux * sin_angle) +
+                                    z * (cos_angle + uz * uz * (1 - cos_angle)))
+    # Return the rotated vectors
     return rotated_vectors
 
 @njit(parallel=True,cache=True)

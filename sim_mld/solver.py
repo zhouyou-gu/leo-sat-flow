@@ -173,7 +173,9 @@ class mr_solver(STATS_OBJECT):
         
         self.source_rate = None
         self.target_rate = None
-        
+    
+    def _reset_price_graph(self, initial_prices=INIT_PRICES):
+        self.price_graph = price_graph(self.n_sat, self.possible_sat_pair_expanded, initial_prices)
     
     @classmethod
     def compute_capacity(cls, distance):

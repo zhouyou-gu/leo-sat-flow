@@ -61,7 +61,7 @@ class TestViewSimulation(Simulation):
         # self.viz_list[2]['text_title'].text = f"Laser Link Pricing (Dual Variables)\n - Average Price (Gbps Per Hop) {edge_prices[:,2].mean():.2f}"
         # self.viz_list[3]['text_title'].text = f"Source-to-Target Traffic Flow\n - Average Rate (Gbps) {dual_rates.mean():.2f}"
         gs = self.terrain.get_ground_station_positions()
-        
+        self.terrain.get_traffic_info(self.positions)
         self.viz_list[0]['o_scatter'].set_data(gs, face_color=[0, 0, 0, 0.5], size=10, edge_width_rel=0)
 
     def run(self, N_STEPS=1000, visualize=False):
@@ -84,6 +84,7 @@ class TestViewSimulation(Simulation):
                 app.process_events()   # keep GUI alive
             self.update(None)
             self.update_space()
+            self.update_simulation_time()
         
         print("Simulation completed.")        
         

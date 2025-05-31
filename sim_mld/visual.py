@@ -86,7 +86,7 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
     axes.transform = STTransform(scale=(2, 2, 2))
 
     # Load texture image for the Earth sphere.
-    texture_path = "land_sea_texture.png"
+    texture_path = "population_density_texture.png"
     try:
         texture_image = Image.open(texture_path)
     except Exception as e:

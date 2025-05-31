@@ -57,7 +57,7 @@ class Simulation(STATS_OBJECT):
                 
         self.simulation_start_time = self.ts.now()
         self.real_start_time = time.perf_counter()
-        self.current_time = self._update_simulation_time()
+        self.current_time = self.update_simulation_time()
         self.update_count = 0
         self.accumulated_update_time = 0
         self.average_update_time = 1
@@ -127,7 +127,8 @@ class Simulation(STATS_OBJECT):
         self.solver.possible_sat_pair_expanded = self.filtered_repeated
         self.solver.possible_lct_pair_expanded = self.filtered_expanded
 
-        self.solver.data_source, self.solver.data_target, self.solver.source_rate, self.solver.target_rate = self.terrain.get_traffic_info(seed=seed)
+        self.solver._reset_price_graph(0.)
+        self.solver.data_source, self.solver.data_target = self.terrain.get_traffic_info(self.positions,seed=seed)
 
     def _assign_lct(self):
         sat_with_lct_list = np.random.randint(0, 2, size=(self.n_sat, 1))
@@ -137,7 +138,7 @@ class Simulation(STATS_OBJECT):
     def setup_visualization(self):
         return setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(2, 2))        
 
-    def _update_simulation_time(self):
+    def update_simulation_time(self):
         elapsed_real = time.perf_counter() - self.real_start_time
         elapsed_scaled = elapsed_real * self.TIME_SCALE
         delta_days = elapsed_scaled / 86400  # Convert seconds to days.

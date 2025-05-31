@@ -45,7 +45,7 @@ plt.savefig('population_density_texture.png', dpi=500, bbox_inches='tight', pad_
 
 from skimage.measure import block_reduce
 A = 20
-ghs_data = block_reduce(ghs_data[0], (A, A), func=np.sum)  # Downsample by a factor of 30
+ghs_data = block_reduce(ghs_data[0], (A, A), func=np.sum)  # Downsample by a factor of 20
 # Export the data as a numpy array
 print("ghs_data shape", ghs_data.shape)
 print("ghs_data max", np.amax(ghs_data))

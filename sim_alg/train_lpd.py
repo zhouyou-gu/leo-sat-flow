@@ -50,7 +50,7 @@ class gnnsolver(mr_solver):
         possible_capacity_non_expanded = cp_edge_list[:, 2]
         st_edge_index = np.column_stack((self.data_source, self.data_target))
         
-        qrates, prices = self.model.get_output_np_edge_weight(self.positions, possible_sat_pair_non_expanded, possible_capacity_non_expanded, st_edge_index, use_target=True)
+        qrates, prices = self.model.get_output_np_edge_weight(self.positions, possible_sat_pair_non_expanded, possible_capacity_non_expanded, st_edge_index, use_target=False)
         
         self._printalltime(f"qrates: max: {np.max(qrates)}, min: {np.min(qrates)}, avg: {np.mean(qrates)}")
         self._printalltime(f"prices: max: {np.max(prices)}, min: {np.min(prices)}, avg: {np.mean(prices)}")
@@ -158,31 +158,21 @@ class DualSimulation(Simulation):
         self.lct_mask[self.lct2_indices] = np.array([1, 1, 0, 0], dtype=np.float32)
         self.lct_mask[self.lct4_indices] = np.array([1, 1, 1, 1], dtype=np.float32)   
 
-    @counted
     def run_step(self):
+        self.config_l_mask(lct2_rho=rho, lct4_rho=rho, seed=self.N_STEP)
+        self.update_space()
+        
         if self.filtered_expanded.size == 0:
             return
         # Check the constellation connectivity
+        self.update_solver_states(seed=self.N_STEP)
         self.solver.update_step_rates_prices()
+        
         if self.N_STEP % 20 == 0:
             p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective(with_rates=True)
             p_o_mwm, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective_mwm(with_rates=True)
             self._printalltime(f"Prim objective: {p_o}, MWM: {p_o_mwm}")
             self._add_np_log("objective", self.N_STEP, [p_o, p_o_mwm])
-
-    def run(self, N_STEPS=1000, visualize=False):
-        """
-        Run the simulation.
-        """
-        for i in range(N_STEPS):
-            self.config_l_mask(lct2_rho=rho, lct4_rho=rho, seed=i)
-            self.update_space()
-            self._init_solver()
-            self.solver.update_source_target_pairs(1000, seed=i)
-            self.update(None)
-
-        print("Simulation completed.")
-
 
 # Load tle data.
 ts, valid_satellites, sat_array = generate_walker_constellation(planes=20)
