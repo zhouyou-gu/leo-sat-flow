@@ -35,17 +35,19 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     # Example parameters
     wavelength = 1.55e-6    # Wavelength in meters (1.55 microns typical in telecom)
-    w0 = w0_from_angular_spreading(100e-6, wavelength)  # Beam waist in meters
+    w0 = w0_from_angular_spreading(50e-6, wavelength)  # Beam waist in meters
     z_values = np.geomspace(1, 3e6, 100)  # from 0 to 3000 km
     rho = 0.0        # on-axis, for example
     P = 20  # Watts
-    # Compute intensity vs. z at rho=0
-    I_on_axis = np.array([gaussian_beam_intensity(P, w0, wavelength, rho, z) for z in z_values])
-    
     B = 1e9        # 1 GHz bandwidth
     R = 0.5        # 0.8 A/W responsivity
     A = 1e-2      # Area in m^2 (example)
     N0 = 3e-7      # Example noise in A rms
+    
+    # Compute intensity vs. z at rho=0
+    I_on_axis = np.array([gaussian_beam_intensity(P, w0, wavelength, rho, z) for z in z_values])
+    
+    # Compute capacity lower bound vs. z at rho=0
     C_on_axis = np.array([capacity_lower_bound(B, R, A, N0, P, w0, wavelength, rho, z) for z in z_values])
     
     sigma_jitter = 10e-6 # Jitter in radians
@@ -60,12 +62,13 @@ if __name__ == "__main__":
     plt.xlabel('Distance (km)')
     plt.ylabel('Intensity (W/m^2)')
     plt.xscale('log')
+    plt.yscale('log')
     plt.grid()
     plt.legend()
 
     subplot = plt.subplot(132)
     subplot.set_box_aspect(1)  # Aspect ratio 1:1
-    plt.plot(z_values/1e3, C_on_axis, label='Capacity Lower Bound')
+    plt.plot(z_values/1e3, C_on_axis, label='Capacity on Axis')
     print(C_on_axis,z_values)
     plt.title('Capacity Lower Bound vs. Distance')
     plt.xlabel('Distance (km)')
@@ -73,17 +76,20 @@ if __name__ == "__main__":
     plt.xscale('log')
     plt.grid()
     plt.legend()
+    plt.ylim(0, 30)  # Adjust as needed
 
     subplot = plt.subplot(133)
     subplot.set_box_aspect(1)  # Aspect ratio 1:1
-    plt.plot(z_values/1e3, C_relaxed, label='Capacity Lower Bound')
+    plt.plot(z_values/1e3, C_relaxed, label='Capacity with Jitter')
     print(C_on_axis,z_values)
     plt.title('Capacity Lower Bound vs. Distance')
     plt.xlabel('Distance (km)')
     plt.ylabel('Capacity (Gbits/s)')
     plt.xscale('log')
     plt.grid()
+    plt.legend()
+    # Set Y-axis limits for better visibility
+    plt.ylim(0, 30)  # Adjust as needed
     
-    
+
     plt.show()
-    

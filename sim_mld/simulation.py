@@ -114,13 +114,13 @@ class Simulation(STATS_OBJECT):
             solver: The solver instance to be used.
         """
         self.solver:mr_solver = solver
-        self.update_solver_states()
+        self.update_solver_constellation_info()
     
     def set_terrain(self, terrain:terrain):
         assert isinstance(terrain, terrain), "terrain must be an instance of the terrain class"
         self.terrain = terrain
     
-    def update_solver_states(self, seed=0):
+    def update_solver_constellation_info(self):
         # Initialize the solver with the current constellation data.
         self.solver.n_sat = self.n_sat
         self.solver.positions = self.positions        
@@ -128,8 +128,15 @@ class Simulation(STATS_OBJECT):
         self.solver.possible_lct_pair_expanded = self.filtered_expanded
 
         self.solver._reset_price_graph(0.)
-        self.solver.data_source, self.solver.data_target = self.terrain.get_traffic_info(self.positions,seed=seed)
-
+        
+    def update_solver_traffic_info(self, seed=0):
+        self.solver.data_source, self.solver.data_target, self.solver.forward_traffic_capacity, self.solver.forward_traffic_demand = self.terrain.get_traffic_info_test(self.positions,seed=seed)
+        self.solver.s_t_traffic_rates = np.zeros(self.solver.data_source.shape[0], dtype=np.float32)
+        self._printalltime(f"Before s_t pair filtering seed {seed}, source: {self.solver.data_source.shape[0]}, target: {self.solver.data_target.shape[0]}")
+        self.solver._remove_non_connected_s_t_pairs()
+        self._printalltime(f"Updated traffic info with seed {seed}, source: {self.solver.data_source.shape[0]}, target: {self.solver.data_target.shape[0]}")
+        
+        
     def _assign_lct(self):
         sat_with_lct_list = np.random.randint(0, 2, size=(self.n_sat, 1))
         self.lct_on_indicator = np.tile(sat_with_lct_list, (1, self.N_LCT_PER_SAT))
@@ -439,8 +446,12 @@ class Simulation(STATS_OBJECT):
 
         for i in range(N_STEPS):
             if visualize:
-                self.canvas.update()         # schedule a redraw
-                app.process_events()   # keep GUI alive
+                self.visualize()
             self.update(None)
         
         print("Simulation completed.")
+            
+            
+    def visualize(self):
+        self.canvas.update()
+        app.process_events()

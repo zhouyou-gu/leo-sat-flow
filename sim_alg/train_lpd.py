@@ -74,9 +74,12 @@ class gnnsolver(mr_solver):
         prices = extract_weights(self.possible_sat_pair_expanded, prices_edge_list)
         indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
         self._printalltime(f"prices: max: {np.max(prices)}, min: {np.min(prices)}")
-
+        self._printalltime(f"data_source: {self.data_source}, data_target: {self.data_target}")
+        self._printalltime(f"shapes of data_source, data_target: {self.data_source.shape}, {self.data_target.shape}")
+        tic = self._get_tic()
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
-        
+        tim = self._get_tim(tic)
+        self._printalltime(f"multi_dijkstra_with_paths time: {tim:.4f} us")
         valid_costs = costs[lengths > 0]
         self._printalltime(f"costs : max: {np.max(valid_costs)}, min: {np.min(valid_costs)}, avg: {np.mean(valid_costs)}")
 
@@ -168,8 +171,11 @@ class DualSimulation(Simulation):
         self.update_solver_states(seed=self.N_STEP)
         self.solver.update_step_rates_prices()
         
-        if self.N_STEP % 20 == 0:
+        if self.N_STEP % 1 == 0:
+            tic = self._get_tic()
             p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective(with_rates=True)
+            toc = self._get_tim(tic)
+            self._printalltime(f"Prim objective: {p_o}, Time: {toc:.4f} us")
             p_o_mwm, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective_mwm(with_rates=True)
             self._printalltime(f"Prim objective: {p_o}, MWM: {p_o_mwm}")
             self._add_np_log("objective", self.N_STEP, [p_o, p_o_mwm])

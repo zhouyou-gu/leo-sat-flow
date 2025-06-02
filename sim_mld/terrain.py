@@ -5,6 +5,46 @@ from numba import njit
 from sim_mld.constellation import *
 
 
+from numba import njit, prange
+
+@njit(parallel=True, cache=True)
+def all_one_pairs_parallel(arr1, arr2, n1, n2):
+    """
+    Given two 1D NumPy arrays (arr1, arr2) of 0s and 1s, returns
+    a NumPy array of shape (n1*n2, 2) containing all index pairs (i, j)
+    such that arr1[i] != 0 and arr2[j] != 0.
+    """
+
+    # 3) Collect indices of non-zero entries (serial)
+    idx1 = np.empty(n1, np.int64)
+    idx2 = np.empty(n2, np.int64)
+
+    count = 0
+    for i in range(arr1.shape[0]):
+        if arr1[i] != 0:
+            idx1[count] = i
+            count += 1
+
+    count = 0
+    for j in range(arr2.shape[0]):
+        if arr2[j] != 0:
+            idx2[count] = j
+            count += 1
+
+    # 4) Allocate output array
+    total_pairs = n1 * n2
+    output = np.empty((total_pairs, 2), np.int64)
+
+    # 5) Fill in all pairs in parallel:
+    #    We let 'a' run in parallel, and compute pos = a * n2 + b
+    for a in prange(n1):
+        for b in range(n2):
+            pos = a * n2 + b
+            output[pos, 0] = idx1[a]
+            output[pos, 1] = idx2[b]
+
+    return output
+
 @njit(parallel=True,cache=True)
 def query_user_distribution(sat_lat_lon_positions, user_distribution_repeated, cell_size_in_idx):
     """
@@ -154,14 +194,9 @@ class terrain:
         forward_traffic_demand = np.clip(traffic_dl_rate_source - traffic_ul_rate_target, 0, None)
         reverse_traffic_demand = np.clip(traffic_ul_rate_source - traffic_dl_rate_target, 0, None)
 
-        
-        fc_id = np.nonzero(forward_traffic_capacity)[0]
-        fd_id = np.nonzero(forward_traffic_demand)[0]
-        
-        I, J = np.meshgrid(fc_id, fd_id, indexing='ij')
-        pairs = np.vstack((I.ravel(), J.ravel())).T
+        pairs = all_one_pairs_parallel(forward_traffic_capacity, forward_traffic_demand, np.count_nonzero(forward_traffic_capacity), np.count_nonzero(forward_traffic_demand))
         print("pairs shape:", pairs.shape)
-        return pairs[:, 0], pairs[:, 1]
+        return pairs[:, 0], pairs[:, 1], forward_traffic_capacity, forward_traffic_demand
 
 if __name__ == "__main__":
     pass

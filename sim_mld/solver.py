@@ -167,16 +167,31 @@ class mr_solver(STATS_OBJECT):
         self.positions = None
         self.possible_sat_pair_expanded = None
         self.possible_lct_pair_expanded = None 
-                
+        
+        # traffic info
         self.data_source = None
         self.data_target = None
-        
-        self.source_rate = None
-        self.target_rate = None
+     
+        self.s_t_traffic_rates = None
+     
+        self.forward_traffic_capacity = None
+        self.forward_traffic_demand = None   
     
     def _reset_price_graph(self, initial_prices=INIT_PRICES):
         self.price_graph = price_graph(self.n_sat, self.possible_sat_pair_expanded, initial_prices)
     
+    def _remove_non_connected_s_t_pairs(self, max_distance=5000e3):
+        """
+        Remove pairs that are not connected in the graph.
+        """
+        satellite_distances = np.linalg.norm(self.positions[self.possible_sat_pair_expanded[:, 0]] - self.positions[self.possible_sat_pair_expanded[:, 1]], axis=1)
+        satellite_distances = satellite_distances * self.EARTH_RADIUS  # Convert to meters
+        indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, satellite_distances)
+        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
+        self.data_source = self.data_source[costs < max_distance]
+        self.data_target = self.data_target[costs < max_distance]
+        self.s_t_traffic_rates = self.s_t_traffic_rates[costs < max_distance] if self.s_t_traffic_rates is not None else None
+
     @classmethod
     def compute_capacity(cls, distance):
         distance = distance * cls.EARTH_RADIUS
@@ -254,6 +269,26 @@ class mr_solver(STATS_OBJECT):
         else:
             return lambda_times_capacity
 
+    def get_dual_objective_test(self, with_prices=False):
+        self._print("Computing dual objective")
+        connected_sat, connected_lct = self.get_dual_matching()
+        costs, lengths, paths_all = self.get_dual_srouting()
+
+        # Compute the edge capacity for the connected satellites
+        capacity_on_graph = self.compute_capacity(
+            np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
+        )
+        prices = self.price_graph.get_prices(connected_sat)
+        
+        rates = self.get_rates_dual(costs)
+        
+        ret = - np.sum(prices * capacity_on_graph)
+        ret += np.sum(rates*(-1+ costs))
+        if with_prices:
+            return ret, np.concatenate((self.possible_sat_pair_expanded,self.price_graph.get_prices(self.possible_sat_pair_expanded).reshape(-1,1)), axis=1)
+        else:
+            return ret
+
     def get_prim_objective(self, with_rates=False):
         pass
 
@@ -261,7 +296,7 @@ class mr_solver(STATS_OBJECT):
         capacity = self.compute_capacity(
             np.linalg.norm(self.positions[self.possible_sat_pair_expanded[:, 0]] - self.positions[self.possible_sat_pair_expanded[:, 1]], axis=1)
         )        
-        edge_weights_pr =  capacity**2
+        edge_weights_pr = capacity
         weighted_edges = np.column_stack((self.possible_lct_pair_expanded, edge_weights_pr))
         matching = greedy_max_weight_matching(weighted_edges)
         m = len(matching)
@@ -279,7 +314,7 @@ class mr_solver(STATS_OBJECT):
             self.data_source, self.data_target, costs, lengths, paths_all
         )
         
-        rates = self.get_rates(srouting, connected_lct, mode=self.objective_mode)
+        rates = self.get_rates_test(srouting, connected_lct, mode=self.objective_mode)
         self._print(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
         if not with_rates:
             return -np.sum(rates)
@@ -326,7 +361,7 @@ class mr_solver(STATS_OBJECT):
             prob = cp.Problem(cp.Maximize(cp.sum(cp.log(r+1))), [P @ r <= capacity])
         else:
             prob = cp.Problem(cp.Maximize(cp.sum(r)), [P @ r <= capacity])
-        prob.solve(solver=cp.SCS)
+        prob.solve(solver=cp.SCIPY)
 
         opt = r.value
         
@@ -340,10 +375,110 @@ class mr_solver(STATS_OBJECT):
             for src, tgt in zip(self.data_source, self.data_target)
         ])
         return rates
+    
+    def get_rates_test(self, srouting, matching, mode="maxsum"):
+        # Compute the edge capacity for the connected satellites
+        connected_sat = matching // self.N_LCT_PER_SAT
+        capacity = self.compute_capacity(
+            np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
+        )
+        indptr, indices, data = build_csr(self.n_sat, connected_sat, capacity, merging_method="sum")
+        edge_capacity = csr_to_edge_list(indptr, indices, data)
         
+        if np.asarray(srouting).size == 0:
+            return np.zeros(self.data_source.shape[0])
+        
+        flow_pairs = srouting[:, 2:4]
+        unique_pairs_view, flow_ids = np.unique(flow_pairs, return_inverse=True, axis=0)
+        F = unique_pairs_view.shape[0]
+        
+        uv_view = srouting[:, :2]                                 # the (u,v) pairs
+        uniq_uv_view, edge_ids = np.unique(uv_view, return_inverse=True, axis=0)
+        E = uniq_uv_view.shape[0]
+
+        # Create the flow matrix
+        P = sp.coo_matrix(
+            (np.ones(srouting.shape[0]), (edge_ids, flow_ids)),
+            shape=(E, F)
+        ).tocsr()
+        
+        # --- Capacity constraints ------------------------------------------------
+        uv = uniq_uv_view.reshape(-1, 2).astype(np.int64)
+        capacity = extract_weights(uv, edge_capacity)
+        
+        # Initialize the variable for rates
+        r = cp.Variable(F, nonneg=True)
+        
+        # Source and target rate constraints
+        St = sp.coo_matrix((np.ones(F), 
+                          (unique_pairs_view[:, 0], np.arange(F))),
+                          shape=(self.n_sat, F)).tocsr()
+
+        Dt = sp.coo_matrix((np.ones(F),
+                          (unique_pairs_view[:, 1], np.arange(F))),
+                          shape=(self.n_sat, F)).tocsr()
+        
+        constraints = []
+        # Source rate bound constraints
+        constraints.append(St @ r <= self.forward_traffic_capacity)
+        # Target rate bound constraints
+        constraints.append(Dt @ r <= self.forward_traffic_demand)
+
+        # Flow conservation constraints
+        constraints.append(P @ r <= capacity)
+        
+        # --- LP solve -------------------------------------------------------------
+        prob = cp.Problem(cp.Maximize(cp.sum(r)), constraints)
+        prob.solve(solver=cp.SCIPY)
+        
+        opt = r.value
+        rate_map = {
+            (int(src), int(tgt)): float(rate)
+            for (src, tgt), rate in zip(unique_pairs_view, opt)
+        }
+        # 2. For each original pair, look it up (default to 0.0 if missing)
+        rates = np.array([
+            rate_map.get((src, tgt), 0.0)
+            for src, tgt in zip(self.data_source, self.data_target)
+        ])
+        if np.isnan(rates).any():
+            raise ValueError("NaN found in rates")
+        if np.any(rates < 0):
+            raise ValueError("Negative rates found in rates")
+        self._print(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
+        return rates
+
+    def get_rates_dual(self, costs):
+        F = self.data_source.shape[0]
+        # Initialize the variable for rates
+        r = cp.Variable(F, nonneg=True)
+        
+        # Source and target rate constraints
+        St = sp.coo_matrix((np.ones(F), 
+                          (self.data_source, np.arange(F))),
+                          shape=(self.n_sat, F)).tocsr()
+
+        Dt = sp.coo_matrix((np.ones(F),
+                          (self.data_target, np.arange(F))),
+                          shape=(self.n_sat, F)).tocsr()
+
+        constraints = []
+        # Source rate bound constraints
+        constraints.append(St @ r <= self.forward_traffic_capacity)
+        # Target rate bound constraints
+        constraints.append(Dt @ r <= self.forward_traffic_demand)
+        
+        # --- LP solve -------------------------------------------------------------
+        obj = cp.sum(cp.multiply(-costs+1, r))
+        prob = cp.Problem(cp.Maximize(obj), constraints)
+        prob.solve(solver=cp.SCIPY)
+        
+        opt = r.value
+        return opt
+
+
     def update_step_rates_prices(self):
         pass
-
 
 if __name__ == '__main__':
     print(np.exp(-np.inf))
