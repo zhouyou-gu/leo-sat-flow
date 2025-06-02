@@ -7,6 +7,12 @@ novnc from snap as github instruction
 export the right display in the terminal environment, e.g., :1, the one started by tigervnc
 export $DISPLAY=:1
 
+check if the display is set correctly
+echo $DISPLAY
+vncserver -list
+
+vncserver :1      
+
 stop sceensaver
 gsettings set org.gnome.desktop.screensaver lock-enabled false
 

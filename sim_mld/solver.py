@@ -361,7 +361,7 @@ class mr_solver(STATS_OBJECT):
             prob = cp.Problem(cp.Maximize(cp.sum(cp.log(r+1))), [P @ r <= capacity])
         else:
             prob = cp.Problem(cp.Maximize(cp.sum(r)), [P @ r <= capacity])
-        prob.solve(solver=cp.SCIPY)
+        prob.solve(solver=cp.HiGHS)
 
         opt = r.value
         
@@ -429,8 +429,8 @@ class mr_solver(STATS_OBJECT):
         
         # --- LP solve -------------------------------------------------------------
         prob = cp.Problem(cp.Maximize(cp.sum(r)), constraints)
-        prob.solve(solver=cp.SCIPY)
-        
+        prob.solve(solver=cp.HIGHS)
+
         opt = r.value
         rate_map = {
             (int(src), int(tgt)): float(rate)
@@ -471,7 +471,7 @@ class mr_solver(STATS_OBJECT):
         # --- LP solve -------------------------------------------------------------
         obj = cp.sum(cp.multiply(-costs+1, r))
         prob = cp.Problem(cp.Maximize(obj), constraints)
-        prob.solve(solver=cp.SCIPY)
+        prob.solve(solver=cp.HIGHS)
         
         opt = r.value
         return opt
