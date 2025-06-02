@@ -242,11 +242,12 @@ LOG_OBJ = STATS_OBJECT()
 LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
 
 # Create simulation instance.
-rho = 0.3
+rho2 = 0.1
+rho4 = 0.2
 i = 0
-print(f"Running simulation with rho={rho}, SEED={i}")
+print(f"Running simulation with lct2_rho={rho2}, lct4_rho={rho4}, seed={i}")
 simulation = DualSimulation(ts, sat_array)
-simulation.config_l_mask(lct2_rho=rho, lct4_rho=rho, seed=i)
+simulation.config_l_mask(lct2_rho=rho2, lct4_rho=rho4, seed=i)
 simulation.update_space()
 
 solver = lpdsolver()
