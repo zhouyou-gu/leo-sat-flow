@@ -1,6 +1,8 @@
 import math
 import time
 
+from threading import Thread
+import queue
 import psutil
 import numpy as np
 from scipy.spatial import cKDTree
@@ -53,11 +55,13 @@ class Simulation(STATS_OBJECT):
         self.n_sat = len(sat_array)
         self.sat_cKDtree = None
         
-        self.canvas, self.viz_list = self.setup_visualization()
-                
+        self.canvas = None
+        self.viz_list = []
+               
         self.simulation_start_time = self.ts.now()
         self.real_start_time = time.perf_counter()
         self.current_time = self.update_simulation_time()
+        self.TOT_STEPS = 0
         self.update_count = 0
         self.accumulated_update_time = 0
         self.average_update_time = 1
@@ -105,7 +109,10 @@ class Simulation(STATS_OBJECT):
         self.profiled_time = {}       
                 
         self.solver = None
-    
+        
+        self.data_thread:Thread = None
+        self.data_thread_return_queue:queue.Queue = queue.Queue()
+
     def set_solver(self, solver):
         """
         Set the solver for the simulation.
@@ -143,7 +150,7 @@ class Simulation(STATS_OBJECT):
         self.lct_directions = np.concatenate((self.front, self.back, self.right, self.left), axis=1).reshape(-1, self.N_LCT_PER_SAT, 3)
         
     def setup_visualization(self):
-        return setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(2, 2))        
+        self.canvas, self.viz_list = setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(2, 2))
 
     def update_simulation_time(self):
         elapsed_real = time.perf_counter() - self.real_start_time
@@ -183,6 +190,8 @@ class Simulation(STATS_OBJECT):
         for viz in self.viz_list:
             viz['sphere_visual'].transform.reset()
             viz['sphere_visual'].transform.rotate(self.earth_rotation_angle, (0, 0, 1))
+            viz['o_scatter'].set_data(self.terrain.get_ground_station_positions(), face_color=[0, 0, 0.5, 1], size=5, edge_width_rel=0)
+
 
     def _update_satellite_positions(self):
         self._print(f'Updating satellite positions and velocities... {self.update_count}')
@@ -415,7 +424,6 @@ class Simulation(STATS_OBJECT):
         toc = time.perf_counter()
         self.profiled_time['draw_matching'] = toc - tic
 
-    @counted
     def update(self, event):
         """
         Update the simulation at each timer tick.
@@ -423,7 +431,12 @@ class Simulation(STATS_OBJECT):
         self._print(f"Timer event triggered. Update count: {self.update_count}")
         self.update_count += 1
         try:
-            self.run_step()
+            if self.data_thread is not None and self.data_thread.is_alive():
+                self._printalltime(f"Waiting for data thread to finish... {self.update_count}, {self.N_STEP}")
+            else:
+                self._printalltime(f"Starting data thread... {self.update_count}, {self.N_STEP}")
+                self.data_thread = Thread(target=self.step, args=(), daemon=True)
+                self.data_thread.start()
         except Exception as e:
             print("Error during update: %s" % e)
             import traceback
@@ -435,23 +448,41 @@ class Simulation(STATS_OBJECT):
         mem_usage = psutil.Process().memory_info().rss / 1e6
         self._print(f"CPU Usage: {cpu_usage}%, Memory Usage: {mem_usage:.2f} MB")    
   
+    @counted
+    def step(self):
+        self.run_step()
+    
     def run_step(self):
         pass
     
-    def run(self, N_STEPS=1000, visualize=False):
+    def run(self, TOT_STEPS=1000, visualize=False):
         """
         Run the simulation.
         """
-        self._print("Starting simulation...")
-
-        for i in range(N_STEPS):
+        self.TOT_STEPS = TOT_STEPS
+        if visualize:
+            self.setup_visualization()
+        self.update_space()
+        self._printalltime("Starting simulation...")
+        while True:
             if visualize:
                 self.visualize()
-            self.update(None)
-        
-        print("Simulation completed.")
+                self.set_viz_data()
+
+            if self.N_STEP >= self.TOT_STEPS:
+                if self.data_thread is not None and self.data_thread.is_alive():
+                    self._printalltime("MAX iterataion reached, waiting for data thread to finish")
+                    continue
+                self._printalltime("Simulation finished")
+                break
+            else:
+                self.update(None)
             
             
     def visualize(self):
         self.canvas.update()
         app.process_events()
+        time.sleep(0.01)
+        
+    def set_viz_data(self):
+        pass

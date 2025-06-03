@@ -111,7 +111,7 @@ class lpdsolver(mr_solver):
             self.data_source, self.data_target, costs, lengths, paths_all
         )
 
-        rates = self.get_rates_test(srouting, connected_lct, mode=self.objective_mode)
+        rates = self.get_rates_prim(srouting, connected_lct, mode=self.objective_mode)
         self._print(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
         self._print(f"Appr rate: MAX: {np.max(self.s_t_traffic_rates)}, MIN: {np.min(self.s_t_traffic_rates)}")
         if not with_rates:
@@ -189,7 +189,7 @@ class DualSimulation(Simulation):
     
         p_o_mwm, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective_mwm(with_rates=True)
         self._printalltime(f"Prim objective: {p_o}, MWM: {p_o_mwm}, Ratio: {p_o/p_o_mwm:.3f}")
-    
+        self._add_np_log("ratio", self.N_STEP, np.array([p_o/p_o_mwm]))
     def _update_traffic_flow(self, satp, edge_weight=None, viz=None):
         if viz is None:
             return
@@ -214,27 +214,17 @@ class DualSimulation(Simulation):
             viz['traffic_flow'].set_data(pos=pos_data, color=color_data,
                                          width=0.1, connect='segments')
 
-    def run(self, N_STEPS=1000, visualize=False):
-        """
-        Run the simulation.
-        """
-        self.update_space()
-        self._print("Starting simulation...")
+    def set_viz_data(self):
+        self.viz_list[0]['text_top_left'].text = f"Step {self.N_STEP}/{self.TOT_STEPS}"
+        self.viz_list[0]['text_bot_left'].text = f"Time {time.perf_counter()-self.real_start_time:.2f}s"
+
+    def setup_visualization(self):
+        self.canvas, self.viz_list = setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(2, 2))
         self.viz_list[3]['sphere_visual'].visible = False
         traffic_flow = scene.visuals.Arrow()
         self.viz_list[3]['view'].add(traffic_flow)
-        self.viz_list[3]['traffic_flow'] = traffic_flow
+        self.viz_list[3]['traffic_flow'] = traffic_flow       
         
-        for i in range(N_STEPS):
-            if visualize:
-                self.visualize()
-            self.viz_list[0]['text_top_left'].text = f"Step {i+1}/{N_STEPS}"
-            self.viz_list[0]['text_bot_left'].text = f"Time {time.perf_counter()-self.real_start_time:.2f}s"
-            self.update(None)
-        
-        print("Simulation completed.")        
-        
-
 # Load tle data.
 ts, valid_satellites, sat_array = generate_walker_constellation(planes=20)
 
@@ -252,7 +242,7 @@ simulation.update_space()
 
 solver = lpdsolver()
 simulation.set_solver(solver)
-simulation.run(N_STEPS=500,visualize=True)
+simulation.run(TOT_STEPS=50,visualize=True)
 
 p_o, rates, srouting, srouting_tuple, connected_sat, connected_lct = solver.get_prim_objective(with_rates=True)
 print(srouting_tuple)
@@ -267,3 +257,19 @@ path = os.path.join(os.path.dirname(__file__))
 
 rates.sort()
 plot_a_array(rates, mavg_n=None,name="rate-lpd", title="lpd", save_path=path)
+
+p_o, rates, srouting, srouting_tuple, connected_sat, connected_lct = solver.get_prim_objective_mwm(with_rates=True)
+print(srouting_tuple)
+print(f"p_o: {p_o:.3f}, rates: {rates.mean():.3f}， rates max: {rates.max():.3f}, rates min: {rates.min():.3f}")
+LOG_OBJ._add_np_log("p_o", i, np.array([p_o]))
+print(f"log_rates: {np.log(rates+0.1).mean():.3f}， log_rates max: {np.log(rates+1).max():.3f}, log_rates min: {np.log(rates+1).min():.3f}")       
+print(f"null_count: {np.sum(rates == 0)}")
+from sim_src.util import plot_a_array, LOGGED_NP_DATA_HEADER_SIZE
+import os
+path = os.path.join(os.path.dirname(__file__))
+
+rates.sort()
+plot_a_array(rates, mavg_n=None,name="rate-mwm", title="mwm", save_path=path)
+
+path = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
+simulation.save_np(path, "lpd")

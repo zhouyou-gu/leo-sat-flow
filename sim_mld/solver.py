@@ -314,7 +314,7 @@ class mr_solver(STATS_OBJECT):
             self.data_source, self.data_target, costs, lengths, paths_all
         )
         
-        rates = self.get_rates_test(srouting, connected_lct, mode=self.objective_mode)
+        rates = self.get_rates_prim(srouting, connected_lct, mode=self.objective_mode)
         self._print(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
         if not with_rates:
             return -np.sum(rates)
@@ -376,7 +376,7 @@ class mr_solver(STATS_OBJECT):
         ])
         return rates
     
-    def get_rates_test(self, srouting, matching, mode="maxsum"):
+    def get_rates_prim(self, srouting, matching, mode="maxsum"):
         # Compute the edge capacity for the connected satellites
         connected_sat = matching // self.N_LCT_PER_SAT
         capacity = self.compute_capacity(

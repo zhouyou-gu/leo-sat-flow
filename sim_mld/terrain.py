@@ -7,6 +7,8 @@ from sim_mld.constellation import *
 
 from numba import njit, prange
 
+from sim_src.util import STATS_OBJECT
+
 @njit(parallel=True, cache=True)
 def all_one_pairs_parallel(arr1, arr2, n1, n2):
     """
@@ -85,7 +87,7 @@ def query_user_distribution(sat_lat_lon_positions, user_distribution_repeated, c
     return user_values
 
 
-class terrain:
+class terrain(STATS_OBJECT):
     EARTH_RADIUS = 6371.0  # in kilometers
     EQUATOR_CIRCUMFERENCE = 2 * np.pi * EARTH_RADIUS  # in kilometers
     CELL_SIZE = 200  # in kilometers, size of the cell for user distribution
@@ -167,7 +169,7 @@ class terrain:
 
         user_distribution_values = query_user_distribution(sat_lat_lon_positions, self.user_distribution_repeated, cell_size_in_idx)
         user_distribution_values += self.CELL_SIZE ** 2
-        print("user_distribution_values:", user_distribution_values.mean(), user_distribution_values.max(), user_distribution_values.min())
+        self._print("user_distribution_values:", user_distribution_values.mean(), user_distribution_values.max(), user_distribution_values.min())
 
         rng = np.random.default_rng(seed)
         # exponential distribution for user traffic
@@ -185,9 +187,9 @@ class terrain:
         traffic_dl_rate_target = connected_to_ground_stations.astype(float) * self.TARGET_DL_RATE
         traffic_ul_rate_target = connected_to_ground_stations.astype(float) * self.TARGET_UL_RATE
 
-        print("connected_to_ground_stations:", connected_to_ground_stations.sum())
+        self._print("connected_to_ground_stations:", connected_to_ground_stations.sum())
 
-        print("traffic_dl_rate_source:", traffic_dl_rate_source)
+        self._print("traffic_dl_rate_source:", traffic_dl_rate_source)
         forward_traffic_capacity = np.clip(traffic_ul_rate_target - traffic_dl_rate_source, 0, None)
         reverse_traffic_capacity = np.clip(traffic_dl_rate_target - traffic_ul_rate_source, 0, None)
 
@@ -195,7 +197,7 @@ class terrain:
         reverse_traffic_demand = np.clip(traffic_ul_rate_source - traffic_dl_rate_target, 0, None)
 
         pairs = all_one_pairs_parallel(forward_traffic_capacity, forward_traffic_demand, np.count_nonzero(forward_traffic_capacity), np.count_nonzero(forward_traffic_demand))
-        print("pairs shape:", pairs.shape)
+        self._print("pairs shape:", pairs.shape)
         return pairs[:, 0], pairs[:, 1], forward_traffic_capacity, forward_traffic_demand
 
 if __name__ == "__main__":
