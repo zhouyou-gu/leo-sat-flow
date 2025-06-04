@@ -7,7 +7,7 @@ from sim_mld.constellation import *
 
 from numba import njit, prange
 
-from sim_src.util import STATS_OBJECT
+from sim_src.util import STATS_OBJECT, counted
 
 @njit(parallel=True, cache=True)
 def all_one_pairs_parallel(arr1, arr2, n1, n2):
@@ -146,7 +146,7 @@ class terrain(STATS_OBJECT):
             np.ndarray: Ground station positions in Cartesian coordinates.
         """
         return self.ground_station_positions_rotated
-
+    @counted
     def get_traffic_info(self, sat_positions, seed=0):
         rng = np.random.default_rng(seed)
         n_sat = sat_positions.shape[0]
@@ -162,7 +162,7 @@ class terrain(STATS_OBJECT):
         data_source, data_target = sources, targets
         
         return data_source, data_target
-
+    @counted
     def get_traffic_info_test(self, sat_positions, seed=0):
         sat_lat_lon_positions = xyz_to_lat_lon(sat_positions)
         cell_size_in_idx = int(self.CELL_SIZE / self.EQUATOR_CIRCUMFERENCE * self.user_distribution_repeated.shape[1]/2.)
@@ -187,9 +187,9 @@ class terrain(STATS_OBJECT):
         traffic_dl_rate_target = connected_to_ground_stations.astype(float) * self.TARGET_DL_RATE
         traffic_ul_rate_target = connected_to_ground_stations.astype(float) * self.TARGET_UL_RATE
 
-        self._print("connected_to_ground_stations:", connected_to_ground_stations.sum())
+        self._printalltime("connected_to_ground_stations:", connected_to_ground_stations.sum())
 
-        self._print("traffic_dl_rate_source:", traffic_dl_rate_source)
+        self._printalltime("traffic_dl_rate_source:", traffic_dl_rate_source)
         forward_traffic_capacity = np.clip(traffic_ul_rate_target - traffic_dl_rate_source, 0, None)
         reverse_traffic_capacity = np.clip(traffic_dl_rate_target - traffic_ul_rate_source, 0, None)
 
@@ -197,7 +197,7 @@ class terrain(STATS_OBJECT):
         reverse_traffic_demand = np.clip(traffic_ul_rate_source - traffic_dl_rate_target, 0, None)
 
         pairs = all_one_pairs_parallel(forward_traffic_capacity, forward_traffic_demand, np.count_nonzero(forward_traffic_capacity), np.count_nonzero(forward_traffic_demand))
-        self._print("pairs shape:", pairs.shape)
+        self._printalltime("pairs shape:", pairs.shape)
         return pairs[:, 0], pairs[:, 1], forward_traffic_capacity, forward_traffic_demand
 
 if __name__ == "__main__":

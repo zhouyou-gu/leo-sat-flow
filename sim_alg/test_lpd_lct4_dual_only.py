@@ -136,6 +136,13 @@ class DualSimulation(Simulation):
         self.lct_mask[self.lct2_indices] = np.array([1, 1, 0, 0], dtype=np.float32)
         self.lct_mask[self.lct4_indices] = np.array([1, 1, 1, 1], dtype=np.float32)   
 
+    def update_solver_traffic_info(self, seed=0):
+        self.solver.data_source, self.solver.data_target, self.solver.forward_traffic_capacity, self.solver.forward_traffic_demand = self.terrain.get_traffic_info_test(self.positions,seed=seed)
+        self.solver.s_t_traffic_rates = np.zeros(self.solver.data_source.shape[0], dtype=np.float32)
+        self._printalltime(f"Before s_t pair filtering seed {seed}, source: {self.solver.data_source.shape[0]}, target: {self.solver.data_target.shape[0]}")
+        self.solver._remove_non_connected_s_t_pairs()
+        self._printalltime(f"Updated traffic info with seed {seed}, source: {self.solver.data_source.shape[0]}, target: {self.solver.data_target.shape[0]}")
+
     def run_step(self):
         if self.filtered_expanded.size == 0:
             return
@@ -149,7 +156,7 @@ class DualSimulation(Simulation):
         self.solver.update_step_rates_prices()
          
         # Evaluate g(lambda)
-        d_o, edge_prices = self.solver.get_dual_objective_test(with_prices=True)
+        d_o, edge_prices = self.solver.get_dual_objective(with_prices=True)
         # Compute the prim p.
         tic = self._get_tic()
         p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective(with_rates=True)

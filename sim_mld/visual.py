@@ -139,7 +139,7 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
     view.add(o_lisl)
     # Create Text visual
     
-    WAITING_TEXT = "..."
+    WAITING_TEXT = ""
     FONT_SIZE = 10
     text_top_left = scene.visuals.Text(text=WAITING_TEXT,
             face='FreeMono',  # Change font here
@@ -202,6 +202,7 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
     return {
         "index": idx,
         "view": view,
+        "axes": axes,
         "sphere_visual": sphere_visual,
         "scatter": scatter,
         "o_scatter": o_scatter,
@@ -221,7 +222,7 @@ def setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(3, 3)):
     canvas = scene.SceneCanvas(title='Mega-Constellation Simulation',size=sceen_size, position=(0, 0),
             keys='interactive', show=True, bgcolor=(1.0, 1.0, 1.0, 0))
     grid = canvas.central_widget.add_grid()
-    camera = scene.cameras.TurntableCamera(fov=45, azimuth=0, elevation=45, distance=2.5)
+    camera = scene.cameras.TurntableCamera(fov=45, azimuth=0, elevation=45, distance=3)
 
     for i in range(shape[0]):
         for j in range(shape[1]):

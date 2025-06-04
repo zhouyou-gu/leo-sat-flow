@@ -212,7 +212,7 @@ class Simulation(STATS_OBJECT):
 
         for viz in self.viz_list:
             # Update the satellite markers.
-            viz['scatter'].set_data(self.positions, face_color=[0, 0, 0, 0.5], size=5, edge_width_rel=0)
+            viz['scatter'].set_data(self.positions, face_color=[0, 0.1, 0, 0.75], size=7.5, edge_width_rel=0)
 
     def _update_satellite_arrows(self):
         self._print(f'Updating satellite arrows... {self.update_count}')
@@ -230,9 +230,15 @@ class Simulation(STATS_OBJECT):
             arrow_color[num_arrows // 2: 3 * num_arrows // self.N_LCT_PER_SAT, :] = self.RIGHT_COLOR
             arrow_color[3 * num_arrows // self.N_LCT_PER_SAT:, :] = self.LEFT_COLOR
             arrow_color[:, 3] = 1
+
+            if self.lct_mask is not None:
+                # Apply the LCT mask to the arrows.
+                a_data = a_data[np.repeat(self.lct_mask.transpose().reshape(-1), 2).astype(bool), :]
+                arrow_color = arrow_color[np.repeat(self.lct_mask.transpose().reshape(-1), 2).astype(bool), :]
+
             for viz in self.viz_list:
                 # Update the satellite arrows.
-                viz['arrow'].set_data(pos=a_data, color=arrow_color, width=1, connect='segments')
+                viz['arrow'].set_data(pos=a_data, color=arrow_color, width=7.5, connect='segments')
 
     def _update_p_satp(self):
         self._print(f'Updating potential satellite pairs... {self.update_count}')

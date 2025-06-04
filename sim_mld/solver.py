@@ -260,25 +260,6 @@ class mr_solver(STATS_OBJECT):
             np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
         )
         prices = self.price_graph.get_prices(connected_sat)
-        if costs.min() < 1:
-            lambda_times_capacity = (-1+ costs[costs < 1]).sum()*10000 - np.sum(prices * capacity_on_graph)
-        else:
-            lambda_times_capacity = -np.sum(prices * capacity_on_graph)
-        if with_prices:
-            return lambda_times_capacity, np.concatenate((self.possible_sat_pair_expanded,self.price_graph.get_prices(self.possible_sat_pair_expanded).reshape(-1,1)), axis=1)
-        else:
-            return lambda_times_capacity
-
-    def get_dual_objective_test(self, with_prices=False):
-        self._print("Computing dual objective")
-        connected_sat, connected_lct = self.get_dual_matching()
-        costs, lengths, paths_all = self.get_dual_srouting()
-
-        # Compute the edge capacity for the connected satellites
-        capacity_on_graph = self.compute_capacity(
-            np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
-        )
-        prices = self.price_graph.get_prices(connected_sat)
         
         rates = self.get_rates_dual(costs)
         
@@ -445,6 +426,7 @@ class mr_solver(STATS_OBJECT):
             raise ValueError("NaN found in rates")
         if np.any(rates < 0):
             raise ValueError("Negative rates found in rates")
+        
         self._print(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
         return rates
 
