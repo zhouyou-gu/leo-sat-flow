@@ -7,6 +7,7 @@ and visualizes both the Earth (with a textured sphere) and satellites in a 3D sc
 """
 
 import math
+import os
 import time
 
 import psutil
@@ -23,9 +24,12 @@ from sim_mld.constellation import *
 from sim_mld.simulation import Simulation
 
 from vispy import app
+import vispy.io as io
+from vispy.gloo.util import _screenshot
+
 import logging
 
-from sim_src.util import GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT
+from sim_src.util import GET_FILE_NAME_FOR_SIM_SCRIPT, GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT
 
 np.set_printoptions(precision=4, suppress=True)
 
@@ -58,20 +62,27 @@ class Demo(Simulation):
         time.sleep(0.01)  # Simulate some processing time
         data_source, data_target = self.solver.data_source, self.solver.data_target
         
-        satp = np.stack((data_source, data_target), axis=1)
+        # satp = np.stack((data_source, data_target), axis=1)
 
-        self._update_traffic_flow(satp=satp, edge_weight=None, viz=self.viz_list[3])
-        p_o, rates, srouting, srouting_tuple, connected_sat, connected_lct = self.solver.get_prim_objective_mwm(with_rates= True)
-        
+        # self._update_traffic_flow(satp=satp, edge_weight=None, viz=self.viz_list[3])
+        capacity = self.solver.compute_capacity(
+            np.linalg.norm(self.positions[self.solver.possible_sat_pair_expanded[:, 0]] - self.positions[self.solver.possible_sat_pair_expanded[:, 1]], axis=1)
+        )        
+        edge_weights_pr = capacity
+        weighted_edges = np.column_stack((self.solver.possible_lct_pair_expanded, edge_weights_pr))
+        matching = greedy_max_weight_matching(weighted_edges)
+        m = len(matching)
+        flat_array = np.fromiter((x for pair in ((min(e), max(e)) for e in matching)
+                                  for x in pair), dtype=int, count=2*m)
+        connected_lct = flat_array.reshape(-1, 2)
+        connected_sat = connected_lct // self.N_LCT_PER_SAT        
         
         capacity = self.solver.compute_capacity(np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1))
         
         capacity = capacity/ capacity.max()  # Normalize capacity for visualization
         capacity = np.log1p(capacity*20)  # Apply log1p for better visualization
         capacity = capacity/ capacity.max()  # Normalize again after log1p
-        self._update_o_lisl(satp=connected_sat, viz=self.viz_list[2], edge_weight=capacity/capacity.max())
-        
-        
+        self._update_o_lisl(satp=connected_sat, viz=self.viz_list[0], edge_weight=capacity/capacity.max())
 
     def _update_traffic_flow(self, satp, edge_weight=None, viz=None):
         if viz is None:
@@ -97,35 +108,70 @@ class Demo(Simulation):
             viz['traffic_flow'].set_data(pos=pos_data, color=color_data,
                                          width=0.1, connect='segments')
 
-    def set_viz_data(self):
-        self.viz_list[0]['text_top_left'].text = f"Step {self.N_STEP}/{self.TOT_STEPS}"
-        self.viz_list[0]['text_bot_left'].text = f"Time {time.perf_counter()-self.real_start_time:.2f}s"
-
-
-    def setup_visualization(self):
-        self.canvas, self.viz_list = setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(2, 2))
-        self.viz_list[3]['sphere_visual'].visible = False
-        traffic_flow = scene.visuals.Arrow()
-        self.viz_list[3]['view'].add(traffic_flow)
-        self.viz_list[3]['traffic_flow'] = traffic_flow       
-        self.viz_list[0]['text_title'].text = f"Constellation" 
-        self.viz_list[1]['text_title'].text = f"Earth Terrain: Population, and Ground Stations" 
-        self.viz_list[2]['text_title'].text = f"Laser Inter-Satellite Links"
-        self.viz_list[3]['text_title'].text = f"Traffic Source-Destination Pairs"
     
-        self.viz_list[1]['scatter'].visible = False
-        self.viz_list[1]['arrow'].visible = False
-        self.viz_list[2]['scatter'].visible = False
-        self.viz_list[2]['o_scatter'].visible = False
-        self.viz_list[2]['sphere_visual'].visible = False
+
+
+    def set_viz_data(self):
+        self.viz_list[0]['text_title'].text = f"Starlink Constellation" 
+        
+        a_from = np.tile(self.positions, (self.N_LCT_PER_SAT, 1))
+        a_to = np.concatenate((self.front, self.back, self.right, self.left), axis=0) * 0.02
+        a_to_left = rotate_deg_in_vector_element_wise(a_to, np.ones(a_to.shape[0]) * self.FOR_THETA/2, a_from) + a_from
+        a_to_right = rotate_deg_in_vector_element_wise(a_to, -np.ones(a_to.shape[0]) * self.FOR_THETA/2, a_from) + a_from
+        a_data = np.concatenate((a_from, a_to_left, a_to_right), axis=1).reshape(-1, 3)
+
+        
+        num_arrows = self.positions.shape[0] * 12
+        arrow_color = np.zeros((num_arrows, 4))
+        arrow_color[: num_arrows // self.N_LCT_PER_SAT, :] = self.FRONT_COLOR
+        arrow_color[num_arrows // self.N_LCT_PER_SAT: num_arrows // 2, :] = self.BACK_COLOR
+        arrow_color[num_arrows // 2: 3 * num_arrows // self.N_LCT_PER_SAT, :] = self.RIGHT_COLOR
+        arrow_color[3 * num_arrows // self.N_LCT_PER_SAT:, :] = self.LEFT_COLOR
+        arrow_color[:, 3] = np.tile(np.array([1, 0.1, 0.1], dtype=np.float32), (self.positions.shape[0] * self.N_LCT_PER_SAT, 1)).reshape(-1)
+
+        if self.lct_mask is not None:
+            # Apply the LCT mask to the arrows.
+            a_data = a_data[np.repeat(self.lct_mask.transpose().reshape(-1), 3).astype(bool), :]
+            arrow_color = arrow_color[np.repeat(self.lct_mask.transpose().reshape(-1), 3).astype(bool), :]
+
+        faces = np.arange(a_data.shape[0]).reshape(-1, 3)
+
+        self.viz_list[0]['triangle'].set_data(vertices=a_data, faces=faces, vertex_colors=arrow_color)
+        
+        
+    def setup_visualization(self):
+        self.canvas, self.viz_list = setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(1, 1))
         for viz in self.viz_list:
             viz['axes'].visible = False
             viz['view'].camera.azimuth = self.compute_rotation() + 90
             viz['view'].camera.elevation = 30
             viz['view'].camera.distance = 3
 
+        self.viz_list[0]['arrow'].visible = False
+        triangle = scene.visuals.Mesh(shading=None)
+        self.viz_list[0]['view'].add(triangle)
+        self.viz_list[0]['triangle']= triangle
+
+        self.canvas.events.mouse_double_click.connect(self.handle_double_click)
+
+    def handle_double_click(self, event):
+        """
+        Handle double-click events to toggle visibility of the sphere visual.
+        """
+        print("Double-click detected")
+        self.canvas.update()
+        self.canvas.show()
+        img = _screenshot(viewport=(0,0, self.canvas.physical_size[0], self.canvas.physical_size[1]), alpha=True)
+        path = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
+        try:
+            os.mkdir(path)
+        except:
+            pass
+        path = os.path.join(path, GET_FILE_NAME_FOR_SIM_SCRIPT(__file__) + f"_{self.N_STEP:05d}.png")
+        io.write_png(path,img)
+
 # Load tle data.
-ts, valid_satellites, sat_array = generate_walker_constellation(planes=20)
+ts, valid_satellites, sat_array = generate_starlink_constellation()
 
 LOG_OBJ = STATS_OBJECT()
 LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
@@ -141,6 +187,6 @@ simulation.update_space()
 
 solver = mr_solver()
 simulation.set_solver(solver)
-simulation.update_solver_traffic_info(seed=i)
+# simulation.update_solver_traffic_info(seed=i)
 
 simulation.run(TOT_STEPS=50000,visualize=True)

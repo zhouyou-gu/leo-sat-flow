@@ -224,7 +224,7 @@ class Simulation(STATS_OBJECT):
             a_data = np.concatenate((a_from, a_to), axis=1).reshape(-1, 3)
 
             num_arrows = self.positions.shape[0] * 8
-            arrow_color = np.zeros((num_arrows, self.N_LCT_PER_SAT))
+            arrow_color = np.zeros((num_arrows, 4))
             arrow_color[: num_arrows // self.N_LCT_PER_SAT, :] = self.FRONT_COLOR
             arrow_color[num_arrows // self.N_LCT_PER_SAT: num_arrows // 2, :] = self.BACK_COLOR
             arrow_color[num_arrows // 2: 3 * num_arrows // self.N_LCT_PER_SAT, :] = self.RIGHT_COLOR

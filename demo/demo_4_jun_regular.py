@@ -64,7 +64,7 @@ class Demo(Simulation):
         
         satp = np.stack((data_source, data_target), axis=1)
 
-        self._update_traffic_flow(satp=satp, edge_weight=None, viz=self.viz_list[3])
+        # self._update_traffic_flow(satp=satp, edge_weight=None, viz=self.viz_list[3])
         p_o, rates, srouting, srouting_tuple, connected_sat, connected_lct = self.solver.get_prim_objective_mwm(with_rates= True)
         
         
@@ -73,8 +73,7 @@ class Demo(Simulation):
         capacity = capacity/ capacity.max()  # Normalize capacity for visualization
         capacity = np.log1p(capacity*20)  # Apply log1p for better visualization
         capacity = capacity/ capacity.max()  # Normalize again after log1p
-        self._update_o_lisl(satp=connected_sat, viz=self.viz_list[2], edge_weight=capacity/capacity.max())
-        
+        self._update_o_lisl(satp=connected_sat, viz=self.viz_list[0], edge_weight=capacity/capacity.max())
         
 
     def _update_traffic_flow(self, satp, edge_weight=None, viz=None):
@@ -101,32 +100,49 @@ class Demo(Simulation):
             viz['traffic_flow'].set_data(pos=pos_data, color=color_data,
                                          width=0.1, connect='segments')
 
-    def set_viz_data(self):
-        # self.viz_list[0]['text_top_left'].text = f"Step {self.N_STEP}/{self.TOT_STEPS}"
-        # self.viz_list[0]['text_bot_left'].text = f"Time {time.perf_counter()-self.real_start_time:.2f}s"
-        pass
-
-    def setup_visualization(self):
-        self.canvas, self.viz_list = setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(2, 2))
-        self.viz_list[3]['sphere_visual'].visible = False
-        traffic_flow = scene.visuals.Arrow()
-        self.viz_list[3]['view'].add(traffic_flow)
-        self.viz_list[3]['traffic_flow'] = traffic_flow       
-        self.viz_list[0]['text_title'].text = f"Constellation" 
-        self.viz_list[1]['text_title'].text = f"Earth Terrain: Population, and Ground Stations" 
-        self.viz_list[2]['text_title'].text = f"Laser Inter-Satellite Links"
-        self.viz_list[3]['text_title'].text = f"Traffic Source-Destination Pairs"
     
-        self.viz_list[1]['scatter'].visible = False
-        self.viz_list[1]['arrow'].visible = False
-        self.viz_list[2]['scatter'].visible = False
-        self.viz_list[2]['o_scatter'].visible = False
-        self.viz_list[2]['sphere_visual'].visible = False
+
+
+    def set_viz_data(self):
+        self.viz_list[0]['text_title'].text = f"Regular Walker-Delta Constellation" 
+        
+        a_from = np.tile(self.positions, (self.N_LCT_PER_SAT, 1))
+        a_to = np.concatenate((self.front, self.back, self.right, self.left), axis=0) * 0.02
+        a_to_left = rotate_deg_in_vector_element_wise(a_to, np.ones(a_to.shape[0]) * self.FOR_THETA/2, a_from) + a_from
+        a_to_right = rotate_deg_in_vector_element_wise(a_to, -np.ones(a_to.shape[0]) * self.FOR_THETA/2, a_from) + a_from
+        a_data = np.concatenate((a_from, a_to_left, a_to_right), axis=1).reshape(-1, 3)
+
+        
+        num_arrows = self.positions.shape[0] * 12
+        arrow_color = np.zeros((num_arrows, 4))
+        arrow_color[: num_arrows // self.N_LCT_PER_SAT, :] = self.FRONT_COLOR
+        arrow_color[num_arrows // self.N_LCT_PER_SAT: num_arrows // 2, :] = self.BACK_COLOR
+        arrow_color[num_arrows // 2: 3 * num_arrows // self.N_LCT_PER_SAT, :] = self.RIGHT_COLOR
+        arrow_color[3 * num_arrows // self.N_LCT_PER_SAT:, :] = self.LEFT_COLOR
+        arrow_color[:, 3] = np.tile(np.array([1, 0.1, 0.1], dtype=np.float32), (self.positions.shape[0] * self.N_LCT_PER_SAT, 1)).reshape(-1)
+
+        if self.lct_mask is not None:
+            # Apply the LCT mask to the arrows.
+            a_data = a_data[np.repeat(self.lct_mask.transpose().reshape(-1), 3).astype(bool), :]
+            arrow_color = arrow_color[np.repeat(self.lct_mask.transpose().reshape(-1), 3).astype(bool), :]
+
+        faces = np.arange(a_data.shape[0]).reshape(-1, 3)
+
+        self.viz_list[0]['triangle'].set_data(vertices=a_data, faces=faces, vertex_colors=arrow_color)
+        
+        
+    def setup_visualization(self):
+        self.canvas, self.viz_list = setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(1, 1))
         for viz in self.viz_list:
             viz['axes'].visible = False
             viz['view'].camera.azimuth = self.compute_rotation() + 90
             viz['view'].camera.elevation = 30
             viz['view'].camera.distance = 3
+
+        self.viz_list[0]['arrow'].visible = False
+        triangle = scene.visuals.Mesh(shading=None)
+        self.viz_list[0]['view'].add(triangle)
+        self.viz_list[0]['triangle']= triangle
 
         self.canvas.events.mouse_double_click.connect(self.handle_double_click)
 

@@ -220,7 +220,7 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
 def setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(3, 3)):
     ret = []
     canvas = scene.SceneCanvas(title='Mega-Constellation Simulation',size=sceen_size, position=(0, 0),
-            keys='interactive', show=True, bgcolor=(1.0, 1.0, 1.0, 0))
+            keys='interactive', show=True, bgcolor=(1.0, 1.0, 1.0, 1.0))
     grid = canvas.central_widget.add_grid()
     camera = scene.cameras.TurntableCamera(fov=45, azimuth=0, elevation=45, distance=3)
 

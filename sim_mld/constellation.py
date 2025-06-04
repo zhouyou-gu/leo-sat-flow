@@ -112,6 +112,46 @@ def rotate_deg_in_vector(vectors: np.ndarray, angle_deg: float, anglar_vector: n
     return rotated_vectors
 
 @njit(parallel=True,cache=True)
+def rotate_deg_in_vector_element_wise(vectors: np.ndarray, angles_degs: np.ndarray, angular_vectors: np.ndarray) -> np.ndarray:
+    '''
+    Rotate vectors by given angles around a specified angular vector.
+    
+    Parameters
+    ----------
+    vectors : np.ndarray
+        Array of shape (n, 3) containing vectors to be rotated.
+    angles_deg : np.ndarray
+        Array of shape (n,) containing angles in degrees by which to rotate the vectors.
+    angular_vectors : np.ndarray
+        Angular vector of shape (n, 3) around which to rotate the vectors.
+
+    Returns
+    -------
+    np.ndarray
+        Array of shape (n, 3) containing the rotated vectors.
+    '''
+    n = vectors.shape[0]
+    rotated_vectors = np.empty_like(vectors)
+
+    for i in prange(n):
+        x, y, z = vectors[i]
+        cos_angle = np.cos(np.deg2rad(angles_degs[i]))
+        sin_angle = np.sin(np.deg2rad(angles_degs[i]))
+        angular_vector_norm = angular_vectors[i, 0]**2 + angular_vectors[i, 1]**2 + angular_vectors[i, 2]**2
+        angular_vector_norm = math.sqrt(angular_vector_norm)
+        ux, uy, uz = angular_vectors[i]/ angular_vector_norm  # Normalize the angular vector
+        rotated_vectors[i, 0] = (x * (cos_angle + ux * ux * (1 - cos_angle)) +
+                                    y * (ux * uy * (1 - cos_angle) - uz * sin_angle) +
+                                    z * (ux * uz * (1 - cos_angle) + uy * sin_angle))
+        rotated_vectors[i, 1] = (x * (uy * ux * (1 - cos_angle) + uz * sin_angle) +
+                                    y * (cos_angle + uy * uy * (1 - cos_angle)) +
+                                    z * (uy * uz * (1 - cos_angle) - ux * sin_angle))
+        rotated_vectors[i, 2] = (x * (uz * ux * (1 - cos_angle) - uy * sin_angle) +
+                                    y * (uz * uy * (1 - cos_angle) + ux * sin_angle) +
+                                    z * (cos_angle + uz * uz * (1 - cos_angle)))
+    return rotated_vectors
+
+@njit(parallel=True,cache=True)
 def rotation_matmul(A: np.ndarray, rot: np.ndarray) -> np.ndarray:
     """
     Perform parallel matrix multiplication of an (k x 3) matrix A with a (3 x 3) matrix B.
@@ -145,6 +185,8 @@ def rotation_matmul(A: np.ndarray, rot: np.ndarray) -> np.ndarray:
                 tmp += A[i, l] * rot[l, j]
             C[i, j] = tmp
     return C
+
+
 
 @njit(parallel=True,cache=True)
 def update_arrows(velocities, positions):
