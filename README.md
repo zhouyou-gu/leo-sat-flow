@@ -1,4 +1,9 @@
-pip3 install PyQt5 for vispy
+for vispy
+in os 
+sudo apt install qtbase5-dev qt5-qmake
+
+in venv
+pip3 install PyQt5
 
 
 install novnc and tigervnc

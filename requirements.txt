@@ -14,7 +14,7 @@ Requests
 scipy
 sgp4
 simpy
-skimage
+scikit-image
 skyfield
 vispy
 vpython
