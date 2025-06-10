@@ -111,6 +111,8 @@ class Simulation(STATS_OBJECT):
         self.solver = None
         
         self.data_thread:Thread = None
+        self.data_thread_start_time = None
+        self.data_thread_last_tickT = None
         self.data_thread_return_queue:queue.Queue = queue.Queue()
 
     def set_solver(self, solver):
@@ -430,7 +432,7 @@ class Simulation(STATS_OBJECT):
         toc = time.perf_counter()
         self.profiled_time['draw_matching'] = toc - tic
 
-    def update(self, event):
+    def update(self, pull=False):
         """
         Update the simulation at each timer tick.
         """
@@ -438,11 +440,17 @@ class Simulation(STATS_OBJECT):
         self.update_count += 1
         try:
             if self.data_thread is not None and self.data_thread.is_alive():
-                self._printalltime(f"Waiting for data thread to finish... {self.update_count}, {self.N_STEP}")
+                if time.perf_counter() - self.data_thread_last_tickT > 1:
+                    self._printalltime(f"Data thread is still running... {self.update_count}, {self.N_STEP}")
+                    self.data_thread_last_tickT = time.perf_counter()
             else:
                 self._printalltime(f"Starting data thread... {self.update_count}, {self.N_STEP}")
                 self.data_thread = Thread(target=self.step, args=(), daemon=True)
                 self.data_thread.start()
+                self.data_thread_start_time = time.perf_counter()
+                self.data_thread_last_tickT = time.perf_counter()
+                if pull:
+                    self.data_thread.join()
         except Exception as e:
             print("Error during update: %s" % e)
             import traceback
@@ -468,6 +476,7 @@ class Simulation(STATS_OBJECT):
         self.TOT_STEPS = TOT_STEPS
         if visualize:
             self.setup_visualization()
+        # Initialize the constellation
         self.update_space()
         self._printalltime("Starting simulation...")
         while True:
@@ -482,8 +491,7 @@ class Simulation(STATS_OBJECT):
                 self._printalltime("Simulation finished")
                 break
             else:
-                self.update(None)
-            
+                self.update(pull= not visualize)
             
     def visualize(self):
         self.canvas.update()

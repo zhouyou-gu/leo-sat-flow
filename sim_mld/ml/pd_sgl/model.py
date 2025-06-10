@@ -3,7 +3,7 @@ import torch
 from sim_src.util import *
 
 from sim_mld.ml.base_model import base_model, ReplayMemory
-from sim_mld.ml.sgl.nn import LpdGNN 
+from sim_mld.ml.pd_sgl.nn import LpdGNN 
 
 from torch_geometric.data import Data, Batch
 

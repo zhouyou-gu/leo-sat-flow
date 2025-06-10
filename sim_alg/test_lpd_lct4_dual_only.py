@@ -173,7 +173,6 @@ class DualSimulation(Simulation):
         self._add_np_log("p_o", self.N_STEP, np.array([p_o]))
         
         
-        
         dual_rates = self.solver.s_t_traffic_rates
         self._update_traffic_flow(satp=s_t, edge_weight=dual_rates/20, viz=self.viz_list[3])
 
@@ -197,6 +196,7 @@ class DualSimulation(Simulation):
         p_o_mwm, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective_mwm(with_rates=True)
         self._printalltime(f"Prim objective: {p_o}, MWM: {p_o_mwm}, Ratio: {p_o/p_o_mwm:.3f}")
         self._add_np_log("ratio", self.N_STEP, np.array([p_o/p_o_mwm]))
+    
     def _update_traffic_flow(self, satp, edge_weight=None, viz=None):
         if viz is None:
             return
@@ -249,7 +249,7 @@ simulation.update_space()
 
 solver = lpdsolver()
 simulation.set_solver(solver)
-simulation.run(TOT_STEPS=50,visualize=True)
+simulation.run(TOT_STEPS=100,visualize=True)
 
 p_o, rates, srouting, srouting_tuple, connected_sat, connected_lct = solver.get_prim_objective(with_rates=True)
 print(srouting_tuple)

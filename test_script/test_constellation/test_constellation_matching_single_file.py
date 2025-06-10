@@ -18,10 +18,6 @@ import numpy as np
 from numba import njit, prange
 from PIL import Image
 from scipy.spatial import cKDTree
-from scipy.sparse import coo_matrix, csr_matrix
-from scipy.sparse.linalg import eigsh
-import scipy
-import networkx as nx
 
 from skyfield.api import load
 from skyfield.sgp4lib import TEME

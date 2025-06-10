@@ -112,6 +112,97 @@ def random_source_target_pairs(N, P):
         
     return sources, targets
 
+def prepare_group_index(targets):
+    """
+    Map each unique target to a group index 0..G-1.
+    Returns:
+      uniq_t   : int64[G] array of sorted unique targets
+      t_inv    : int32[P] array so that t_inv[i] is group index of targets[i]
+    """
+    uniq_t, inv = np.unique(targets, return_inverse=True)
+    return uniq_t.astype(np.int64), inv.astype(np.int32)
+
+@njit(parallel=True, cache=True)
+def _topk_numba(sources, t_inv, costs, k):
+    """
+    Core Numba‐parallel routine.
+    Args:
+      sources : int64[P]
+      t_inv   : int32[P]  # inverse map into 0..G-1
+      costs   : float64[P]
+      k       : int32
+    Returns:
+      out     : int64[G, k, 2]  sentinel‐padded
+    """
+    P = sources.shape[0]
+    G = t_inv.max() + 1
+
+    # sentinel pad = -1
+    out = np.full((G, k, 2), -1, dtype=np.int64)
+
+    # for each target‐group in parallel
+    for g in prange(G):
+        # count members in this group
+        cnt = 0
+        for i in range(P):
+            if t_inv[i] == g:
+                cnt += 1
+
+        if cnt == 0:
+            # skip entirely, leave sentinel
+            continue
+
+        # gather indices
+        idxs = np.empty(cnt, np.int32)
+        pos = 0
+        for i in range(P):
+            if t_inv[i] == g:
+                idxs[pos] = i
+                pos += 1
+
+        # how many to take
+        m = cnt if cnt < k else k
+
+        # find the m smallest costs via argpartition
+        # note: m-1 is safe even if m=1
+        sel = np.argpartition(costs[idxs], m-1)[:m]
+
+        # write them out
+        for j in range(m):
+            ii = idxs[sel[j]]
+            out[g, j, 0] = sources[ii]
+            out[g, j, 1] = g     # store group index here
+
+    return out
+
+def top_k_pairs_to_t_with_min_cost_numba(sources, targets, costs, k=5):
+    """
+    Wrapper that:
+      1) builds group index
+      2) calls the parallel Numba function
+      3) maps group indices back to real target values
+      4) flattens and drops sentinels
+    """
+    # 1) map targets → 0..G-1
+    uniq_t, t_inv = prepare_group_index(targets)
+
+    # 2) call compiled routine
+    raw = _topk_numba(sources, t_inv, costs, np.int32(k))
+
+    # 3) replace group‐indices with real target values
+    G, K, _ = raw.shape
+    for g in range(G):
+        for j in range(K):
+            if raw[g, j, 1] == g:
+                raw[g, j, 1] = uniq_t[g]
+
+    # 4) flatten and filter out sentinel rows
+    flat = raw.reshape(-1, 2)
+    mask = (flat[:, 0] != -1)  # keep only real rows
+    return flat[mask]
+    
+
+
 class price_graph:
     def __init__(self, n_sat, possible_sat_pair_expanded, initial_prices=1.):
         self.n_sat = n_sat
@@ -180,7 +271,7 @@ class mr_solver(STATS_OBJECT):
     def _reset_price_graph(self, initial_prices=INIT_PRICES):
         self.price_graph = price_graph(self.n_sat, self.possible_sat_pair_expanded, initial_prices)
     
-    def _remove_non_connected_s_t_pairs(self, max_distance=5000e3):
+    def _remove_non_connected_s_t_pairs(self):
         """
         Remove pairs that are not connected in the graph.
         """
@@ -188,9 +279,23 @@ class mr_solver(STATS_OBJECT):
         satellite_distances = satellite_distances * self.EARTH_RADIUS  # Convert to meters
         indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, satellite_distances)
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
-        self.data_source = self.data_source[costs < max_distance]
-        self.data_target = self.data_target[costs < max_distance]
-        self.s_t_traffic_rates = self.s_t_traffic_rates[costs < max_distance] if self.s_t_traffic_rates is not None else None
+        
+        self.data_source = self.data_source[lengths > 0]
+        self.data_target = self.data_target[lengths > 0]
+        costs = costs[lengths > 0]
+        self.s_t_traffic_rates = self.s_t_traffic_rates[lengths > 0]
+        
+        s_t = top_k_pairs_to_t_with_min_cost_numba (
+            self.data_source, self.data_target, costs, k=5
+        )
+
+        pair_rate_list = np.column_stack((self.data_source, self.data_target, self.s_t_traffic_rates))
+        filtered_rates = extract_weights(s_t, pair_rate_list, none_value=-100.0)
+        self.data_source = s_t[:, 0]
+        self.data_target = s_t[:, 1]
+        self.s_t_traffic_rates = filtered_rates
+        if np.any(self.s_t_traffic_rates < 0):
+            raise ValueError("Negative rates found in s_t_traffic_rates")
 
     @classmethod
     def compute_capacity(cls, distance):
