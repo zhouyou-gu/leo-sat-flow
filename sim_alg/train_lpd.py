@@ -48,8 +48,9 @@ class gnnsolver(mr_solver):
         cp_edge_list = csr_to_edge_list(indptr, indices, capacity)
         possible_sat_pair_non_expanded = cp_edge_list[:, 0:2]
         possible_capacity_non_expanded = cp_edge_list[:, 2]
-        
-        prices = self.model.get_output_np_edge_weight(self.positions, possible_sat_pair_non_expanded, possible_capacity_non_expanded, use_target=False)
+
+        x = np.concatenate((self.positions, self.forward_traffic_capacity.reshape(-1, 1), self.forward_traffic_demand.reshape(-1, 1)), axis=1)
+        prices = self.model.get_output_np_edge_weight(x,possible_sat_pair_non_expanded, possible_capacity_non_expanded, use_target=False)
 
         self._printalltime(f"prices: max: {np.max(prices)}, min: {np.min(prices)}, avg: {np.mean(prices)}")
         self._printalltime(f"shapes of prices: {prices.shape}")
@@ -110,7 +111,7 @@ class gnnsolver(mr_solver):
         
         
         data = {}
-        data["x"] = self.positions
+        data["x"] = x
         data["cp_edge_index"] = cp_edge_list[:, 0:2]
         data["cp_edge_attr"] = cp_edge_list[:, 2]
         data["qx_edge_index"] = qx_edge_list[:, 0:2]
@@ -120,7 +121,7 @@ class gnnsolver(mr_solver):
 
         self.model.step(data)
 
-        new_prices = self.model.get_output_np_edge_weight(self.positions, possible_sat_pair_non_expanded, possible_capacity_non_expanded, use_target=True)
+        new_prices = self.model.get_output_np_edge_weight(x, possible_sat_pair_non_expanded, possible_capacity_non_expanded, use_target=True)
 
         self.price_graph.price_graph = sp.csr_matrix((new_prices, (possible_sat_pair_non_expanded[:, 0], possible_sat_pair_non_expanded[:, 1])), shape=(self.n_sat, self.n_sat))
         return

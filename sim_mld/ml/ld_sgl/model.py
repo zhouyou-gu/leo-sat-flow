@@ -91,6 +91,7 @@ class ld_model(base_model):
 
     @torch.no_grad()
     def get_output_np_edge_weight(self, x, cp_edge_index, cp_edge_attr, use_target=False):
+        
         x = to_tensor(x)
         cp_edge_index = to_tensor(cp_edge_index, dtype=LONG_TYPE).T
         cp_edge_attr = to_tensor(cp_edge_attr)
