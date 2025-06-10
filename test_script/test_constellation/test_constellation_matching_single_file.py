@@ -740,16 +740,15 @@ def setup_visualization() -> dict:
     FONT_SIZE = 10
     text_top = scene.visuals.Text(text="Waiting...",
             color='black',
-            face='FreeMono',  # Change font here
             font_size=FONT_SIZE,
             bold=False,
             pos=(0, 0),
             anchor_x='left',  # horizontal alignment
             anchor_y='bottom',  # vertical alignment
             parent=canvas.central_widget)
+    
     text_bot = scene.visuals.Text(text="Waiting...",
             color='black',
-            face='FreeMono',  # Change font here
             font_size=FONT_SIZE,
             bold=False,
             pos=(0, h),
@@ -759,7 +758,6 @@ def setup_visualization() -> dict:
 
     text_top_right = scene.visuals.Text(text="Waiting...",
             color='black',
-            face='FreeMono',  # Change font here
             font_size=FONT_SIZE,
             bold=False,
             pos=(w, 0),

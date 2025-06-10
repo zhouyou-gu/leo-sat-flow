@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import NNConv, BatchNorm
 
 class PriceGNN(torch.nn.Module):
-    def __init__(self, in_node_dim=5, in_edge_dim=1, hidden=64, num_layers=20, elu_offset=-1):
+    def __init__(self, in_node_dim=5, in_edge_dim=1, hidden=64, num_layers=3, elu_offset=-1):
         super().__init__()
         # Encoders
         self.node_encoder = torch.nn.Linear(in_node_dim, hidden)
@@ -26,6 +26,7 @@ class PriceGNN(torch.nn.Module):
             torch.nn.Linear(hidden, 1),
         )
         self.elu_offset = elu_offset
+    
     def forward(self, x, edge_index, edge_attr):
         # Encode inputs
         x = self.node_encoder(x)

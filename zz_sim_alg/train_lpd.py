@@ -16,7 +16,7 @@ from scipy.spatial import cKDTree
 from skyfield.api import load
 from skyfield.sgp4lib import TEME
 
-from sim_mld.ml.sgl.model import lpd_model
+from sim_mld.ml.pd_sgl.model import lpd_model
 from sim_mld.solver import *
 from sim_mld.visual import *
 from sim_mld.tle import *

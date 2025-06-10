@@ -7,7 +7,7 @@ from sim_mld.ml.ld_sgl.nn import PriceGNN
 
 from torch_geometric.data import Data, Batch
 
-torch.autograd.set_detect_anomaly(True)
+# torch.autograd.set_detect_anomaly(True)
 
 from torch_geometric.data import Data
 
@@ -22,8 +22,8 @@ class ld_model(base_model):
         self.model = PriceGNN()
         self.model_target = PriceGNN()
         self.update_target_nn(hard=True)
-        if hasattr(torch, 'compile'):
-            self.model = torch.compile(self.model)
+        # if hasattr(torch, 'compile'):
+        #     self.model = torch.compile(self.model)
 
     def _add_graph(self, data):
         """
@@ -56,7 +56,7 @@ class ld_model(base_model):
         batch = Batch.from_data_list(data_list)
         return batch
     
-    @counted
+    @counted 
     def step(self, data):        
         if not data:
             print("None batch in step", self.N_STEP)
@@ -65,6 +65,9 @@ class ld_model(base_model):
         self._add_graph(data)
         
         batch = self._get_batch()
+        print(torch.cuda.memory_summary())
+        print("number of edges", data["cp_edge_index"].shape)
+        print("memory allocated", torch.cuda.memory_allocated()," max allocated", torch.cuda.max_memory_allocated())
         if not batch:
             print("None batch in step", self.N_STEP)
             return
@@ -88,6 +91,9 @@ class ld_model(base_model):
         self.model_optim.zero_grad()
         
         self.update_target_nn(hard=False)
+        self.clear_memory()
+
+
 
     @torch.no_grad()
     def get_output_np_edge_weight(self, x, cp_edge_index, cp_edge_attr, use_target=False):

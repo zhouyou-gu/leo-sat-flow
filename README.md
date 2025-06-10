@@ -35,7 +35,13 @@ export LD_LIBRARY_PATH="$VIRTUAL_ENV/lib${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH"
 
 Verify the Fix with numba -s
 
+numba -s | grep TBB  
+
 You should now see under Threading Layer Information:
 
 TBB Threading Layer Available : True
 +--> TBB imported successfully.
+
+
+need the following solver in cvxpy backend
+pip install highspy

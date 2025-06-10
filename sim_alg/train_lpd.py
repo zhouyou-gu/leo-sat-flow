@@ -37,7 +37,6 @@ np.set_printoptions(precision=4, suppress=True)
 class gnnsolver(mr_solver):
     def init_gnn(self, path=None):
         self.model = ld_model()
-        LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
     
     @counted
     def update_step_rates_prices(self):
@@ -46,6 +45,7 @@ class gnnsolver(mr_solver):
         )
         indptr, indices, capacity = build_csr(self.n_sat, self.possible_sat_pair_expanded, capacity, merging_method='sum')
         cp_edge_list = csr_to_edge_list(indptr, indices, capacity)
+        print(f"cp_edge_list shape: {cp_edge_list.shape}, possible_sat_pair_expanded shape: {self.possible_sat_pair_expanded.shape}")
         possible_sat_pair_non_expanded = cp_edge_list[:, 0:2]
         possible_capacity_non_expanded = cp_edge_list[:, 2]
 
@@ -173,10 +173,11 @@ class DualSimulation(Simulation):
 
 
     def run_step(self):
-        self.config_l_mask(seed=self.N_STEP)
+        # self.config_l_mask(seed=self.N_STEP)
         self.update_space()
         self.update_solver_constellation_info()
         self.update_solver_traffic_info(seed=self.N_STEP)
+        print("++++++filter.shape", self.filtered_expanded.shape)
         
         if self.filtered_expanded.size == 0:
             return
@@ -194,6 +195,12 @@ class DualSimulation(Simulation):
         p_o_mwm, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective_mwm(with_rates=True)
         self._printalltime(f"Prim objective: {p_o}, MWM: {p_o_mwm}")
         self._add_np_log("objective", self.N_STEP, [p_o, p_o_mwm])
+
+    def run(self, TOT_STEPS=1000, visualize=False):
+        for i in range(TOT_STEPS):
+            self.N_STEP = i
+            self.run_step()
+        return 
 
 # Load tle data.
 ts, valid_satellites, sat_array = generate_walker_constellation(planes=20)

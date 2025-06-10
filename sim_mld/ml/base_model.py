@@ -1,3 +1,4 @@
+import gc
 import os.path
 
 import random
@@ -73,6 +74,11 @@ class base_model(STATS_OBJECT):
     def step(self, batch):
         pass
 
+    def clear_memory(self):
+        gc.collect()
+        if USE_CUDA:
+            torch.cuda.empty_cache()
+            
     def get_output_np(self, input_np:np.ndarray)->np.ndarray:
         pass
     
