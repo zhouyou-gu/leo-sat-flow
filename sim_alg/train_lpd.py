@@ -173,7 +173,6 @@ class DualSimulation(Simulation):
 
 
     def run_step(self):
-        # self.config_l_mask(seed=self.N_STEP)
         self.update_space()
         self.update_solver_constellation_info()
         self.update_solver_traffic_info(seed=self.N_STEP)
@@ -216,6 +215,7 @@ solver = gnnsolver()
 solver.init_gnn()
 
 simulation.set_solver(solver)
+simulation.config_l_mask()
 
 simulation.run(TOT_STEPS=5000)
 

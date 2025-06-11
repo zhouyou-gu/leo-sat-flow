@@ -7,7 +7,7 @@ from sim_mld.ml.ld_sgl.nn import PriceGNN
 
 from torch_geometric.data import Data, Batch
 
-# torch.autograd.set_detect_anomaly(True)
+torch.autograd.set_detect_anomaly(True)
 
 from torch_geometric.data import Data
 
@@ -65,9 +65,6 @@ class ld_model(base_model):
         self._add_graph(data)
         
         batch = self._get_batch()
-        print(torch.cuda.memory_summary())
-        print("number of edges", data["cp_edge_index"].shape)
-        print("memory allocated", torch.cuda.memory_allocated()," max allocated", torch.cuda.max_memory_allocated())
         if not batch:
             print("None batch in step", self.N_STEP)
             return
