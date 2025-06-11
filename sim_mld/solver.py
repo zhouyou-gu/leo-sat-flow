@@ -1,4 +1,5 @@
 from numba import njit
+import pandas as pd
 
 from sim_mld.dijkstra import *
 from sim_mld.lisl_channel_model import *
@@ -175,6 +176,26 @@ def _topk_numba(sources, t_inv, costs, k):
 
     return out
 
+@njit(parallel=True, cache=True)
+def _replace_group_indices(raw, uniq_t):
+    """
+    Replace group indices in the raw output with real target values.
+    
+    Args:
+      raw     : int64[G, k, 2]  sentinel‐padded
+      uniq_t  : int64[G]        unique target values
+    Returns:
+      raw     : int64[G, k, 2]  with group indices replaced by real target values
+    """
+    G, K, _ = raw.shape
+
+    for g in prange(G):
+        for j in range(K):
+            if raw[g, j, 0] != -1:
+                # replace group index with real target value
+                raw[g, j, 1] = uniq_t[g]
+    return raw
+
 def top_k_pairs_to_t_with_min_cost_numba(sources, targets, costs, k=5):
     """
     Wrapper that:
@@ -191,11 +212,7 @@ def top_k_pairs_to_t_with_min_cost_numba(sources, targets, costs, k=5):
 
     # 3) replace group‐indices with real target values
     G, K, _ = raw.shape
-    for g in range(G):
-        for j in range(K):
-            if raw[g, j, 1] == g:
-                raw[g, j, 1] = uniq_t[g]
-
+    raw = _replace_group_indices(raw, uniq_t)
     # 4) flatten and filter out sentinel rows
     flat = raw.reshape(-1, 2)
     mask = (flat[:, 0] != -1)  # keep only real rows
@@ -278,16 +295,38 @@ class mr_solver(STATS_OBJECT):
         satellite_distances = np.linalg.norm(self.positions[self.possible_sat_pair_expanded[:, 0]] - self.positions[self.possible_sat_pair_expanded[:, 1]], axis=1)
         satellite_distances = satellite_distances * self.EARTH_RADIUS  # Convert to meters
         indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, satellite_distances)
+        tic = self._get_tic()
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
-        
+        tim = self._get_tim(tic)
+        self._printalltime(f"Multi-Dijkstra took {tim:.2f} us")
         self.data_source = self.data_source[lengths > 0]
         self.data_target = self.data_target[lengths > 0]
         costs = costs[lengths > 0]
         self.s_t_traffic_rates = self.s_t_traffic_rates[lengths > 0]
         
-        s_t = top_k_pairs_to_t_with_min_cost_numba (
-            self.data_source, self.data_target, costs, k=5
+        ## Find top-k pairs with minimum costs
+        tic = self._get_tic()
+        # s_t = top_k_pairs_to_t_with_min_cost_numba (
+        #     self.data_source, self.data_target, costs, k=5
+        # )
+        pairs = np.column_stack((self.data_source, self.data_target))
+        df = pd.DataFrame(pairs, columns=['s', 't'])
+        df['cost'] = costs
+
+        # For each t, take the K rows with smallest cost
+        topk = (
+            df
+            .groupby('t', group_keys=False)[['s', 't','cost']]       # group by destination t
+            .apply(lambda g: g.nsmallest(5, 'cost'))
+            # .apply(lambda g: g.sample(5,replace=False))
+            .reset_index(drop=True)
         )
+        s_t = topk[['s', 't']].values
+        tim = self._get_tim(tic)
+        self._printalltime(f"Top-k pairs took {tim:.2f} us")
+
+
+
 
         pair_rate_list = np.column_stack((self.data_source, self.data_target, self.s_t_traffic_rates))
         filtered_rates = extract_weights(s_t, pair_rate_list, none_value=-100.0)

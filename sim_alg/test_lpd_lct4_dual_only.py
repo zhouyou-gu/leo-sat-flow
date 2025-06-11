@@ -25,7 +25,7 @@ from sim_mld.simulation import Simulation
 from vispy import app
 import logging
 
-from sim_src.util import GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT
+from sim_src.util import GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT, counted
 
 np.set_printoptions(precision=4, suppress=True)
 
@@ -143,6 +143,10 @@ class DualSimulation(Simulation):
         self.solver._remove_non_connected_s_t_pairs()
         self._printalltime(f"Updated traffic info with seed {seed}, source: {self.solver.data_source.shape[0]}, target: {self.solver.data_target.shape[0]}")
 
+    def get_simulation_time(self):
+        # return time at 2025 jun 1st
+        return self.ts.utc(2025, 6, 1, 0, 0, 0)
+
     def run_step(self):
         if self.filtered_expanded.size == 0:
             return
@@ -231,6 +235,13 @@ class DualSimulation(Simulation):
         traffic_flow = scene.visuals.Arrow()
         self.viz_list[3]['view'].add(traffic_flow)
         self.viz_list[3]['traffic_flow'] = traffic_flow       
+      
+    def run(self, TOT_STEPS=1000, visualize=False):
+        self.setup_visualization()
+        for i in range(TOT_STEPS):
+            self.run_step()
+            print(f"++++++++++++++++Step {i+1}/{TOT_STEPS} completed++++++++++++++++")
+        return 
         
 # Load tle data.
 ts, valid_satellites, sat_array = generate_walker_constellation(planes=20)

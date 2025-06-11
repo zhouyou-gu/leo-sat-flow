@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import NNConv, BatchNorm
 
 class PriceGNN(torch.nn.Module):
-    def __init__(self, in_node_dim=5, in_edge_dim=1, hidden=64, num_layers=3, elu_offset=-1):
+    def __init__(self, in_node_dim=2, in_edge_dim=1, hidden=64, num_layers=3, elu_offset=-1):
         super().__init__()
         # Encoders
         self.node_encoder = torch.nn.Linear(in_node_dim, hidden)
@@ -15,20 +15,26 @@ class PriceGNN(torch.nn.Module):
             nn_edge = torch.nn.Sequential(
                 torch.nn.Linear(hidden, hidden*hidden),
                 torch.nn.ReLU(),
+                torch.nn.Dropout(0.1),
                 torch.nn.Linear(hidden*hidden, hidden*hidden),
             )
-            self.convs.append(NNConv(hidden, hidden, nn_edge))
+            self.convs.append(NNConv(hidden, hidden, nn_edge, aggr='mean'))
             self.bns.append(BatchNorm(hidden))
         # Decoders
         self.edge_decoder = torch.nn.Sequential(
-            torch.nn.Linear(3*hidden, hidden),
+            torch.nn.Linear(3*hidden+in_node_dim*2, hidden),
             torch.nn.ReLU(),
+            torch.nn.Dropout(0.1),
+            torch.nn.Linear(hidden, hidden),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(0.1),
             torch.nn.Linear(hidden, 1),
         )
         self.elu_offset = elu_offset
     
     def forward(self, x, edge_index, edge_attr):
         # Encode inputs
+        xx = x
         x = self.node_encoder(x)
         e = self.edge_encoder(edge_attr.unsqueeze(-1))
         # Message passing
@@ -37,7 +43,9 @@ class PriceGNN(torch.nn.Module):
             x = bn(x)
         # Edge weight prediction
         row, col = edge_index
-        z_edge = torch.cat([x[row], x[col], e], dim=-1)
+        z_edge = torch.cat([x[row], xx[row],
+                            x[col], xx[col],
+                            e], dim=-1)
         w = self.edge_decoder(z_edge).squeeze(-1)
         return F.elu(w + self.elu_offset) + 1
     

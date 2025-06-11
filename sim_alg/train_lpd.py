@@ -49,7 +49,11 @@ class gnnsolver(mr_solver):
         possible_sat_pair_non_expanded = cp_edge_list[:, 0:2]
         possible_capacity_non_expanded = cp_edge_list[:, 2]
 
-        x = np.concatenate((self.positions, self.forward_traffic_capacity.reshape(-1, 1), self.forward_traffic_demand.reshape(-1, 1)), axis=1)
+        sat_capacity = self.forward_traffic_capacity/self.forward_traffic_capacity.mean()
+        sat_demand = self.forward_traffic_demand/self.forward_traffic_demand.mean()
+        self._printalltime(f"sat_capacity: max: {np.max(sat_capacity)}, min: {np.min(sat_capacity)}, avg: {np.mean(sat_capacity)}, shape: {sat_capacity.shape}")
+        self._printalltime(f"sat_demand: max: {np.max(sat_demand)}, min: {np.min(sat_demand)}, avg: {np.mean(sat_demand)}, shape: {sat_demand.shape}")
+        x = np.concatenate((sat_capacity.reshape(-1, 1), sat_demand.reshape(-1, 1)), axis=1)
         prices = self.model.get_output_np_edge_weight(x,possible_sat_pair_non_expanded, possible_capacity_non_expanded, use_target=False)
 
         self._printalltime(f"prices: max: {np.max(prices)}, min: {np.min(prices)}, avg: {np.mean(prices)}")
@@ -82,10 +86,14 @@ class gnnsolver(mr_solver):
         self._printalltime(f"costs : max: {np.max(valid_costs)}, min: {np.min(valid_costs)}, avg: {np.mean(valid_costs)}")
 
         connected_st = lengths > 0
+        self._printalltime(f"connected_st: {np.sum(connected_st)} out of {self.data_source.shape[0]} pairs")
         
         self._printalltime(f"starting to compute rates")
         tic = self._get_tic()
         self.s_t_traffic_rates = self.get_rates_dual(costs=costs)
+        print(f"rates shape: {self.s_t_traffic_rates.shape}, costs shape: {costs.shape}")
+        print("self.s_t_traffic_rates[costs>1].mean():", self.s_t_traffic_rates[costs>1].mean())
+        print(f"approximate rates: max: {np.max(self.s_t_traffic_rates)}, min: {np.min(self.s_t_traffic_rates)}, avg: {np.mean(self.s_t_traffic_rates)}")
         tim = self._get_tim(tic)
         self._printalltime(f"Computed rates: {self.s_t_traffic_rates.shape}, Time: {tim:.4f} us")
 
@@ -121,7 +129,7 @@ class gnnsolver(mr_solver):
 
         self.model.step(data)
 
-        new_prices = self.model.get_output_np_edge_weight(x, possible_sat_pair_non_expanded, possible_capacity_non_expanded, use_target=True)
+        new_prices = self.model.get_output_np_edge_weight(x, possible_sat_pair_non_expanded, possible_capacity_non_expanded)
 
         self.price_graph.price_graph = sp.csr_matrix((new_prices, (possible_sat_pair_non_expanded[:, 0], possible_sat_pair_non_expanded[:, 1])), shape=(self.n_sat, self.n_sat))
         return
@@ -171,12 +179,16 @@ class DualSimulation(Simulation):
         self.solver._remove_non_connected_s_t_pairs()
         self._printalltime(f"Updated traffic info with seed {seed}, source: {self.solver.data_source.shape[0]}, target: {self.solver.data_target.shape[0]}")
 
-
+    def get_simulation_time(self):
+        # return time at 2025 jun 1st
+        return self.ts.utc(2025, 6, 1, 0, 0, 0)
+    
+    @counted
     def run_step(self):
+        self.config_l_mask(seed=self.N_STEP)
         self.update_space()
         self.update_solver_constellation_info()
         self.update_solver_traffic_info(seed=self.N_STEP)
-        print("++++++filter.shape", self.filtered_expanded.shape)
         
         if self.filtered_expanded.size == 0:
             return
@@ -192,13 +204,13 @@ class DualSimulation(Simulation):
         toc = self._get_tim(tic)
         self._printalltime(f"Prim objective: {p_o}, Time: {toc:.4f} us")
         p_o_mwm, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective_mwm(with_rates=True)
-        self._printalltime(f"Prim objective: {p_o}, MWM: {p_o_mwm}")
+        self._printalltime(f"Prim objective: {p_o}, MWM: {p_o_mwm}, Ratio: {p_o/p_o_mwm}")
         self._add_np_log("objective", self.N_STEP, [p_o, p_o_mwm])
 
     def run(self, TOT_STEPS=1000, visualize=False):
         for i in range(TOT_STEPS):
-            self.N_STEP = i
             self.run_step()
+            print(f"++++++++++++++++Step {i+1}/{TOT_STEPS} completed++++++++++++++++")
         return 
 
 # Load tle data.
@@ -215,8 +227,6 @@ solver = gnnsolver()
 solver.init_gnn()
 
 simulation.set_solver(solver)
-simulation.config_l_mask()
-
 simulation.run(TOT_STEPS=5000)
 
 simulation.save_np(LOG_DIR,"final")

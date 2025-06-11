@@ -146,6 +146,7 @@ class terrain(STATS_OBJECT):
             np.ndarray: Ground station positions in Cartesian coordinates.
         """
         return self.ground_station_positions_rotated
+    
     @counted
     def get_traffic_info(self, sat_positions, seed=0):
         rng = np.random.default_rng(seed)
@@ -162,6 +163,7 @@ class terrain(STATS_OBJECT):
         data_source, data_target = sources, targets
         
         return data_source, data_target
+    
     @counted
     def get_traffic_info_test(self, sat_positions, seed=0):
         sat_lat_lon_positions = xyz_to_lat_lon(sat_positions)
