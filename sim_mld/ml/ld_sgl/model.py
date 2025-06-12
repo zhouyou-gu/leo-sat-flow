@@ -52,6 +52,8 @@ class ld_model(base_model):
             qx_edge_attr=to_tensor(data["qx_edge_attr"]),
             rc_edge_index=to_tensor(data["rc_edge_index"],dtype=LONG_TYPE).T,
             rc_edge_attr=to_tensor(data["rc_edge_attr"]),
+            pr_edge_index=to_tensor(data["pr_edge_index"],dtype=LONG_TYPE).T,
+            pr_edge_attr=to_tensor(data["pr_edge_attr"]),
         )
         self.data_set.push(data_tensor)
     

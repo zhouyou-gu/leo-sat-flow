@@ -15,7 +15,6 @@ class PriceGNN(torch.nn.Module):
             nn_edge = torch.nn.Sequential(
                 torch.nn.Linear(hidden, hidden*hidden),
                 torch.nn.ReLU(),
-                torch.nn.Dropout(0.1),
                 torch.nn.Linear(hidden*hidden, hidden*hidden),
             )
             self.convs.append(NNConv(hidden, hidden, nn_edge, aggr='mean'))
@@ -24,10 +23,8 @@ class PriceGNN(torch.nn.Module):
         self.edge_decoder = torch.nn.Sequential(
             torch.nn.Linear(3*hidden+in_node_dim*2, hidden),
             torch.nn.ReLU(),
-            torch.nn.Dropout(0.1),
             torch.nn.Linear(hidden, hidden),
             torch.nn.ReLU(),
-            torch.nn.Dropout(0.1),
             torch.nn.Linear(hidden, 1),
         )
         self.elu_offset = elu_offset

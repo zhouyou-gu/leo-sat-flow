@@ -72,7 +72,10 @@ class gnnsolver(mr_solver):
         connected_sat = connected_lct // self.N_LCT_PER_SAT
         
         
-        prices_edge_list = np.column_stack((possible_sat_pair_non_expanded, prices))
+        indptr, indices, data = build_csr(self.n_sat, possible_sat_pair_non_expanded, prices)
+        prices_edge_list = csr_to_edge_list(indptr, indices, data)
+        prices_on_possible_sat_pair_non_expanded = extract_weights(possible_sat_pair_non_expanded, prices_edge_list)
+        prices_edge_list = np.column_stack((possible_sat_pair_non_expanded, prices_on_possible_sat_pair_non_expanded))
         prices = extract_weights(self.possible_sat_pair_expanded, prices_edge_list)
         indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
         self._printalltime(f"prices: max: {np.max(prices)}, min: {np.min(prices)}")
@@ -118,6 +121,15 @@ class gnnsolver(mr_solver):
         rc_edge_list = np.column_stack((possible_sat_pair_non_expanded, rc_weights))
         
         
+        qx_positive = qx_edge_list[:, 2] > 0
+        pr_greater1 = prices_edge_list[:, 2]> 1
+        if np.any(qx_positive & pr_greater1):
+            print("++++++++++++++++Error+++++++++++++++++++++")
+            print("qx_edge_attr > 0 and pr_edge_attr > 1")
+            print("qx_edge_attr:", qx_edge_list[qx_positive & pr_greater1])
+            print("pr_edge_attr:", prices_edge_list[qx_positive & pr_greater1])
+            print("++++++++++++++++++++++++++++++++++++++++++")
+        
         data = {}
         data["x"] = x
         data["cp_edge_index"] = cp_edge_list[:, 0:2]
@@ -126,6 +138,8 @@ class gnnsolver(mr_solver):
         data["qx_edge_attr"] = qx_edge_list[:, 2]
         data["rc_edge_index"] = rc_edge_list[:, 0:2]
         data["rc_edge_attr"] = rc_edge_list[:, 2]
+        data["pr_edge_index"] = prices_edge_list[:, 0:2]
+        data["pr_edge_attr"] = prices_edge_list[:, 2]
 
         self.model.step(data)
 
@@ -227,6 +241,6 @@ solver = gnnsolver()
 solver.init_gnn()
 
 simulation.set_solver(solver)
-simulation.run(TOT_STEPS=5000)
+simulation.run(TOT_STEPS=500)
 
 simulation.save_np(LOG_DIR,"final")
