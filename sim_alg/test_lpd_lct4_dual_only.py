@@ -24,6 +24,7 @@ from sim_mld.simulation import Simulation
 
 from vispy import app
 import logging
+import plotext
 
 from sim_src.util import GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT, counted
 
@@ -96,7 +97,12 @@ class lpdsolver(mr_solver):
         new_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
         self._print(f"Ne: max: {np.max(new_price)}, min: {np.min(new_price)}")
         
-        self._print(f"Sz: {step_size}")        
+        self._print(f"Sz: {step_size}")
+        plotext.title("Prices Distribution")
+        plotext.hist(np.log10(old_price+1e-5), bins=50, norm=True)
+        plotext.plotsize(100, 30)
+        plotext.show()
+        plotext.clf()        
         return new_price    
 
     def get_prim_objective(self, with_rates=False):
