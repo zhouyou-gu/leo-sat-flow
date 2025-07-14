@@ -186,8 +186,6 @@ def rotation_matmul(A: np.ndarray, rot: np.ndarray) -> np.ndarray:
             C[i, j] = tmp
     return C
 
-
-
 @njit(parallel=True,cache=True)
 def update_arrows(velocities, positions):
     """
@@ -366,7 +364,6 @@ def filter_and_compute_pair(edges, view_from_stack, view_to_stack, cos_threshold
                 p_lisl_LT_pair[flat_index] = filtered_i_j_indicator[i, j] and filtered_j_i_indicator[i, k]
                 
     return filtered_edges, filtered_view_from_stack, filtered_view_to_stack, p_lisl_LT_pair
-
 
 @njit(parallel=True,cache=True)
 def compute_directions(positions, edges):
@@ -622,7 +619,6 @@ def apply_mask_to_view(mask, edges, view_from_stack, view_to_stack):
         ret_view_to_stack[i, 3] = mask[dst, 3] * view_to_stack[i, 3]
 
     return ret_view_from_stack, ret_view_to_stack
-
 
 @njit(parallel=True,cache=True)
 def optimize_edge_and_color_data(edges_color, connected_sat, connected_lct, positions, lift=False):

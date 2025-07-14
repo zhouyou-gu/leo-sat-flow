@@ -145,7 +145,6 @@ class Simulation(STATS_OBJECT):
         self.solver._remove_non_connected_s_t_pairs()
         self._printalltime(f"Updated traffic info with seed {seed}, source: {self.solver.data_source.shape[0]}, target: {self.solver.data_target.shape[0]}")
         
-        
     def _assign_lct(self):
         sat_with_lct_list = np.random.randint(0, 2, size=(self.n_sat, 1))
         self.lct_on_indicator = np.tile(sat_with_lct_list, (1, self.N_LCT_PER_SAT))
@@ -267,6 +266,22 @@ class Simulation(STATS_OBJECT):
         )
         toc = time.perf_counter()
         self.profiled_time['view_stacks'] = toc - tic
+    
+    def config_l_mask(self, lct2_rho=0.2, lct4_rho=0.2, seed=0):
+        assert lct2_rho + lct4_rho <= 1, "lct2_rho + lct4_rho must be less than or equal to 1"
+        n_lct2_sat = int(self.n_sat * lct2_rho)
+        n_lct4_sat = int(self.n_sat * lct4_rho)
+        
+        rng = np.random.default_rng(seed)
+        
+        permuted_indices = rng.permutation(np.arange(0, self.n_sat))
+        self.lct2_indices = permuted_indices[:n_lct2_sat]
+        self.lct4_indices = permuted_indices[n_lct2_sat:n_lct2_sat + n_lct4_sat]
+        
+        self.lct_mask = np.zeros((self.n_sat, self.N_LCT_PER_SAT), dtype=np.float32)
+        self.lct_mask[:,1] = 1
+        self.lct_mask[self.lct2_indices] = np.array([1, 1, 0, 0], dtype=np.float32)
+        self.lct_mask[self.lct4_indices] = np.array([1, 1, 1, 1], dtype=np.float32)   
     
     def _apply_lt_mask(self):
         self._print(f'Updating LCT mask... {self.update_count}')

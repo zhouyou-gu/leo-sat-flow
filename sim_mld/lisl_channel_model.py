@@ -30,17 +30,21 @@ def capacity_relaxed(B, R, A, N0, P, w0, wavelength, z, sigma_jitter, epsilon):
     rho_divergence = theta_max * z
     return capacity_lower_bound(B, R, A, N0, P, w0, wavelength, rho_divergence, z)*(1-epsilon)
 
+def intensity_relaxed(P, w0, wavelength, z, sigma_jitter, epsilon):
+    theta_max = sigma_jitter * np.sqrt(-2.0 * np.log(epsilon))
+    rho_divergence = theta_max * z
+    return gaussian_beam_intensity(P, w0, wavelength, rho_divergence, z)
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     # Example parameters
     wavelength = 1.55e-6    # Wavelength in meters (1.55 microns typical in telecom)
-    w0 = w0_from_angular_spreading(50e-6, wavelength)  # Beam waist in meters
+    w0 = w0_from_angular_spreading(100e-6, wavelength)  # Beam waist in meters
     z_values = np.geomspace(1, 3e6, 100)  # from 0 to 3000 km
     rho = 0.0        # on-axis, for example
     P = 20  # Watts
     B = 1e9        # 1 GHz bandwidth
-    R = 0.5        # 0.8 A/W responsivity
+    R = 0.5        # A/W responsivity
     A = 1e-2      # Area in m^2 (example)
     N0 = 3e-7      # Example noise in A rms
     

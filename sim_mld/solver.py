@@ -251,7 +251,7 @@ class mr_solver(STATS_OBJECT):
     BEAM_WAIST = w0_from_angular_spreading(ANGULAR_SPREADING, WAVELENGTH)  # Beam waist in meters
     PEAK_POWER_W = 20  # Convert dBm to Watts
     BANDWIDTH = 1e9  # 1 GHz bandwidth
-    RESPONSIVITY = 0.5  # 0.8 A/W responsivity
+    RESPONSIVITY = 0.5  # A/W responsivity
     APERTURE_AREA = 1e-2  # Area in m^2 (example)
     NOISE_CURRENT = 3e-7  # Example noise in A rms
     JITTER = 10e-6  # Jitter in radians
@@ -415,7 +415,25 @@ class mr_solver(STATS_OBJECT):
             return ret
 
     def get_prim_objective(self, with_rates=False):
-        pass
+        self._print("Computing prim objective")
+        connected_sat, connected_lct = self.get_dual_matching()
+
+        prices = self.price_graph.get_prices(connected_sat)
+        indptr, indices, data = build_csr(self.n_sat, connected_sat, prices)
+        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
+        
+        srouting = construct_edges_matrix_all_in_one(
+            self.data_source, self.data_target, costs, lengths, paths_all
+        )
+
+        rates = self.get_rates_prim(srouting, connected_lct, mode=self.objective_mode)
+        self._print(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
+        self._print(f"Appr rate: MAX: {np.max(self.s_t_traffic_rates)}, MIN: {np.min(self.s_t_traffic_rates)}")
+        if not with_rates:
+            return -np.sum(rates)
+        else:
+            return -np.sum(rates), rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct
+
 
     def get_prim_objective_mwm(self, with_rates=False):
         capacity = self.compute_capacity(
