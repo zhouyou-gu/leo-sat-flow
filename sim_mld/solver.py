@@ -219,7 +219,6 @@ def top_k_pairs_to_t_with_min_cost_numba(sources, targets, costs, k=5):
     return flat[mask]
     
 
-
 class price_graph:
     def __init__(self, n_sat, possible_sat_pair_expanded, initial_prices=1.):
         self.n_sat = n_sat
@@ -227,10 +226,13 @@ class price_graph:
         csr_pair = build_csr(self.n_sat, possible_sat_pair_expanded, np.ones(possible_sat_pair_expanded.shape[0])*initial_prices)
         self.price_graph = sp.csr_matrix((csr_pair[2], csr_pair[1], csr_pair[0]), shape=(self.n_sat, self.n_sat))
     
-    def get_prices(self, possible_sat_pair_expanded):
+    def get_prices(self, possible_sat_pair_expanded, sum_both_direction=False):
         # Compute edge price based on the price graph
         edge_price_on_graph_idx_wgt = csr_to_edge_list(self.price_graph.indptr, self.price_graph.indices, self.price_graph.data)
         prices = extract_weights(possible_sat_pair_expanded, edge_price_on_graph_idx_wgt)
+        if sum_both_direction:
+            prices_ = extract_weights(possible_sat_pair_expanded[:, ::-1], edge_price_on_graph_idx_wgt)
+            prices += prices_
         # Check if np.nan is in the weights
         if np.isnan(prices).any():
             raise ValueError("NaN found in edge weights")
@@ -325,9 +327,6 @@ class mr_solver(STATS_OBJECT):
         tim = self._get_tim(tic)
         self._printalltime(f"Top-k pairs took {tim:.2f} us")
 
-
-
-
         pair_rate_list = np.column_stack((self.data_source, self.data_target, self.s_t_traffic_rates))
         filtered_rates = extract_weights(s_t, pair_rate_list, none_value=-100.0)
         self.data_source = s_t[:, 0]
@@ -355,7 +354,7 @@ class mr_solver(STATS_OBJECT):
 
     def get_dual_matching(self):
         self._print("Computing dual matching")
-        prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
+        prices = self.price_graph.get_prices(self.possible_sat_pair_expanded, sum_both_direction=True)
         capacity = self.compute_capacity(
             np.linalg.norm(self.positions[self.possible_sat_pair_expanded[:, 0]] - self.positions[self.possible_sat_pair_expanded[:, 1]], axis=1)
         )
@@ -375,8 +374,9 @@ class mr_solver(STATS_OBJECT):
     
     def get_dual_srouting(self, debug=False):
         self._print("Computing dual srouting")
-        prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
-        indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
+        edge_in_both_direction = np.concatenate((self.possible_sat_pair_expanded, self.possible_sat_pair_expanded[:, ::-1]), axis=0)
+        prices = self.price_graph.get_prices(edge_in_both_direction)
+        indptr, indices, data = build_csr(self.n_sat, edge_in_both_direction, prices, sym_half=False)
         self._print("build csr done")
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
         self._print("Computing dual srouting done")
@@ -403,14 +403,14 @@ class mr_solver(STATS_OBJECT):
         capacity_on_graph = self.compute_capacity(
             np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
         )
-        prices = self.price_graph.get_prices(connected_sat)
+        prices = self.price_graph.get_prices(connected_sat, sum_both_direction=True)
         
         rates = self.get_rates_dual(costs)
         
-        ret = - np.sum(prices * capacity_on_graph)
-        ret += np.sum(rates*(-1+ costs))
+        ret =- np.sum(prices * capacity_on_graph)
+        ret += np.sum(rates * (-1 + costs))
         if with_prices:
-            return ret, np.concatenate((self.possible_sat_pair_expanded,self.price_graph.get_prices(self.possible_sat_pair_expanded).reshape(-1,1)), axis=1)
+            return ret, np.concatenate((self.possible_sat_pair_expanded,self.price_graph.get_prices(self.possible_sat_pair_expanded,sum_both_direction=True).reshape(-1,1)), axis=1)
         else:
             return ret
 
@@ -418,8 +418,9 @@ class mr_solver(STATS_OBJECT):
         self._print("Computing prim objective")
         connected_sat, connected_lct = self.get_dual_matching()
 
-        prices = self.price_graph.get_prices(connected_sat)
-        indptr, indices, data = build_csr(self.n_sat, connected_sat, prices)
+        edge_in_both_direction = np.concatenate((connected_sat, connected_sat[:, ::-1]), axis=0)
+        prices = self.price_graph.get_prices(edge_in_both_direction)
+        indptr, indices, data = build_csr(self.n_sat, edge_in_both_direction, prices, sym_half=False)
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
         
         srouting = construct_edges_matrix_all_in_one(
@@ -450,7 +451,7 @@ class mr_solver(STATS_OBJECT):
         distance = np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
         capacity = self.compute_capacity(distance)
 
-        indptr, indices, data = build_csr(self.n_sat, connected_sat, 1/capacity)
+        indptr, indices, data = build_csr(self.n_sat, connected_sat, 1/capacity, sym_half=True)
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
         
         srouting = construct_edges_matrix_all_in_one(
@@ -464,61 +465,6 @@ class mr_solver(STATS_OBJECT):
         else:
             return -np.sum(rates), rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct
 
-    def get_rates(self, srouting, matching, mode="maxsum"):
-        # Compute the edge capacity for the connected satellites
-        connected_sat = matching // self.N_LCT_PER_SAT
-        capacity = self.compute_capacity(
-            np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
-        )
-        indptr, indices, data = build_csr(self.n_sat, connected_sat, capacity, merging_method="sum")
-        edge_capacity = csr_to_edge_list(indptr, indices, data)
-        
-        
-        #TODO: Handle the case when there are multiple LISL connections between the same pair of satellites
-        self._print("Computing max rate")
-        if np.asarray(srouting).size == 0:
-            return np.zeros(self.data_source.shape[0])
-        # edges: K×4 numpy array, columns = [u, v, s, t]
-        flow_pairs = srouting[:, 2:4]
-        unique_pairs_view, flow_ids = np.unique(flow_pairs, return_inverse=True, axis=0)
-        F = unique_pairs_view.shape[0]
-
-        uv_view = srouting[:, :2]                                 # the (u,v) pairs
-        uniq_uv_view, edge_ids = np.unique(uv_view, return_inverse=True, axis=0)
-        E = uniq_uv_view.shape[0]
-
-        P = sp.coo_matrix(
-            (np.ones(srouting.shape[0]), (edge_ids, flow_ids)),
-            shape=(E, F)
-        ).tocsr()
-        
-        # --- Capacity constraints ------------------------------------------------
-        uv = uniq_uv_view.reshape(-1, 2).astype(np.int64)
-        capacity = extract_weights(uv, edge_capacity)
-
-        # --- LP solve -------------------------------------------------------------
-        r = cp.Variable(F, nonneg=True)
-        if mode == "maxmin":
-            prob = cp.Problem(cp.Maximize(cp.min(r)), [P @ r <= capacity])
-        elif mode == "maxlog":
-            prob = cp.Problem(cp.Maximize(cp.sum(cp.log(r+1))), [P @ r <= capacity])
-        else:
-            prob = cp.Problem(cp.Maximize(cp.sum(r)), [P @ r <= capacity])
-        prob.solve(solver=cp.HiGHS)
-
-        opt = r.value
-        
-        rate_map = {
-            (int(src), int(tgt)): float(rate)
-            for (src, tgt), rate in zip(unique_pairs_view, opt)
-        }
-        # 2. For each original pair, look it up (default to 0.0 if missing)
-        rates = np.array([
-            rate_map.get((src, tgt), 0.0)
-            for src, tgt in zip(self.data_source, self.data_target)
-        ])
-        return rates
-    
     def get_rates_prim(self, srouting, matching, mode="maxsum"):
         # Compute the edge capacity for the connected satellites
         connected_sat = matching // self.N_LCT_PER_SAT

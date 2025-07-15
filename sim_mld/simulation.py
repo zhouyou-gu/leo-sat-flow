@@ -19,6 +19,34 @@ from sim_mld.solver import mr_solver
 
 from sim_src.util import STATS_OBJECT, counted
 
+
+def khot_matrix(n_rows, n_cols, k, rng=None, seed=None, dtype=np.float32):
+    """
+    Return an (n_rows × n_cols) array in which each row contains exactly `k`
+    ones (aka a k-hot encoding).
+
+    Parameters
+    ----------
+    n_rows : int
+    n_cols : int
+    k      : int          # 1 ≤ k ≤ n_cols
+    replace : bool        # sample with/without replacement
+    seed    : int | None  # reproducible RNG seed
+    dtype   : np.dtype    # 0/1 storage type (bool, int8, etc.)
+    """
+    if not 0 < k <= n_cols:
+        raise ValueError("k must be between 1 and n_cols")
+    if rng is None:
+        rng = np.random.default_rng(seed)
+    order  = rng.permuted(np.tile(np.arange(n_cols), (n_rows, 1)), axis=1)
+    chosen = order[:, :k]
+
+    mat = np.zeros((n_rows, n_cols), dtype=dtype)
+    mat[np.arange(n_rows)[:, None], chosen] = 1
+    return mat
+
+
+
 class Simulation(STATS_OBJECT):
     FOR_THETA: float = 30.0  # Angle in degrees for the satellite LT direction.
     LISL_MAX_DISTANCE: float = 3000.0  # Maximum distance for LISL in km.
@@ -146,8 +174,6 @@ class Simulation(STATS_OBJECT):
         self._printalltime(f"Updated traffic info with seed {seed}, source: {self.solver.data_source.shape[0]}, target: {self.solver.data_target.shape[0]}")
         
     def _assign_lct(self):
-        sat_with_lct_list = np.random.randint(0, 2, size=(self.n_sat, 1))
-        self.lct_on_indicator = np.tile(sat_with_lct_list, (1, self.N_LCT_PER_SAT))
         self.lct_directions = np.concatenate((self.front, self.back, self.right, self.left), axis=1).reshape(-1, self.N_LCT_PER_SAT, 3)
         
     def setup_visualization(self):
@@ -267,7 +293,7 @@ class Simulation(STATS_OBJECT):
         toc = time.perf_counter()
         self.profiled_time['view_stacks'] = toc - tic
     
-    def config_l_mask(self, lct2_rho=0.2, lct4_rho=0.2, seed=0):
+    def config_l_mask(self, lct2_rho=0.5, lct4_rho=0.1, seed=0):
         assert lct2_rho + lct4_rho <= 1, "lct2_rho + lct4_rho must be less than or equal to 1"
         n_lct2_sat = int(self.n_sat * lct2_rho)
         n_lct4_sat = int(self.n_sat * lct4_rho)
@@ -277,11 +303,12 @@ class Simulation(STATS_OBJECT):
         permuted_indices = rng.permutation(np.arange(0, self.n_sat))
         self.lct2_indices = permuted_indices[:n_lct2_sat]
         self.lct4_indices = permuted_indices[n_lct2_sat:n_lct2_sat + n_lct4_sat]
+
+        self.lct_mask = khot_matrix(self.n_sat, self.N_LCT_PER_SAT, 1, rng=rng, dtype=np.float32)
         
-        self.lct_mask = np.zeros((self.n_sat, self.N_LCT_PER_SAT), dtype=np.float32)
-        self.lct_mask[:,1] = 1
-        self.lct_mask[self.lct2_indices] = np.array([1, 1, 0, 0], dtype=np.float32)
-        self.lct_mask[self.lct4_indices] = np.array([1, 1, 1, 1], dtype=np.float32)   
+        self.lct_mask[self.lct2_indices] = khot_matrix(n_lct2_sat, self.N_LCT_PER_SAT, 2, rng=rng, dtype=np.float32)
+
+        self.lct_mask[self.lct4_indices] = khot_matrix(n_lct4_sat, self.N_LCT_PER_SAT, 4, rng=rng, dtype=np.float32)
     
     def _apply_lt_mask(self):
         self._print(f'Updating LCT mask... {self.update_count}')
@@ -301,6 +328,7 @@ class Simulation(STATS_OBJECT):
         
         # Expand edges and filter using the computed pair indicator.
         tic = time.perf_counter()
+        # Only one direction of edges
         self.filtered_repeated, self.filtered_expanded = expand_and_filter_edges(self.filtered_edges, p_lisl_LT_pair)
         toc = time.perf_counter()
         self.profiled_time['expand_edges'] = toc - tic

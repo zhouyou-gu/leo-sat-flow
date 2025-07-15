@@ -39,11 +39,7 @@ class lpdsolver(mr_solver):
         self._print(f"Connected sat: {connected_sat.shape}, Connected lct: {connected_lct.shape}")
         # qx_csr = sp.csr_matrix((self.n_sat, self.n_sat))
 
-        prices = self.price_graph.get_prices(self.possible_sat_pair_expanded)
-        indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, prices)
-        self._print(f"do routing: max: {np.max(prices)}, min: {np.min(prices)}")
-
-        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
+        costs, lengths, paths_all = self.get_dual_srouting()
         srouting = construct_edges_matrix_all_in_one(
             self.data_source, self.data_target, costs, lengths, paths_all
         )
@@ -77,16 +73,19 @@ class lpdsolver(mr_solver):
         if np.asarray(connected_sat).size == 0:
             rc_csr = sp.csr_matrix((self.n_sat, self.n_sat))
         else:
+            edge_in_both_direction = np.concatenate((connected_sat, connected_sat[:, ::-1]), axis=0)
             capacity_matched = self.compute_capacity(
-                np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
+                np.linalg.norm(self.positions[edge_in_both_direction[:, 0]] - self.positions[edge_in_both_direction[:, 1]], axis=1)
             )
             self._print(f"Cm: max: {np.max(capacity_matched)}, min: {np.min(capacity_matched)}")
-            rc = build_csr(self.n_sat, connected_sat, capacity_matched, merging_method='sum')
+            rc = build_csr(self.n_sat, edge_in_both_direction, capacity_matched, merging_method='sum', sym_half=False)
             self._print(f"rc: max: {np.max(rc[2])}, min: {np.min(rc[2])}")
             rc_csr = sp.csr_matrix((rc[2], rc[1], rc[0]), shape=(self.n_sat, self.n_sat))
         
         # Update edge prices
-        old_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
+        edge_in_both_direction = np.concatenate((self.possible_sat_pair_expanded, self.possible_sat_pair_expanded[:, ::-1]), axis=0)
+        
+        old_price = self.price_graph.get_prices(edge_in_both_direction)
         self._print(f"Oe: max: {np.max(old_price)}, min: {np.min(old_price)}")
         
         self._print(f"diff: {(qx_csr>rc_csr).mean()}")
@@ -94,7 +93,7 @@ class lpdsolver(mr_solver):
         dif_price_graph = step_size * (qx_csr - rc_csr)
         
         self.price_graph.add_prices(dif_price_graph)     
-        new_price = self.price_graph.get_prices(self.possible_sat_pair_expanded)
+        new_price = self.price_graph.get_prices(edge_in_both_direction)
         self._print(f"Ne: max: {np.max(new_price)}, min: {np.min(new_price)}")
         
         self._print(f"Sz: {step_size}")

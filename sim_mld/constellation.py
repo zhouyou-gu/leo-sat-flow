@@ -689,3 +689,38 @@ def optimize_edge_and_color_data(edges_color, connected_sat, connected_lct, posi
             c_lisl_data[i + 2 * M_sat, j] = c_lisl_data_to[i, j]
     
     return edges_color_data, c_lisl_data
+
+def random_z_hot(k: int, n: int, z: int, seed: int = None) -> np.ndarray:
+    """
+    Return a (k, n) float32 array where each row has exactly z ones,
+    sampled randomly without replacement, implemented with pure NumPy.
+
+    Parameters
+    ----------
+    k : int
+        Number of rows.
+    n : int
+        Number of columns.
+    z : int
+        Number of ones per row (0 <= z <= n).
+    seed : int or None
+        If not None, use for reproducible sampling.
+    
+    Returns
+    -------
+    out : np.ndarray, shape (k, n), dtype float32
+        The output array, each row z-hot.
+    """
+    if not (0 <= z <= n):
+        raise ValueError("z must be between 0 and n")
+    
+    rng = np.random.default_rng(seed)
+    # Sample z unique indices per row in one vectorized call:
+    #   -> shape will be (k, z)
+    idx = rng.choice(n, size=(k, z), replace=False)
+    
+    # Build an all-zero array then scatter ones at the chosen positions
+    out = np.zeros((k, n), dtype=np.float32)
+    rows = np.arange(k)[:, None]   # shape (k, 1)
+    out[rows, idx] = 1.0
+    return out

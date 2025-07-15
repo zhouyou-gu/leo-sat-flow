@@ -71,7 +71,7 @@ def csr_to_edge_list(indptr, indices, data):
 # Revised Step 1. Convert edge list to CSR representation with duplicate merging.
 # ------------------------------------------------------------------------------
 @numba.njit(cache=True)
-def build_csr(num_nodes, edges, weights, merging_method='avg'):
+def build_csr(num_nodes, edges, weights, merging_method='avg',sym_half=True):
     """
     Build CSR (Compressed Sparse Row) for an edge list, merging duplicate
     edges.
@@ -121,20 +121,21 @@ def build_csr(num_nodes, edges, weights, merging_method='avg'):
         else:
             n_copy[key] = 1
             merged[key] = w
-        key = (v, u)  # Also consider the reverse edge for undirected graphs.
-        if key in merged:
-            if merging_method == 'sum':
-                merged[key] += w
-            elif merging_method == 'max':
-                merged[key] = max(merged[key], w)
-            elif merging_method == 'min':
-                merged[key] = min(merged[key], w)
+        if sym_half:
+            key = (v, u)  # Also consider the reverse edge for undirected graphs.
+            if key in merged:
+                if merging_method == 'sum':
+                    merged[key] += w
+                elif merging_method == 'max':
+                    merged[key] = max(merged[key], w)
+                elif merging_method == 'min':
+                    merged[key] = min(merged[key], w)
+                else:
+                    merged[key] = (merged[key] * n_copy[key] + w) / (n_copy[key]+1)   
+                n_copy[key] += 1
             else:
-                merged[key] = (merged[key] * n_copy[key] + w) / (n_copy[key]+1)   
-            n_copy[key] += 1
-        else:
-            n_copy[key] = 1
-            merged[key] = w
+                n_copy[key] = 1
+                merged[key] = w
 
     # Create new arrays for unique edges and their accumulated weights.
     new_K = len(merged)
