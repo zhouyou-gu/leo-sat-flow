@@ -33,7 +33,7 @@ np.set_printoptions(precision=4,threshold=10,linewidth=80, edgeitems=2)
 class lpdsolver(mr_solver):
     def update_step_rates_prices(self):
         self.N_STEP += 1
-        step_size = self.ALPHA / (self.N_STEP ** 0.2)
+        step_size = self.ALPHA / (self.N_STEP ** self.BETA)
         self._print("Updating edge prices")
         connected_sat, connected_lct = self.get_dual_matching()
         self._print(f"Connected sat: {connected_sat.shape}, Connected lct: {connected_lct.shape}")
@@ -136,32 +136,36 @@ class DualSimulation(Simulation):
         print(f"Gap: {gap:.3f}, Exp: {np.exp(-(gap)):.3f}, d_o: {d_o:.3f}, p_o: {p_o:.3f}")
         avg_p_o = self._moving_average("p_o", p_o)
         print(f"avg: {avg_p_o}")
+        
         self._add_np_log("gap", self.N_STEP, np.array([gap]))
+        self._add_np_log("d_o", self.N_STEP, np.array([d_o]))
         self._add_np_log("p_o", self.N_STEP, np.array([p_o]))
         
         
-        dual_rates = self.solver.s_t_traffic_rates
-        self._update_traffic_flow(satp=s_t, edge_weight=dual_rates/20, viz=self.viz_list[3])
+        if self.VISUALIZE:
+            dual_rates = self.solver.s_t_traffic_rates
+            self._update_traffic_flow(satp=s_t, edge_weight=dual_rates/20, viz=self.viz_list[3])
+            
+            connected_sat, connected_lct = self.solver.get_dual_matching()
+            capacity = self.solver.compute_capacity(
+                np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
+            )
+            self._update_o_lisl(satp=connected_sat, viz=self.viz_list[1], edge_weight=capacity/capacity.max())
 
-        connected_sat, connected_lct = self.solver.get_dual_matching()
-        capacity = self.solver.compute_capacity(
-            np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
-        )
-        self._update_o_lisl(satp=connected_sat, viz=self.viz_list[1], edge_weight=capacity/capacity.max())
+            self._update_o_lisl(satp=srouting[:,0:2].astype(np.int64), edge_weight=None, viz=self.viz_list[0]) 
 
-        self._update_o_lisl(satp=srouting[:,0:2].astype(np.int64), edge_weight=None, viz=self.viz_list[0]) 
-
-        vis_prices = edge_prices[:,2]/np.max(edge_prices[:,2]+1e-10)
-        self._update_o_lisl(satp=edge_prices[:,0:2].astype(np.int64), edge_weight=vis_prices, viz=self.viz_list[2]) 
-    
-        self.viz_list[0]['text_title'].text = f"Weighted Shortest Path Routing\n - Average Hops {lengths.mean():.2f}" 
-        self.viz_list[1]['text_title'].text = f"Maximum Weight Laser Matching\n - Average Per Link Rate (Gbps) {capacity.mean():.2f}" 
-        self.viz_list[2]['text_title'].text = f"Laser Link Pricing (Dual Variables)\n - Average Price (Gbps Per Hop) {edge_prices[:,2].mean():.2f}"
-        self.viz_list[3]['text_title'].text = f"Source-to-Target Traffic Flow\n - Average Rate (Gbps) {dual_rates.mean():.2f}"
-    
+            vis_prices = edge_prices[:,2]/np.max(edge_prices[:,2]+1e-10)
+            self._update_o_lisl(satp=edge_prices[:,0:2].astype(np.int64), edge_weight=vis_prices, viz=self.viz_list[2]) 
+        
+            self.viz_list[0]['text_title'].text = f"Weighted Shortest Path Routing\n - Average Hops {lengths.mean():.2f}" 
+            self.viz_list[1]['text_title'].text = f"Maximum Weight Laser Matching\n - Average Per Link Rate (Gbps) {capacity.mean():.2f}" 
+            self.viz_list[2]['text_title'].text = f"Laser Link Pricing (Dual Variables)\n - Average Price (Gbps Per Hop) {edge_prices[:,2].mean():.2f}"
+            self.viz_list[3]['text_title'].text = f"Source-to-Target Traffic Flow\n - Average Rate (Gbps) {dual_rates.mean():.2f}"
+        
     
         p_o_mwm, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective_mwm(with_rates=True)
         self._printalltime(f"Prim objective: {p_o}, MWM: {p_o_mwm}, Ratio: {p_o/p_o_mwm:.3f}")
+        self._add_np_log("mwm", self.N_STEP, np.array([p_o_mwm]))
         self._add_np_log("ratio", self.N_STEP, np.array([p_o/p_o_mwm]))
     
     def _update_traffic_flow(self, satp, edge_weight=None, viz=None):
@@ -199,55 +203,24 @@ class DualSimulation(Simulation):
         self.viz_list[3]['view'].add(traffic_flow)
         self.viz_list[3]['traffic_flow'] = traffic_flow       
       
-    # def run(self, TOT_STEPS=1000, visualize=False):
-    #     self.setup_visualization()
-    #     for i in range(TOT_STEPS):
-    #         self.run_step()
-    #         print(f"++++++++++++++++Step {i+1}/{TOT_STEPS} completed++++++++++++++++")
-    #     return 
-        
+      
 # Load tle data.
 ts, valid_satellites, sat_array = generate_walker_constellation(planes=20)
 
 LOG_OBJ = STATS_OBJECT()
 LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
 
-# Create simulation instance.
-i = 1
-simulation = DualSimulation(ts, sat_array)
-simulation.config_l_mask(seed=i)
-simulation.update_space()
+for beta in [0.1, 0.3, 0.5, 0.7, 0.9]:
+    print(f"Running simulation with beta: {int(beta*10)}")
+    # Create simulation instance.
+    i = 1
+    simulation = DualSimulation(ts, sat_array)
+    simulation.config_l_mask(seed=i)
+    simulation.update_space()
 
-solver = lpdsolver()
-simulation.set_solver(solver)
-simulation.run(TOT_STEPS=1000,visualize=True)
-
-p_o, rates, srouting, srouting_tuple, connected_sat, connected_lct = solver.get_prim_objective(with_rates=True)
-print(srouting_tuple)
-
-print(f"p_o: {p_o:.3f}, rates: {rates.mean():.3f}， rates max: {rates.max():.3f}, rates min: {rates.min():.3f}")
-LOG_OBJ._add_np_log("p_o", i, np.array([p_o]))
-print(f"log_rates: {np.log(rates+0.1).mean():.3f}， log_rates max: {np.log(rates+1).max():.3f}, log_rates min: {np.log(rates+1).min():.3f}")       
-print(f"null_count: {np.sum(rates == 0)}")
-from sim_src.util import plot_a_array, LOGGED_NP_DATA_HEADER_SIZE
-import os
-path = os.path.join(os.path.dirname(__file__))
-
-rates.sort()
-plot_a_array(rates, mavg_n=None,name="rate-lpd", title="lpd", save_path=path)
-
-p_o, rates, srouting, srouting_tuple, connected_sat, connected_lct = solver.get_prim_objective_mwm(with_rates=True)
-print(srouting_tuple)
-print(f"p_o: {p_o:.3f}, rates: {rates.mean():.3f}， rates max: {rates.max():.3f}, rates min: {rates.min():.3f}")
-LOG_OBJ._add_np_log("p_o", i, np.array([p_o]))
-print(f"log_rates: {np.log(rates+0.1).mean():.3f}， log_rates max: {np.log(rates+1).max():.3f}, log_rates min: {np.log(rates+1).min():.3f}")       
-print(f"null_count: {np.sum(rates == 0)}")
-from sim_src.util import plot_a_array, LOGGED_NP_DATA_HEADER_SIZE
-import os
-path = os.path.join(os.path.dirname(__file__))
-
-rates.sort()
-plot_a_array(rates, mavg_n=None,name="rate-mwm", title="mwm", save_path=path)
-
-path = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
-simulation.save_np(path, "lpd")
+    solver = lpdsolver()
+    solver.BETA = beta
+    simulation.set_solver(solver)
+    simulation.run(TOT_STEPS=500,visualize=False)
+    
+    simulation.save_np(LOG_DIR, f"beta{int(beta*10)}")

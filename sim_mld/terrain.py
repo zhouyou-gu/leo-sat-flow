@@ -191,7 +191,7 @@ class terrain(STATS_OBJECT):
 
         self._printalltime("connected_to_ground_stations:", connected_to_ground_stations.sum())
 
-        self._printalltime("traffic_dl_rate_source:", traffic_dl_rate_source)
+        # self._printalltime("traffic_dl_rate_source:", traffic_dl_rate_source)
         forward_traffic_capacity = np.clip(traffic_ul_rate_target - traffic_dl_rate_source, 0, None)
         reverse_traffic_capacity = np.clip(traffic_dl_rate_target - traffic_ul_rate_source, 0, None)
 

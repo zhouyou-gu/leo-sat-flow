@@ -102,7 +102,7 @@ def fetch_valid_sat_from_tle_list(tle_list):
     sat_array = SatrecArray(models)
     return ts, valid_satellites, sat_array
 
-def generate_walker_constellation(sats_per_plane = 100, planes = 20, phasing = 1, epoch = datetime(2025, 1, 1),
+def generate_walker_constellation(sats_per_plane = 50, planes = 20, phasing = 1, epoch = datetime(2025, 1, 1),
                                   inclination=50, eccentricity=0.0001, arg_perigee = 0., mean_motion=15.0):
     """
     Generate a Walker Delta constellation by assigning RAAN and mean anomaly for each satellite.

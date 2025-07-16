@@ -142,7 +142,7 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
     WAITING_TEXT = ""
     FONT_SIZE = 10
     text_top_left = scene.visuals.Text(text=WAITING_TEXT,
-            face='FreeMono',  # Change font here
+            # face='FreeMono',  # Change font here
             font_size=FONT_SIZE,
             bold=False,
             pos=top_left_coord,
@@ -153,7 +153,7 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
     
     text_bot_left = scene.visuals.Text(text=WAITING_TEXT,
             color='black',
-            face='FreeMono',  # Change font here
+            # face='FreeMono',  # Change font here
             font_size=FONT_SIZE,
             bold=False,
             pos=bot_left_coord,
@@ -164,7 +164,7 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
     
     text_top_right = scene.visuals.Text(text=WAITING_TEXT,
             color='black',
-            face='FreeMono',  # Change font here
+            # face='FreeMono',  # Change font here
             font_size=FONT_SIZE,
             bold=False,
             pos=top_right_coord,
@@ -175,7 +175,7 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
 
     text_bot_right = scene.visuals.Text(text=WAITING_TEXT,
             color='black',
-            face='FreeMono',  # Change font here
+            # face='FreeMono',  # Change font here
             font_size=FONT_SIZE,
             bold=False,
             pos=bot_right_coord,
@@ -187,7 +187,7 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
     top_middle_coord = (top_left_coord[0] + top_right_coord[0]) / 2, top_left_coord[1]
     text_title = scene.visuals.Text(text="Title-" + str(idx),
             color='black',
-            face='FreeMono',  # Change font here
+            # face='FreeMono',  # Change font here
             font_size=FONT_SIZE+5,
             bold=True,
             pos=top_middle_coord,

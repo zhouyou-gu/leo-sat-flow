@@ -116,8 +116,8 @@ class Demo(Simulation):
         
         a_from = np.tile(self.positions, (self.N_LCT_PER_SAT, 1))
         a_to = np.concatenate((self.front, self.back, self.right, self.left), axis=0) * 0.02
-        a_to_left = rotate_deg_in_vector_element_wise(a_to, np.ones(a_to.shape[0]) * self.FOR_THETA/2, a_from) + a_from
-        a_to_right = rotate_deg_in_vector_element_wise(a_to, -np.ones(a_to.shape[0]) * self.FOR_THETA/2, a_from) + a_from
+        a_to_left = rotate_deg_in_vector_element_wise(a_to, np.ones(a_to.shape[0]) * self.FOR_THETA_HALF/2, a_from) + a_from
+        a_to_right = rotate_deg_in_vector_element_wise(a_to, -np.ones(a_to.shape[0]) * self.FOR_THETA_HALF/2, a_from) + a_from
         a_data = np.concatenate((a_from, a_to_left, a_to_right), axis=1).reshape(-1, 3)
 
         

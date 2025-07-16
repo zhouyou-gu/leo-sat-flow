@@ -266,6 +266,7 @@ class mr_solver(STATS_OBJECT):
     
     INIT_PRICES = 0.
     
+    BETA = 0.1
     def __init__(self):
         self.ALPHA = 0.1
         
@@ -316,10 +317,11 @@ class mr_solver(STATS_OBJECT):
         df['cost'] = costs
 
         # For each t, take the K rows with smallest cost
+        K_VALUE = 5
         topk = (
             df
             .groupby('t', group_keys=False)[['s', 't','cost']]       # group by destination t
-            .apply(lambda g: g.nsmallest(5, 'cost'))
+            .apply(lambda g: g.nsmallest(K_VALUE, 'cost'))
             # .apply(lambda g: g.sample(5,replace=False))
             .reset_index(drop=True)
         )
@@ -471,7 +473,7 @@ class mr_solver(STATS_OBJECT):
         capacity = self.compute_capacity(
             np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
         )
-        indptr, indices, data = build_csr(self.n_sat, connected_sat, capacity, merging_method="sum")
+        indptr, indices, data = build_csr(self.n_sat, connected_sat, capacity, merging_method="sum", sym_half=True)
         edge_capacity = csr_to_edge_list(indptr, indices, data)
         
         if np.asarray(srouting).size == 0:
