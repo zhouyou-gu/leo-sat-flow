@@ -220,7 +220,7 @@ for beta in [0.1, 0.3, 0.5, 0.7, 0.9]:
     i = 1
     rng = np.random.default_rng(seed=i)
     idx = rng.choice(np.arange(len(valid_satellites)), size=1000, replace=False)
-    valid_satellites = [valid_satellites[i] for i in idx]
+    valid_satellites = [valid_satellites[x] for x in idx]
     models = [sat.model for sat in valid_satellites]
     sat_array = SatrecArray(models)
     simulation = DualSimulation(ts, sat_array)
@@ -230,6 +230,6 @@ for beta in [0.1, 0.3, 0.5, 0.7, 0.9]:
     solver = lpdsolver()
     solver.BETA = beta
     simulation.set_solver(solver)
-    simulation.run(TOT_STEPS=500,visualize=True)
+    simulation.run(TOT_STEPS=500,visualize=False)
     
     simulation.save_np(LOG_DIR, f"beta{int(beta*10)}")

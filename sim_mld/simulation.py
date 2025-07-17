@@ -48,8 +48,8 @@ def khot_matrix(n_rows, n_cols, k, rng=None, seed=None, dtype=np.float32):
 
 
 class Simulation(STATS_OBJECT):
-    FOR_THETA_HALF: float = 30.0  # Angle in degrees for the satellite LT direction.
-    LISL_MAX_DISTANCE: float = 4000.0  # Maximum distance for LISL in km.
+    FOR_THETA_HALF: float = 60.0  # Angle in degrees for the satellite LT direction.
+    LISL_MAX_DISTANCE: float = 3000.0  # Maximum distance for LISL in km.
     TIME_SCALE: float = 15.0
     EARTH_RADIUS: float = 6371.0  # Earth's radius in km.
     
@@ -296,7 +296,21 @@ class Simulation(STATS_OBJECT):
     
     def config_l_mask(self, seed=0):
         rng = np.random.default_rng(seed)
-        self.lct_mask = khot_matrix(self.n_sat, self.N_LCT_PER_SAT, 2, rng=rng, dtype=np.float32)
+        self.lct_mask = np.zeros((self.n_sat, self.N_LCT_PER_SAT), dtype=np.float32)
+        self.lct_mask[:,0] = 1.0  # Ensure the first LCT is always present.
+        self.lct_mask[:,1] = 1.0
+        # self.lct_mask[:,2] = 1.0
+        # self.lct_mask[:,3] = 1.0
+        
+        # # self.lct_mask = khot_matrix(self.n_sat, self.N_LCT_PER_SAT, 2, rng=rng, dtype=np.float32)
+        # print(self.lct_mask.sum(axis=1), self.lct_mask.shape)
+        
+        # p= 0.5
+        # n_lct4_sat = int(self.n_sat * p)
+        # permuted_indices = rng.permutation(np.arange(0, self.n_sat))
+        # lct4_indices = permuted_indices[:n_lct4_sat]
+        # self.lct_mask[lct4_indices, :] = np.ones((n_lct4_sat, self.N_LCT_PER_SAT), dtype=np.float32) 
+        
         
         # p = 0.4
         # self.lct_mask = rng.choice([0, 1], size=(self.n_sat, self.N_LCT_PER_SAT), p=[1-p, p]).astype(np.float32)

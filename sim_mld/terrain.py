@@ -96,8 +96,9 @@ class terrain(STATS_OBJECT):
     SOURCE_UL_RATE = 0.05  # traffic source rate in Gbps
     TARGET_DL_RATE = 20 # target downlink rate in Gbps
     TARGET_UL_RATE = 20  # target uplink rate in Gbps
-    GW_RANGE = 600.0  # in kilometers, range of the ground station
+    GW_RANGE = 800.0  # in kilometers, range of the ground station
     
+    MAX_GW_NUM = 100
     def __init__(self):
         self.earth_rotation_deg = 0.0
         
@@ -124,6 +125,11 @@ class terrain(STATS_OBJECT):
         ground_station_positions = df[['lat', 'lng']].to_numpy()
         ground_station_positions = np.deg2rad(ground_station_positions)
         ground_station_positions = lat_lon_to_xyz(ground_station_positions)
+        
+        N_GW = min(self.MAX_GW_NUM, ground_station_positions.shape[0])
+        rng = np.random.default_rng(seed=0)
+        idx = rng.choice(np.arange(ground_station_positions.shape[0]), size=N_GW, replace=False)
+        ground_station_positions = ground_station_positions[idx, :]
         
         return ground_station_positions
 
