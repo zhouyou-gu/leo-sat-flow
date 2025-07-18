@@ -95,7 +95,7 @@ class testsolver(mr_solver):
 class DualSimulation(Simulation):
     def set_solver(self, solver):
         self.solver:mr_solver = solver
-        self.solver.init_constellation(self.filtered_repeated, self.filtered_expanded, self.positions)
+        self.solver.init_constellation(self.filtered_sat_pair_repeated, self.filtered_lct_pair_expanded, self.positions)
 
     def run_step(self):
         # Check the constellation connectivity

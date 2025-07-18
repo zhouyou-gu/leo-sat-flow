@@ -437,6 +437,28 @@ def compute_view_LT_pair_min_cos(filtered_view_from_stack, filtered_view_to_stac
     return final_result
 
 @njit(parallel=True, cache=True)
+def compute_lt_cos(lct_directions, sat_pair_repeated, lct_pairs_expanded,  direction, N_LCT_PER_SAT):
+    n_pairs = sat_pair_repeated.shape[0]
+    assert lct_pairs_expanded.shape[0] == n_pairs, "Shape mismatch between lct_pairs_expanded and sat_pair_repeated"
+    
+    ret = np.zeros((n_pairs, 2), dtype=lct_directions.dtype)
+    for i in prange(n_pairs):
+        # Get the source and destination indices for this edge.
+        src = sat_pair_repeated[i, 0]
+        dst = sat_pair_repeated[i, 1]
+        src_lct_idx = lct_pairs_expanded[i, 0] % N_LCT_PER_SAT
+        dst_lct_idx = lct_pairs_expanded[i, 1] % N_LCT_PER_SAT
+        d0 = direction[i, 0]
+        d1 = direction[i, 1]
+        d2 = direction[i, 2]
+        
+        # Compute dot products for source side.
+        ret[i,0] = lct_directions[src, src_lct_idx, 0]*d0 + lct_directions[src, src_lct_idx, 1]*d1 + lct_directions[src, src_lct_idx, 2]*d2
+        ret[i,1] = lct_directions[dst, dst_lct_idx, 0]*(-d0) + lct_directions[dst, dst_lct_idx, 1]*(-d1) + lct_directions[dst, dst_lct_idx, 2]*(-d2)
+
+    return ret
+
+@njit(parallel=True, cache=True)
 def expand_and_filter_edges(edges, p_lisl_LT_pair, repeat_per_node=4):
     """
     Expand each edge in a grid fashion and filter the expanded arrays based on a boolean mask.
@@ -608,15 +630,15 @@ def apply_mask_to_view(mask, edges, view_from_stack, view_to_stack):
         dst = edges[i, 1]
         
         # Compute dot products for source side.
-        ret_view_from_stack[i, 0] = mask[src, 0] * view_from_stack[i, 0]
-        ret_view_from_stack[i, 1] = mask[src, 1] * view_from_stack[i, 1]
-        ret_view_from_stack[i, 2] = mask[src, 2] * view_from_stack[i, 2]
-        ret_view_from_stack[i, 3] = mask[src, 3] * view_from_stack[i, 3]
+        ret_view_from_stack[i, 0] = mask[src, 0] * view_from_stack[i, 0] + (1 - mask[src, 0]) * (-1)
+        ret_view_from_stack[i, 1] = mask[src, 1] * view_from_stack[i, 1] + (1 - mask[src, 1]) * (-1)
+        ret_view_from_stack[i, 2] = mask[src, 2] * view_from_stack[i, 2] + (1 - mask[src, 2]) * (-1)
+        ret_view_from_stack[i, 3] = mask[src, 3] * view_from_stack[i, 3] + (1 - mask[src, 3]) * (-1)
         
-        ret_view_to_stack[i, 0] = mask[dst, 0] * view_to_stack[i, 0]
-        ret_view_to_stack[i, 1] = mask[dst, 1] * view_to_stack[i, 1]
-        ret_view_to_stack[i, 2] = mask[dst, 2] * view_to_stack[i, 2]
-        ret_view_to_stack[i, 3] = mask[dst, 3] * view_to_stack[i, 3]
+        ret_view_to_stack[i, 0] = mask[dst, 0] * view_to_stack[i, 0] + (1 - mask[dst, 0]) * (-1)
+        ret_view_to_stack[i, 1] = mask[dst, 1] * view_to_stack[i, 1] + (1 - mask[dst, 1]) * (-1)
+        ret_view_to_stack[i, 2] = mask[dst, 2] * view_to_stack[i, 2] + (1 - mask[dst, 2]) * (-1)
+        ret_view_to_stack[i, 3] = mask[dst, 3] * view_to_stack[i, 3] + (1 - mask[dst, 3]) * (-1)
 
     return ret_view_from_stack, ret_view_to_stack
 

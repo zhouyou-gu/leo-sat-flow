@@ -160,7 +160,7 @@ class GNNSimulation(Simulation):
         self.update_solver_constellation_info()
         self.update_solver_traffic_info(seed=self.N_STEP)
         
-        if self.filtered_expanded.size == 0:
+        if self.filtered_lct_pair_expanded.size == 0:
             return
         
         # Check the constellation connectivity

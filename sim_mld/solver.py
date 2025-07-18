@@ -266,7 +266,7 @@ class mr_solver(STATS_OBJECT):
     
     INIT_PRICES = 0.
     
-    BETA = 0.1
+    BETA = 0.5
     def __init__(self):
         self.ALPHA = 0.1
         
@@ -277,8 +277,9 @@ class mr_solver(STATS_OBJECT):
         self.n_sat = 0
         self.positions = None
         self.possible_sat_pair_expanded = None
-        self.possible_lct_pair_expanded = None 
-        
+        self.possible_lct_pair_expanded = None
+        self.possible_lct_pair_expanded_view_cos = None
+
         # traffic info
         self.data_source = None
         self.data_target = None
@@ -467,6 +468,46 @@ class mr_solver(STATS_OBJECT):
         else:
             return -np.sum(rates), rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct
 
+    def get_prim_objective_heuristic(self, with_rates=False, matching_method="grid", routing_method="opsf"):
+        if matching_method == "grid":
+            print("Using grid matching method")
+            edge_weights_pr = self.possible_lct_pair_expanded_view_cos[:,0] + self.possible_lct_pair_expanded_view_cos[:,1]
+            edge_weights_pr = edge_weights_pr.reshape(-1)
+        else:
+            print("Using other matching method")
+            capacity = self.compute_capacity(
+                np.linalg.norm(self.positions[self.possible_sat_pair_expanded[:, 0]] - self.positions[self.possible_sat_pair_expanded[:, 1]], axis=1)
+            )        
+            edge_weights_pr = capacity
+        
+        weighted_edges = np.column_stack((self.possible_lct_pair_expanded, edge_weights_pr))
+        matching = greedy_max_weight_matching(weighted_edges)
+        m = len(matching)
+        flat_array = np.fromiter((x for pair in ((min(e), max(e)) for e in matching)
+                                  for x in pair), dtype=int, count=2*m)
+        connected_lct = flat_array.reshape(-1, 2)
+        connected_sat = connected_lct // self.N_LCT_PER_SAT
+        distance = np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
+        capacity = self.compute_capacity(distance)
+
+        if routing_method == "ospf":
+            print("Using OSPF routing method")
+            indptr, indices, data = build_csr(self.n_sat, connected_sat, 1/capacity, sym_half=True)
+        else:
+            print("Using other routing method")
+            indptr, indices, data = build_csr(self.n_sat, connected_sat, np.ones_like(capacity), sym_half=True)
+        costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
+        srouting = construct_edges_matrix_all_in_one(
+            self.data_source, self.data_target, costs, lengths, paths_all
+        )
+        
+        rates = self.get_rates_prim(srouting, connected_lct, mode=self.objective_mode)
+        self._print(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
+        if not with_rates:
+            return -np.sum(rates)
+        else:
+            return -np.sum(rates), rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct 
+        
     def get_rates_prim(self, srouting, matching, mode="maxsum"):
         # Compute the edge capacity for the connected satellites
         connected_sat = matching // self.N_LCT_PER_SAT

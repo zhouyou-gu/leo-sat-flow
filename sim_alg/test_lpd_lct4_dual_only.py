@@ -111,7 +111,7 @@ class DualSimulation(Simulation):
         return self.ts.utc(2025, 6, 1, 0, 0, 0)
 
     def run_step(self):
-        if self.filtered_expanded.size == 0:
+        if self.filtered_lct_pair_expanded.size == 0:
             return
         
         # Check the constellation connectivity

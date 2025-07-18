@@ -108,7 +108,7 @@ class lpdsolver(mr_solver):
 class DualSimulation(Simulation):  
     def get_simulation_time(self):
         # return time at 2025 jun 1st
-        return self.ts.utc(2025, 6, 1, 0, 0, 0)
+        return self.ts.utc(2025, 7, 16, 16, 0, 0)
 
     def run_step(self):
         if self.filtered_lct_pair_expanded.size == 0:
@@ -205,22 +205,28 @@ class DualSimulation(Simulation):
       
       
 # Load tle data.
-ts, valid_satellites, sat_array = generate_walker_constellation(planes=20)
+from working_dir_path import get_working_dir_path
+import os
 
 LOG_OBJ = STATS_OBJECT()
 LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
 
-for beta in [0.1, 0.3, 0.5, 0.7, 0.9]:
-    print(f"Running simulation with beta: {int(beta*10)}")
+for N_SAT in [500, 750, 1000, 1500, 2000]:
     # Create simulation instance.
+    tle_file_path = os.path.join(get_working_dir_path(),'starlink_16_jul_2025_1600.tle')
+    ts, valid_satellites, sat_array = load_url_tle_data(tle_file_path, reload=True)
     i = 1
+    rng = np.random.default_rng(seed=i)
+    idx = rng.choice(np.arange(len(valid_satellites)), size=N_SAT, replace=False)
+    valid_satellites = [valid_satellites[x] for x in idx]
+    models = [sat.model for sat in valid_satellites]
+    sat_array = SatrecArray(models)
     simulation = DualSimulation(ts, sat_array)
     simulation.config_l_mask(seed=i)
     simulation.update_space()
 
     solver = lpdsolver()
-    solver.BETA = beta
     simulation.set_solver(solver)
     simulation.run(TOT_STEPS=500,visualize=False)
     
-    simulation.save_np(LOG_DIR, f"beta{int(beta*10)}")
+    simulation.save_np(LOG_DIR, f"n_sat{int(N_SAT)}")

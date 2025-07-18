@@ -108,7 +108,7 @@ class lpdsolver(mr_solver):
 class DualSimulation(Simulation):  
     def get_simulation_time(self):
         # return time at 2025 jun 1st
-        return self.ts.utc(2025, 6, 1, 0, 0, 0)
+        return self.ts.utc(2025, 7, 16, 16, 0, 0)
 
     def run_step(self):
         if self.filtered_lct_pair_expanded.size == 0:
@@ -205,22 +205,37 @@ class DualSimulation(Simulation):
       
       
 # Load tle data.
-ts, valid_satellites, sat_array = generate_walker_constellation(planes=20)
+from working_dir_path import get_working_dir_path
+import os
 
 LOG_OBJ = STATS_OBJECT()
 LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
 
-for beta in [0.1, 0.3, 0.5, 0.7, 0.9]:
-    print(f"Running simulation with beta: {int(beta*10)}")
-    # Create simulation instance.
-    i = 1
-    simulation = DualSimulation(ts, sat_array)
-    simulation.config_l_mask(seed=i)
-    simulation.update_space()
+tle_file_path = os.path.join(get_working_dir_path(),'starlink_16_jul_2025_1600.tle')
 
-    solver = lpdsolver()
-    solver.BETA = beta
-    simulation.set_solver(solver)
-    simulation.run(TOT_STEPS=500,visualize=False)
-    
-    simulation.save_np(LOG_DIR, f"beta{int(beta*10)}")
+for n_sat in [500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000]:
+    for ratio in [0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+        for i in range(10):
+            # Create simulation instance.
+            ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=n_sat, ratio=ratio, starlink_tle_path=tle_file_path, seed=i)
+            simulation = DualSimulation(ts, sat_array)
+            simulation.config_l_mask(seed=i)
+            simulation.update_space()
+
+            solver = lpdsolver()
+            simulation.set_solver(solver)
+            simulation.run(TOT_STEPS=200,visualize=False)
+            
+            p_o_list = []
+            p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = simulation.solver.get_prim_objective(with_rates=True)
+            p_o_list.append(p_o)
+            for m, matching_method in enumerate(["grid", "maxc"]):
+                for r, routing_method in enumerate(["ospf", "spf"]):
+                    p_o_heu, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = simulation.solver.get_prim_objective_heuristic(with_rates=True,
+                        matching_method=matching_method, routing_method=routing_method
+                    )
+                    p_o_list.append(p_o_heu)
+            res_list = [n_sat, ratio] + p_o_list
+            LOG_OBJ._add_np_log("res", i, np.array(res_list))
+
+LOG_OBJ.save_np(LOG_DIR, "res")

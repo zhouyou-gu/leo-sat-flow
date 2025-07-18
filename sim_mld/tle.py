@@ -4,6 +4,32 @@ from skyfield.api import load, EarthSatellite, wgs84
 from sgp4.api import SatrecArray
 import numpy as np
 
+def generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0.5, starlink_tle_path=None, seed=0):
+    N_SAT = n_sat
+    rng = np.random.default_rng(seed=seed)
+    ts, valid_satellites_starlink, sat_array = load_url_tle_data(starlink_tle_path, reload=True)
+    idx = rng.choice(np.arange(len(valid_satellites_starlink)), size=N_SAT, replace=False)
+    valid_satellites_starlink = [valid_satellites_starlink[x] for x in idx]
+    models = [sat.model for sat in valid_satellites_starlink]
+    sat_array = SatrecArray(models)
+    
+    N_REGULAR = int(N_SAT * ratio)
+    N_STARLINK = N_SAT - N_REGULAR
+    
+    idx = rng.choice(np.arange(len(valid_satellites_starlink)), size=N_STARLINK, replace=False)
+    valid_satellites_starlink = [valid_satellites_starlink[x] for x in idx]
+    
+    ts, valid_satellites_regular, sat_array = generate_walker_constellation(sats_per_plane=50, planes=20)
+    idx = rng.choice(np.arange(len(valid_satellites_regular)), size=N_REGULAR, replace=False)
+    valid_satellites_regular = [valid_satellites_regular[x] for x in idx]
+    
+    valid_satellites = valid_satellites_regular + valid_satellites_starlink
+    models = [sat.model for sat in valid_satellites]
+    sat_array = SatrecArray(models)    
+
+    return ts, valid_satellites, sat_array
+
+
 def load_url_tle_data(url: str, reload: bool = True) -> tuple:
     """
     Load Starlink TLE data from the provided URL.

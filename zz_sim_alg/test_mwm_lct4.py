@@ -62,7 +62,7 @@ class mwmsolver(mr_solver):
 class DualSimulation(Simulation):
     def set_solver(self, solver):
         self.solver:mr_solver = solver
-        self.solver.init_constellation(self.filtered_repeated, self.filtered_expanded, self.positions)
+        self.solver.init_constellation(self.filtered_sat_pair_repeated, self.filtered_lct_pair_expanded, self.positions)
 
     def config_l_mask(self, lct2_rho=0., lct4_rho=0., seed=0):
         assert lct2_rho + lct4_rho <= 1, "lct2_rho + lct4_rho must be less than or equal to 1"

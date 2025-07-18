@@ -121,8 +121,8 @@ class Simulation(STATS_OBJECT):
         
         # Initialize potential LISL edges and view stacks.
         self.filtered_edges = None
-        self.filtered_repeated = None
-        self.filtered_expanded = None
+        self.filtered_sat_pair_repeated = None
+        self.filtered_lct_pair_expanded = None
         
         # Precompute cosine threshold once.
         self.cos_threshold = math.cos(math.radians(self.FOR_THETA_HALF))
@@ -162,9 +162,10 @@ class Simulation(STATS_OBJECT):
         # Initialize the solver with the current constellation data.
         self.solver.n_sat = self.n_sat
         self.solver.positions = self.positions        
-        self.solver.possible_sat_pair_expanded = self.filtered_repeated
-        self.solver.possible_lct_pair_expanded = self.filtered_expanded
-
+        self.solver.possible_sat_pair_expanded = self.filtered_sat_pair_repeated
+        self.solver.possible_lct_pair_expanded = self.filtered_lct_pair_expanded
+        self.solver.possible_lct_pair_expanded_view_cos = self._get_view_cos()
+        
         self.solver._reset_price_graph(0.)
         
     def update_solver_traffic_info(self, seed=0):
@@ -331,6 +332,12 @@ class Simulation(STATS_OBJECT):
         self._print(f'Updating LCT mask... {self.update_count}')
         if self.lct_mask is not None:
             self.view_from_stack, self.view_to_stack = apply_mask_to_view(self.lct_mask, self.edges, self.view_from_stack, self.view_to_stack)
+
+    def _get_view_cos(self):
+        self._print(f'Computing view cosines... {self.update_count}')
+        direction = compute_directions(self.positions, self.filtered_sat_pair_repeated)
+        ret = compute_lt_cos(self.lct_directions, self.filtered_sat_pair_repeated, self.filtered_lct_pair_expanded, direction, self.N_LCT_PER_SAT)
+        return ret        
     
     def _update_p_lisl(self):
         self._print(f'Updating potential LISL... {self.update_count}')
@@ -346,13 +353,14 @@ class Simulation(STATS_OBJECT):
         # Expand edges and filter using the computed pair indicator.
         tic = time.perf_counter()
         # Only one direction of edges
-        self.filtered_repeated, self.filtered_expanded = expand_and_filter_edges(self.filtered_edges, p_lisl_LT_pair)
+        self.filtered_sat_pair_repeated, self.filtered_lct_pair_expanded = expand_and_filter_edges(self.filtered_edges, p_lisl_LT_pair)
         toc = time.perf_counter()
         self.profiled_time['expand_edges'] = toc - tic
         
-        if np.asarray(self.filtered_expanded).size == 0:
+        if np.asarray(self.filtered_lct_pair_expanded).size == 0:
             self._print("No potential LISL edges found.")
             return
+        
         # Filter view stacks for valid edges and compute pairwise minimum.
         tic = time.perf_counter()
         self.view_LT_pair_min_cos = compute_view_LT_pair_min_cos(filtered_view_from_stack, filtered_view_to_stack, p_lisl_LT_pair.reshape(-1))
@@ -363,7 +371,7 @@ class Simulation(STATS_OBJECT):
         # Draw the potential LISL edges.
         if self.PLOT_POTENTIAL_LISL:
             # Build the color array using np.array for clarity.
-            edges_color_data, p_lisl_data = optimize_edge_and_color_data(self.EDGE_COLOR, self.filtered_repeated, self.filtered_expanded, self.positions)
+            edges_color_data, p_lisl_data = optimize_edge_and_color_data(self.EDGE_COLOR, self.filtered_sat_pair_repeated, self.filtered_lct_pair_expanded, self.positions)
             edges_color_data[:, 3] = 0.25
             for viz in self.viz_list:
                 # Update the potential LISL lines.
@@ -422,7 +430,7 @@ class Simulation(STATS_OBJECT):
                 text += f"#n_sats: {self.n_sat}\n"
                 text += f"#n_q_es: {self.edges.shape[0]}\n"
                 text += f"#n_p_sp: {self.filtered_edges.shape[0]}\n"
-                text += f"#n_p_lp: {self.filtered_expanded.shape[0]}\n"
+                text += f"#n_p_lp: {self.filtered_lct_pair_expanded.shape[0]}\n"
                 text += f"FOR_THETA: +/-{self.FOR_THETA_HALF:.0f}°\n"
                 text += f"MAX_DIST: {self.LISL_MAX_DISTANCE:.0f} km\n"
                 for viz in self.viz_list:

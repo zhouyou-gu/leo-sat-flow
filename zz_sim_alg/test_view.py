@@ -47,7 +47,7 @@ class TestViewSimulation(Simulation):
         self.lct_mask[self.lct4_indices] = np.array([1, 1, 1, 1], dtype=np.float32)   
 
     def run_step(self):
-        if self.filtered_expanded.size == 0:
+        if self.filtered_lct_pair_expanded.size == 0:
             return
         # self._update_o_lisl(satp=connected_sat, viz=self.viz_list[1], edge_weight=capacity/capacity.max())
 

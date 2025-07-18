@@ -165,7 +165,7 @@ class DualSimulation(Simulation):
         self.config_l_mask(lct2_rho=rho, lct4_rho=rho, seed=self.N_STEP)
         self.update_space()
         
-        if self.filtered_expanded.size == 0:
+        if self.filtered_lct_pair_expanded.size == 0:
             return
         # Check the constellation connectivity
         self.update_solver_states(seed=self.N_STEP)
