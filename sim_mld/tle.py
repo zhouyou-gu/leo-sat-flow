@@ -19,7 +19,12 @@ def generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0.5, starlin
     idx = rng.choice(np.arange(len(valid_satellites_starlink)), size=N_STARLINK, replace=False)
     valid_satellites_starlink = [valid_satellites_starlink[x] for x in idx]
     
-    ts, valid_satellites_regular, sat_array = generate_walker_constellation(sats_per_plane=50, planes=20)
+    N_REGULAR_ORBITS = int(math.sqrt(N_SAT / 2))
+    N_REGULAR_SAT_PER_ORBIT = int(N_SAT / N_REGULAR_ORBITS)
+    while N_REGULAR_SAT_PER_ORBIT * N_REGULAR_ORBITS < N_SAT:
+        N_REGULAR_SAT_PER_ORBIT += 1
+    ts, valid_satellites_regular, sat_array = generate_walker_constellation(sats_per_plane=N_REGULAR_SAT_PER_ORBIT, planes=N_REGULAR_ORBITS)
+    print("Generated %d regular satellites in %d orbits with %d satellites per orbit." % (len(valid_satellites_regular), N_REGULAR_ORBITS, N_REGULAR_SAT_PER_ORBIT))
     idx = rng.choice(np.arange(len(valid_satellites_regular)), size=N_REGULAR, replace=False)
     valid_satellites_regular = [valid_satellites_regular[x] for x in idx]
     

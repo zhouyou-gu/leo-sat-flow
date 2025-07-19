@@ -468,7 +468,7 @@ class mr_solver(STATS_OBJECT):
         else:
             return -np.sum(rates), rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct
 
-    def get_prim_objective_heuristic(self, with_rates=False, matching_method="grid", routing_method="opsf"):
+    def get_prim_objective_heuristic(self, with_rates=False, matching_method="grid", routing_method="ospf"):
         if matching_method == "grid":
             print("Using grid matching method")
             edge_weights_pr = self.possible_lct_pair_expanded_view_cos[:,0] + self.possible_lct_pair_expanded_view_cos[:,1]
