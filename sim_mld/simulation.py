@@ -55,8 +55,13 @@ class Simulation(STATS_OBJECT):
     
     N_LCT_PER_SAT: int = 4  # Number of LCTs per satellite.
         
-    PLOT_POTENTIAL_LISL: bool = False    
+    PLOT_POTENTIAL_LISL: bool = False 
+    PLOT_POTENTIAL_LISL_LINE_WIDTH: float = 0.02
     PLOT_SATELLITE_LCTS: bool = True
+    
+    PLOT_GWS_POINT_SIZE: float = 10
+    PLOT_SAT_POINT_SIZE: float = 10
+    
     PLOT_TEXT: bool = False
     
     FRONT_COLOR = np.array([0, 0, 0.85, 1])
@@ -64,7 +69,6 @@ class Simulation(STATS_OBJECT):
     RIGHT_COLOR = np.array([1, 0, 0, 1])
     LEFT_COLOR = np.array([0.75, 0.75, 0, 1])
     
-    EDGE_COLOR = np.array([FRONT_COLOR,BACK_COLOR,RIGHT_COLOR,LEFT_COLOR])
 
     VISUALIZE: bool = False
     def __init__(self, ts, sat_array):
@@ -219,7 +223,7 @@ class Simulation(STATS_OBJECT):
         for viz in self.viz_list:
             viz['sphere_visual'].transform.reset()
             viz['sphere_visual'].transform.rotate(self.earth_rotation_angle, (0, 0, 1))
-            viz['o_scatter'].set_data(self.terrain.get_ground_station_positions(), face_color=[0, 0, 0.5, 1], size=5, edge_width_rel=0)
+            viz['o_scatter'].set_data(self.terrain.get_ground_station_positions(), face_color=[1, 0.65, 0, 1], size=self.PLOT_GWS_POINT_SIZE, edge_width_rel=0)
 
 
     def _update_satellite_positions(self):
@@ -241,7 +245,7 @@ class Simulation(STATS_OBJECT):
 
         for viz in self.viz_list:
             # Update the satellite markers.
-            viz['scatter'].set_data(self.positions, face_color=[0, 0.1, 0, 0.75], size=7.5, edge_width_rel=0)
+            viz['scatter'].set_data(self.positions, face_color=[0, 0.1, 0, 0.75], size=self.PLOT_SAT_POINT_SIZE, edge_width_rel=0)
 
     def _update_satellite_arrows(self):
         self._print(f'Updating satellite arrows... {self.update_count}')
@@ -249,7 +253,7 @@ class Simulation(STATS_OBJECT):
         self.front, self.back, self.down, self.right, self.left = update_arrows(self.velocities, self.positions)
         if self.PLOT_SATELLITE_LCTS:
             a_from = np.tile(self.positions, (self.N_LCT_PER_SAT, 1))
-            a_to = np.concatenate((self.front, self.back, self.right, self.left), axis=0) * 0.01 + a_from
+            a_to = np.concatenate((self.front, self.back, self.right, self.left), axis=0) * 0.005 + a_from
             a_data = np.concatenate((a_from, a_to), axis=1).reshape(-1, 3)
 
             num_arrows = self.positions.shape[0] * 8
@@ -375,8 +379,8 @@ class Simulation(STATS_OBJECT):
             edges_color_data[:, 3] = 0.25
             for viz in self.viz_list:
                 # Update the potential LISL lines.
-                viz['p_lisl'].set_data(pos=p_lisl_data, color=edges_color_data, width=0.01, connect='segments')
-            
+                viz['p_lisl'].set_data(pos=p_lisl_data, color=edges_color_data, width=self.PLOT_POTENTIAL_LISL_LINE_WIDTH, connect='segments')
+
         toc = time.perf_counter()
         self.profiled_time['draw_p_lisl'] = toc - tic
            
@@ -569,3 +573,7 @@ class Simulation(STATS_OBJECT):
         
     def set_viz_data(self):
         pass
+    
+    @property
+    def EDGE_COLOR(self):
+        return np.array([self.FRONT_COLOR, self.BACK_COLOR, self.RIGHT_COLOR, self.LEFT_COLOR], dtype=np.float32)

@@ -20,7 +20,7 @@ print("Sum value", np.sum(ghs_data))
 ghs_data[0][ghs_data[0] < 0.0] = 0.0
 
 ghs_data_pic = ghs_data[0]  # Use the first band for population density
-ghs_data_pic = np.log1p(ghs_data_pic*100)  # Apply log transformation to enhance visibility
+ghs_data_pic = np.log1p(ghs_data_pic*50)  # Apply log transformation to enhance visibility
 ghs_data_pic[ghs_data_pic < 0] = 0  # Ensure no negative values after log transformation
 ghs_data_pic = ghs_data_pic / np.max(ghs_data_pic)  # Normalize the data to [0, 1]
 # Create a figure with Cartopy to visualize the data
@@ -29,10 +29,10 @@ ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
 ax.set_global()
 ax.set_axis_off()
 ax.add_feature(cfeature.OCEAN, facecolor='white')
-ax.add_feature(cfeature.LAND, facecolor='#A0A0A0')  # Light gray for land
+ax.add_feature(cfeature.LAND, facecolor="#D4D4D4")  # Light gray for land
 ax.add_feature(cfeature.COASTLINE, edgecolor='#606060', linewidth=0.1)
 # Create a colormap for the texture, where the low values are transparent
-colors = [(0, 0.5, 1, a) for a in np.linspace(0, 1, 256)]
+colors = [(0, 0.8, 0.25, a) for a in np.linspace(0, 1, 256)]
 test_cmap = LinearSegmentedColormap.from_list("test_cmap", colors, N=256)
 
 # set the extent of the plot to match the raster data
