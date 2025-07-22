@@ -561,8 +561,11 @@ class mr_solver(STATS_OBJECT):
         
         # --- LP solve -------------------------------------------------------------
         prob = cp.Problem(cp.Maximize(cp.sum(r)), constraints)
-        prob.solve(solver=cp.HIGHS)
-
+        tic = self._get_tic()
+        prob.solve(solver=cp.HIGHS, highs_options=dict(solver="simplex"))        
+        tim = self._get_tim(tic)
+        self._printalltime(f"Prim LP solve took {tim:.2f} us")
+        
         opt = r.value
         rate_map = {
             (int(src), int(tgt)): float(rate)
@@ -604,8 +607,10 @@ class mr_solver(STATS_OBJECT):
         # --- LP solve -------------------------------------------------------------
         obj = cp.sum(cp.multiply(-costs+1, r))
         prob = cp.Problem(cp.Maximize(obj), constraints)
-        prob.solve(solver=cp.HIGHS)
-        
+        tic = self._get_tic()
+        prob.solve(solver=cp.HIGHS, highs_options=dict(solver="simplex"))        
+        tim = self._get_tim(tic)
+        self._printalltime(f"Dual LP solve took {tim:.2f} us")
         opt = r.value
         return opt
 

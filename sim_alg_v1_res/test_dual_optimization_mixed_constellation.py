@@ -26,7 +26,7 @@ from vispy import app
 import logging
 import plotext
 
-from sim_src.util import GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT, counted
+from sim_src.util import CSV_WRITER_OBJECT, GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT, counted
 
 np.set_printoptions(precision=4,threshold=10,linewidth=80, edgeitems=2)
 
@@ -210,12 +210,12 @@ import os
 
 LOG_OBJ = STATS_OBJECT()
 LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
-
+LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
 tle_file_path = os.path.join(get_working_dir_path(),'starlink_16_jul_2025_1600.tle')
 
-for n_sat in [500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000]:
+for n_sat in [500, 750, 1000, 1250, 1500, 1750, 2000]:
     for ratio in [0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
-        for i in range(10):
+        for i in range(1):
             # Create simulation instance.
             ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=n_sat, ratio=ratio, starlink_tle_path=tle_file_path, seed=i)
             simulation = DualSimulation(ts, sat_array)
@@ -236,6 +236,7 @@ for n_sat in [500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000]:
                     )
                     p_o_list.append(p_o_heu)
             res_list = [n_sat, ratio] + p_o_list
-            LOG_OBJ._add_np_log("res", i, np.array(res_list))
+            LOG_CSV_WRITTER.log_mul_scalar("res.csv", i, res_list)
+            # LOG_OBJ._add_np_log("res", i, np.array(res_list))
 
-LOG_OBJ.save_np(LOG_DIR, "res")
+# LOG_OBJ.save_np(LOG_DIR, "res")
