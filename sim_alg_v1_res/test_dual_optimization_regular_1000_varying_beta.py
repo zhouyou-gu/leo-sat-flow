@@ -27,6 +27,7 @@ import logging
 import plotext
 
 from sim_src.util import GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT, counted
+from working_dir_path import get_working_dir_path
 
 np.set_printoptions(precision=4,threshold=10,linewidth=80, edgeitems=2)
 
@@ -203,9 +204,8 @@ class DualSimulation(Simulation):
         self.viz_list[3]['view'].add(traffic_flow)
         self.viz_list[3]['traffic_flow'] = traffic_flow       
       
-      
-# Load tle data.
-ts, valid_satellites, sat_array = generate_walker_constellation(planes=20)
+import os
+tle_file_path = os.path.join(get_working_dir_path(),'starlink_16_jul_2025_1600.tle')
 
 LOG_OBJ = STATS_OBJECT()
 LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
@@ -214,6 +214,7 @@ for beta in [0.1, 0.3, 0.5, 0.7, 0.9]:
     print(f"Running simulation with beta: {int(beta*10)}")
     # Create simulation instance.
     i = 1
+    ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=1.0, starlink_tle_path=tle_file_path, seed=i)
     simulation = DualSimulation(ts, sat_array)
     simulation.config_l_mask(seed=i)
     simulation.update_space()
