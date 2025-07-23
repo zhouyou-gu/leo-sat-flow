@@ -419,20 +419,28 @@ class mr_solver(STATS_OBJECT):
 
     def get_prim_objective(self, with_rates=False):
         self._print("Computing prim objective")
+        tic_rounding_matching = self._get_tic()
         connected_sat, connected_lct = self.get_dual_matching()
-
+        tim = self._get_tim(tic_rounding_matching)
+        self._add_np_log("prim_rounding_matching_time", self.N_STEP, tim)
+        
+        tic_rounding_routing = self._get_tic()
         edge_in_both_direction = np.concatenate((connected_sat, connected_sat[:, ::-1]), axis=0)
         prices = self.price_graph.get_prices(edge_in_both_direction)
         indptr, indices, data = build_csr(self.n_sat, edge_in_both_direction, prices, sym_half=False)
         costs, lengths, paths_all = multi_dijkstra_with_paths(self.n_sat, indptr, indices, self.data_source, self.data_target, data)
-        
         srouting = construct_edges_matrix_all_in_one(
             self.data_source, self.data_target, costs, lengths, paths_all
         )
-
+        tim = self._get_tim(tic_rounding_routing)
+        self._add_np_log("prim_rounding_routing_time", self.N_STEP, tim)
+        
+        tic_rounding_rates = self._get_tic()
         rates = self.get_rates_prim(srouting, connected_lct, mode=self.objective_mode)
         self._print(f"Real rate: MAX: {np.max(rates)}, MIN: {np.min(rates)}")
         self._print(f"Appr rate: MAX: {np.max(self.s_t_traffic_rates)}, MIN: {np.min(self.s_t_traffic_rates)}")
+        tim = self._get_tim(tic_rounding_rates)
+        self._add_np_log("prim_rounding_rates_time", self.N_STEP, tim)
         if not with_rates:
             return -np.sum(rates)
         else:
