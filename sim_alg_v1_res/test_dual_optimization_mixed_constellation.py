@@ -214,7 +214,7 @@ LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
 tle_file_path = os.path.join(get_working_dir_path(),'starlink_16_jul_2025_1600.tle')
 
 for n_sat in [500, 750, 1000, 1250, 1500, 1750, 2000]:
-    for ratio in [0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+    for ratio in [0.]:
         for i in range(1):
             # Create simulation instance.
             ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=n_sat, ratio=ratio, starlink_tle_path=tle_file_path, seed=i)
@@ -224,15 +224,15 @@ for n_sat in [500, 750, 1000, 1250, 1500, 1750, 2000]:
 
             solver = lpdsolver()
             simulation.set_solver(solver)
-            simulation.run(TOT_STEPS=200,visualize=False)
+            simulation.run(TOT_STEPS=500,visualize=False)
             
             p_o_list = []
             p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = simulation.solver.get_prim_objective(with_rates=True)
             p_o_list.append(p_o)
-            for m, matching_method in enumerate(["grid", "maxc"]):
-                for r, routing_method in enumerate(["ospf", "spf"]):
+            for m, matching_method in enumerate(["grid", "maxc", "rand"]):
+                for r, routing_method in enumerate(["ospf"]):
                     p_o_heu, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = simulation.solver.get_prim_objective_heuristic(with_rates=True,
-                        matching_method=matching_method, routing_method=routing_method
+                        matching_method=matching_method, routing_method=routing_method, seed=i
                     )
                     p_o_list.append(p_o_heu)
             res_list = [n_sat, ratio] + p_o_list

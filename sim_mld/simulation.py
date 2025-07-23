@@ -302,12 +302,12 @@ class Simulation(STATS_OBJECT):
     def config_l_mask(self, seed=0):
         rng = np.random.default_rng(seed)
         self.lct_mask = np.zeros((self.n_sat, self.N_LCT_PER_SAT), dtype=np.float32)
-        # self.lct_mask[:,0] = 1.0  # Ensure the first LCT is always present.
-        # self.lct_mask[:,1] = 1.0
+        self.lct_mask[:,0] = 1.0
+        self.lct_mask[:,1] = 1.0
         # self.lct_mask[:,2] = 1.0
         # self.lct_mask[:,3] = 1.0
         
-        self.lct_mask = khot_matrix(self.n_sat, self.N_LCT_PER_SAT, 2, rng=rng, dtype=np.float32)
+        # self.lct_mask = khot_matrix(self.n_sat, self.N_LCT_PER_SAT, 2, rng=rng, dtype=np.float32)
         # print(self.lct_mask.sum(axis=1), self.lct_mask.shape)
         
         # p= 0.5
