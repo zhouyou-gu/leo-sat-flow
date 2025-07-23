@@ -113,7 +113,28 @@ class lpdsolver(mr_solver):
         plotext.plotsize(100, 30)
         plotext.xticks([-5, -4, -3, -2, -1, 0, 1, 2, 3],)
         plotext.show()
-        plotext.clf()        
+        plotext.clf()
+        
+        p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.get_prim_objective(with_rates=True)
+        self._add_np_log("n_pe", self.N_STEP, self.possible_lct_pair_expanded.shape[0])
+        
+        unique_pairs_view, pair_ids = np.unique(self.possible_sat_pair_expanded, return_inverse=True, axis=0)
+        F = unique_pairs_view.shape[0]
+        self._add_np_log("n_pp", self.N_STEP, F)
+        
+        unique_pairs_view, pair_ids = np.unique(connected_sat, return_inverse=True, axis=0)
+        F = unique_pairs_view.shape[0]
+        self._add_np_log("n_cp", self.N_STEP, F)
+        
+        self._add_np_log("n_st", self.N_STEP, self.data_source.shape[0])
+        
+        self._add_np_log("n_ce", self.N_STEP, connected_lct.shape[0])
+        
+        flow_pairs = srouting[:, 2:4]
+        unique_pairs_view, flow_ids = np.unique(flow_pairs, return_inverse=True, axis=0)
+        F = unique_pairs_view.shape[0]
+        self._add_np_log("n_fp", self.N_STEP, F)
+
         return new_price    
 
 class DualSimulation(Simulation):  
@@ -238,6 +259,6 @@ for N_SAT in [500, 750, 1000, 1250, 1500, 1750, 2000]:
 
     solver = lpdsolver()
     simulation.set_solver(solver)
-    simulation.run(TOT_STEPS=500,visualize=False)
+    simulation.run(TOT_STEPS=20,visualize=False)
     
-    simulation.save_np(LOG_DIR, f"n_sat{int(N_SAT)}")
+    solver.save_np(LOG_DIR, f"n_sat{int(N_SAT)}")
