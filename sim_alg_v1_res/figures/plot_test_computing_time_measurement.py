@@ -85,7 +85,7 @@ for j in range(7):
     data  = res[:, j, :]
     print(data.shape)
     data_mean = np.mean(data, axis=1).reshape(-1)/1e6
-    line, = axs.plot(np.array(n_sat), data_mean,linewidth=1,marker=markers[j], linestyle='-',markerfacecolor='None',markersize=4)
+    line, = axs.plot(np.array(n_sat), data_mean,linewidth=1,marker=markers[j], linestyle='-',markerfacecolor='None',markersize=5)
     lines1.append(line)
 
 axs.set_position([0.15, 0.175, 0.8, 0.6])

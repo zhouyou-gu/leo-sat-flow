@@ -74,14 +74,14 @@ for i, n in enumerate(n_sat):
 
 # colors = ["#FFD9B6","#FDBD88","#E96900","#AD4E00","#723300"]
 
-markers = ['+', 's', 'D', '^', 'v', 'x', '*']
+markers = ['o', 'x', 'D', '^', 'v', 'x', '*']
 lines1 = []
 lines2 = []
 for j in range(5):    
     data  = res[:, j, :]
     print(data.shape)
     data_mean = np.mean(data, axis=1).reshape(-1)
-    line, = axs.plot(np.array(n_sat), data_mean, linewidth=1, marker=markers[j], linestyle='-',markerfacecolor='None',markersize=4)
+    line, = axs.plot(np.array(n_sat), data_mean, linewidth=1, marker=markers[j], linestyle='-',markerfacecolor='None',markersize=5)
     lines1.append(line)
 
 axs.set_position([0.15, 0.2, 0.8, 0.65])
