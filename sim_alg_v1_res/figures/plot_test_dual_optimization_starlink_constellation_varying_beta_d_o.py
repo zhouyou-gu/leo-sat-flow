@@ -79,7 +79,7 @@ for i, b in enumerate(beta):
 
 axs.set_position([0.18, 0.2, 0.775, 0.765])
 # axs.set_title('Beam Intensity')
-axs.set_xlabel(r'Number of Iterations, $I$')
+axs.set_xlabel(r'Number of Iterations, $K$')
 axs.set_ylabel(r'Dual Function Value, $g(\lambda)$')
 axs.set_xlim(0, N_POINTS)
 # axs.set_ylim(-2500, -500)
