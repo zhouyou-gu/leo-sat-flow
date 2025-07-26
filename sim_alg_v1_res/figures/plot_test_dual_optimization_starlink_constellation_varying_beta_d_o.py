@@ -100,7 +100,7 @@ h, l = lines1, data_name_list
 # h = [h[i] for i in order]
 # l = [l[i] for i in order]
 
-leg = plt.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.275, 0.025, 0.7, 0.3), mode="expand",ncol = 3 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.2, 
+leg = plt.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.25, 0.025, 0.7, 0.3), mode="expand",ncol = 3 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.2, 
 frameon=True,          # draw a frame
 fancybox=False,        # <-- square corners (like MATLAB)
 edgecolor='black',     # black  frame edge
