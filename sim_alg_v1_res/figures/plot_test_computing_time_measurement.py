@@ -99,8 +99,8 @@ axs.set_yscale('log')
 axs.grid()
 # Add a legend
 
-data_name_list = ["d. MWM", "d. SPF","d. FRM", "d. SG",
-                  "p. MWM","p. SPF","p. FRM"
+data_name_list = ["D. MWM", "D. SPF","D. FRM", "D. SG",
+                  "P. MWM","P. SPF","P. FRM"
                    ]
 ncol = 4  # Number of columns in the legend
 h, l = lines1, data_name_list

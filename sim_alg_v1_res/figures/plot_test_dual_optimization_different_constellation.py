@@ -33,7 +33,7 @@ results_file = "/home/zhouyou/leo-sat-flow/sim_alg_v1_res/test_dual_optimization
 fig, axs = plt.subplots(1,1)
 fig.set_size_inches(fig_width_in, fig_height_in)  # 3.5 inches width, height adjusted to maintain aspect ratio
 
-name = ["LagD","Grid","Rand","MRate"]
+name = ["LaDu","+Grid","Rand","MRate"]
 data = np.genfromtxt(results_file, delimiter=',')
 markers = ['o', 's', 'D', '^', 'v', 'x', '*']
 
@@ -46,7 +46,7 @@ for i in range(data.shape[1]):
     b = axs.bar(index + (i -1.5)* bar_width, data[:, i], bar_width, label=name[i])
     bars.append(b)
 axs.set_position([0.175, 0.2, 0.8, 0.65])
-axs.set_ylabel(r"Total Throughput (Gbps)")
+axs.set_ylabel(r"Total Flow Rate (Gbps)")
 axs.set_xlabel(r'Constellation Type')
 axs.set_xticks(index)
 axs.set_xticklabels([r"Starlink", r"Walk-Delta", r"OneWeb"])

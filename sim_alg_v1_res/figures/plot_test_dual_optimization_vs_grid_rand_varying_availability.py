@@ -33,7 +33,7 @@ results_file = "/home/zhouyou/leo-sat-flow/sim_alg_v1_res/test_dual_optimization
 fig, axs = plt.subplots(1,1)
 fig.set_size_inches(fig_width_in, fig_height_in)  # 3.5 inches width, height adjusted to maintain aspect ratio
 
-name = ["Proposed","+Grid","Rand","MRate"]
+name = ["LaDu","+Grid","Rand","MRate"]
 data = np.genfromtxt(results_file, delimiter=',')
 markers = ['o', 's', 'D', '^', 'v', 'x', '*']
 
@@ -42,13 +42,13 @@ bar_width = 0.4
 bars = []
 index = np.arange(data.shape[0])*2
 for i in range(data.shape[1]):
-    b = axs.bar(index + (i -1.5)* bar_width, data[:, i], bar_width, label=name[i])
+    b = axs.bar(index + (i -1.5)* bar_width, data[::-1, i], bar_width, label=name[i])
     bars.append(b)
 axs.set_position([0.175, 0.2, 0.8, 0.65])
-axs.set_ylabel(r"$\sum q^{(s,s')}$ (Gbps)")
-axs.set_xlabel(r'Unavailability Rate of LCTs')
+axs.set_ylabel(r"Total Flow Rate (Gbps)")
+axs.set_xlabel(r"Average Number of LCTs per Satellite, $\mathbb{E}[N']$")
 axs.set_xticks(index)
-axs.set_xticklabels(["0.0", "0.1", "0.2", "0.3", "0.4", "0.5", "0.6"])
+axs.set_xticklabels(["0.8", "1.0", "1.2", "1.4", "1.6", "1.8", "2.0"])
 axs.grid(True)
 # axs.set_position([0.18, 0.2, 0.775, 0.765])
 # # axs.set_title('Beam Intensity')
