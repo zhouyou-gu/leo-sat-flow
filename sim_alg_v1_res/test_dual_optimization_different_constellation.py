@@ -26,7 +26,7 @@ from vispy import app
 import logging
 import plotext
 
-from sim_src.util import GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT, counted
+from sim_src.util import CSV_WRITER_OBJECT, GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT, counted
 
 np.set_printoptions(precision=4,threshold=10,linewidth=80, edgeitems=2)
 
@@ -207,29 +207,47 @@ class DualSimulation(Simulation):
 # Load tle data.
 from working_dir_path import get_working_dir_path
 import os
-tle_file_path = os.path.join(get_working_dir_path(),'starlink_16_jul_2025_1600.tle')
-ts, valid_satellites, sat_array = load_url_tle_data(tle_file_path, reload=True)
-
 
 LOG_OBJ = STATS_OBJECT()
 LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
+LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
+starlink_tle_file_path = os.path.join(get_working_dir_path(),'starlink_16_jul_2025_1600.tle')
+oneweb_tle_file_path = os.path.join(get_working_dir_path(),'oneweb_16_jul_2025_1600.tle')
 
-for beta in [0.5, 0.7, 0.9]:
-    print(f"Running simulation with beta: {int(beta*10)}")
-    # Create simulation instance.
-    i = 1
-    rng = np.random.default_rng(seed=i)
-    idx = rng.choice(np.arange(len(valid_satellites)), size=1000, replace=False)
-    valid_satellites = [valid_satellites[x] for x in idx]
-    models = [sat.model for sat in valid_satellites]
-    sat_array = SatrecArray(models)
-    simulation = DualSimulation(ts, sat_array)
-    simulation.config_l_mask(seed=i)
-    simulation.update_space()
+for constellation in ["oneweb", "starlink", "walker-delta"]:
+    for ratio in [0.]:
+        for i in range(1):
+            # Create simulation instance.
+            if constellation == "oneweb":
+                ts, valid_satellites, sat_array = load_url_tle_data(oneweb_tle_file_path, reload=True)
+            elif constellation == "starlink":
+                ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0., starlink_tle_path=starlink_tle_file_path, seed=i)
+            elif constellation == "walker-delta":
+                ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=1., starlink_tle_path=starlink_tle_file_path, seed=i)
+            simulation = DualSimulation(ts, sat_array)
+            
+            if constellation == "oneweb":
+                simulation.terrain.GW_RANGE = 1800.0  # in kilometers, range of the ground station
+                simulation.LISL_MAX_DISTANCE = 4000.0  # in kilometers, max distance for laser links
+            simulation.config_l_mask(seed=i)
+            simulation.update_space()
 
-    solver = lpdsolver()
-    solver.BETA = beta
-    simulation.set_solver(solver)
-    simulation.run(TOT_STEPS=2000,visualize=False)
-    
-    simulation.save_np(LOG_DIR, f"beta{int(beta*10)}")
+            solver = lpdsolver()
+            simulation.set_solver(solver)
+            simulation.run(TOT_STEPS=1000,visualize=False)
+            
+            p_o_list = []
+            p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = simulation.solver.get_prim_objective(with_rates=True)
+            p_o_list.append(p_o)
+            for m, matching_method in enumerate(["grid", "maxc", "rand"]):
+                for r, routing_method in enumerate(["ospf"]):
+                    p_o_heu, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = simulation.solver.get_prim_objective_heuristic(with_rates=True,
+                        matching_method=matching_method, routing_method=routing_method, seed=i
+                    )
+                    p_o_list.append(p_o_heu)
+            res_list = [0, 0] + p_o_list
+            LOG_CSV_WRITTER.log_mul_scalar("res.csv", i, res_list)
+
+            # LOG_OBJ._add_np_log("res", i, np.array(res_list))
+
+# LOG_OBJ.save_np(LOG_DIR, "res")
