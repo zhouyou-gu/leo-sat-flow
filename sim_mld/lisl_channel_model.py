@@ -40,6 +40,7 @@ if __name__ == "__main__":
     # Example parameters
     wavelength = 1.55e-6    # Wavelength in meters (1.55 microns typical in telecom)
     w0 = w0_from_angular_spreading(100e-6, wavelength)  # Beam waist in meters
+    print(f"Rayleigh range: {rayleigh_range(w0, wavelength):.2e} m")
     print(f"Beam waist w0: {w0:.2e} m")
     z_values = np.geomspace(1, 3e6, 100)  # from 0 to 3000 km
     rho = 0.0        # on-axis, for example
