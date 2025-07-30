@@ -6,7 +6,7 @@ import numpy as np
 #create a figure with (2,1) subplots
 FONT_SIZE = 9
 fig_width_px = 350
-fig_height_px = 225
+fig_height_px = 200
 dpi = 100  # Typical screen DPI, adjust if necessary
 fig_width_in = fig_width_px / dpi
 fig_height_in = fig_height_px / dpi
@@ -45,9 +45,8 @@ index = np.arange(data.shape[0])*2
 for i in range(data.shape[1]):
     b = axs.bar(index + (i -1.5)* bar_width, data[:, i], bar_width, label=name[i])
     bars.append(b)
-axs.set_position([0.175, 0.2, 0.8, 0.65])
+axs.set_position([0.175, 0.125, 0.8, 0.725])
 axs.set_ylabel(r"Total Flow Rate (Gbps)")
-axs.set_xlabel(r'Constellation Type')
 axs.set_xticks(index)
 axs.set_xticklabels([r"Starlink", r"Walk-Delta", r"OneWeb"])
 axs.grid(True)

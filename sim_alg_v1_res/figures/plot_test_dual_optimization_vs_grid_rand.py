@@ -43,7 +43,7 @@ index = np.arange(data.shape[0])*2
 for i in range(data.shape[1]):
     b = axs.bar(index + (i -1.5)* bar_width, data[:, i], bar_width, label=name[i])
     bars.append(b)
-axs.set_position([0.175, 0.2, 0.8, 0.65])
+axs.set_position([0.175, 0.18, 0.8, 0.7])
 axs.set_ylabel(r"Total Flow Rate (Gbps)")
 axs.set_xlabel(r'Number of Satellites, $I$')
 axs.set_xticks(index)
@@ -72,7 +72,7 @@ axs.grid(True)
 # h = [h[i] for i in order]
 # l = [l[i] for i in order]
 
-leg = fig.legend(bars, name ,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.175, 0.875, 0.8, 0.125), mode="expand",ncol = 4 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.2, 
+leg = fig.legend(bars, name ,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.175, 0.9, 0.8, 0.125), mode="expand",ncol = 4 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.2, 
 frameon=True,          # draw a frame
 fancybox=False,        # <-- square corners (like MATLAB)
 edgecolor='black',     # black  frame edge
