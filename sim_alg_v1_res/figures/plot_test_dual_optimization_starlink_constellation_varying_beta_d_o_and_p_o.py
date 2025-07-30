@@ -70,13 +70,13 @@ for a in range(2):
     for i, b in enumerate(beta):
         print(f"Plotting beta = {b}",i)
         print(result_list)
-        line, = axs[a].plot(np.arange(N_POINTS)+1, res[i,index[a],:],linewidth=1)
+        line, = axs[a].plot(np.arange(N_POINTS)+1, res[i,index[a],:],linewidth=1, zorder=3)
         lines1.append(line)
 
         axs[a].set_position([0.18, 0.165 + a*0.375, 0.775, 0.35])
         axs[a].set_xlim(0, N_POINTS)
 
-        axs[a].grid()
+        axs[a].grid(True, zorder=0)
 
 axs[0].set_xlabel(r'Number of Iterations, $K$')
 axs[0].set_ylabel(r'$g(\lambda)$')

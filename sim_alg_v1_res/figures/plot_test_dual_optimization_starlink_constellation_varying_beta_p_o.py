@@ -70,7 +70,7 @@ for i, b in enumerate(beta):
     print(result_list)
     AVG_N = 5
     avg = np.convolve(-res[i,3,:], np.ones(AVG_N)/AVG_N, mode='full')[:N_POINTS]
-    line, = axs.plot(np.arange(N_POINTS)+1, avg,linewidth=1)
+    line, = axs.plot(np.arange(N_POINTS)+1, avg, linewidth=1., zorder=3)
     lines1.append(line)
     # line, = axs.plot(np.arange(N_POINTS)+1, res[i,1,:],linewidth=1)
     # lines2.append(line)
@@ -89,7 +89,7 @@ axs.set_xlim(0, N_POINTS)
 axs.set_ylim(0, 180)
 # axs.set_xscale('log')
 # axs.set_yscale('log')
-axs.grid()
+axs.grid(True, zorder=0)
 # Add a legend
 
 data_name_list = [r"$\beta=$"+f"{i}" for i in beta] 

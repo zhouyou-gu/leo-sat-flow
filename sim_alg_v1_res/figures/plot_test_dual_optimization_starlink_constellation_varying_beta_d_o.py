@@ -68,7 +68,7 @@ lines2 = []
 for i, b in enumerate(beta):
     print(f"Plotting beta = {b}",i)
     print(result_list)
-    line, = axs.plot(np.arange(N_POINTS)+1, res[i,0,:],linewidth=1)
+    line, = axs.plot(np.arange(N_POINTS)+1, res[i,0,:],linewidth=1, zorder=3)
     lines1.append(line)
     # line, = axs.plot(np.arange(N_POINTS)+1, res[i,1,:],linewidth=1)
     # lines2.append(line)
@@ -85,7 +85,7 @@ axs.set_xlim(0, N_POINTS)
 # axs.set_ylim(-2500, -500)
 # axs.set_xscale('log')
 # axs.set_yscale('log')
-axs.grid()
+axs.grid(True, zorder=0)
 # Add a legend
 
 data_name_list = [r"$\beta=$"+f"{i}" for i in beta] 
