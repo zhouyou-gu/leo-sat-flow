@@ -48,7 +48,7 @@ for i in range(data.shape[1]):
 axs.set_position([0.175, 0.125, 0.8, 0.725])
 axs.set_ylabel(r"Total Flow Rate (Gbps)")
 axs.set_xticks(index)
-axs.set_xticklabels([r"Starlink", r"Walk-Delta", r"OneWeb"])
+axs.set_xticklabels([r"Starlink", r"Walker-Delta", r"OneWeb"])
 axs.grid(True)
 # axs.set_position([0.18, 0.2, 0.775, 0.765])
 # # axs.set_title('Beam Intensity')
