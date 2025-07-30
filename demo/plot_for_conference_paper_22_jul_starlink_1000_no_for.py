@@ -131,7 +131,8 @@ class Demo(Simulation):
         triangle = scene.visuals.Mesh(shading=None)
         self.viz_list[0]['view'].add(triangle)
         self.viz_list[0]['triangle']= triangle
-        
+        self.viz_list[0]['triangle'].visible = False
+
         self.viz_list[0]['scatter'].scaling = False
 
         self.canvas.events.mouse_double_click.connect(self.handle_double_click)
@@ -169,6 +170,7 @@ Simulation.BACK_COLOR = np.array([0, 0.5, 1, 1])
 Simulation.RIGHT_COLOR = np.array([0, 0.5, 1, 1])
 Simulation.LEFT_COLOR = np.array([0, 0.5, 1, 1])
 
+Demo.FOR_THETA_HALF = 180
 simulation = Demo(ts, sat_array)
 print(simulation.FRONT_COLOR, simulation.BACK_COLOR, simulation.RIGHT_COLOR, simulation.LEFT_COLOR)
 simulation.PLOT_SAT_POINT_SIZE = 15

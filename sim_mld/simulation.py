@@ -271,7 +271,7 @@ class Simulation(STATS_OBJECT):
 
             for viz in self.viz_list:
                 # Update the satellite arrows.
-                viz['arrow'].set_data(pos=a_data, color=arrow_color, width=7.5, connect='segments')
+                viz['arrow'].set_data(pos=a_data, color=arrow_color, width=self.PLOT_SAT_POINT_SIZE, connect='segments')
 
     def _update_p_satp(self):
         self._print(f'Updating potential satellite pairs... {self.update_count}')
