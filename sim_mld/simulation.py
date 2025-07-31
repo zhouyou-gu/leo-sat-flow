@@ -376,7 +376,7 @@ class Simulation(STATS_OBJECT):
         if self.PLOT_POTENTIAL_LISL:
             # Build the color array using np.array for clarity.
             edges_color_data, p_lisl_data = optimize_edge_and_color_data(self.EDGE_COLOR, self.filtered_sat_pair_repeated, self.filtered_lct_pair_expanded, self.positions)
-            edges_color_data[:, 3] = 0.25
+            edges_color_data[:, 3] = 0.5
             for viz in self.viz_list:
                 # Update the potential LISL lines.
                 viz['p_lisl'].set_data(pos=p_lisl_data, color=edges_color_data, width=self.PLOT_POTENTIAL_LISL_LINE_WIDTH, connect='segments')

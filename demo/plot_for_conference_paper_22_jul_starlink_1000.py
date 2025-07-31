@@ -93,19 +93,19 @@ class Demo(Simulation):
         self.viz_list[0]['text_title'].text = f"" 
         
         a_from = np.tile(self.positions, (self.N_LCT_PER_SAT, 1))
-        a_to = np.concatenate((self.front, self.back, self.right, self.left), axis=0) * 0.04
+        a_to = np.concatenate((self.front, self.back, self.right, self.left), axis=0) * 0.1
         a_to_left = rotate_deg_in_vector_element_wise(a_to, np.ones(a_to.shape[0]) * self.FOR_THETA_HALF, a_from) + a_from
         a_to_right = rotate_deg_in_vector_element_wise(a_to, -np.ones(a_to.shape[0]) * self.FOR_THETA_HALF, a_from) + a_from
         a_data = np.concatenate((a_from, a_to_left, a_to_right), axis=1).reshape(-1, 3)
 
-        GREY_COLOR = np.array([0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+        GREY_COLOR = np.array([0.3, 0.5, 0.65, 0.5], dtype=np.float32)
         num_arrows = self.positions.shape[0] * 12
         arrow_color = np.zeros((num_arrows, 4))
         arrow_color[: num_arrows // self.N_LCT_PER_SAT, :] = GREY_COLOR
         arrow_color[num_arrows // self.N_LCT_PER_SAT: num_arrows // 2, :] = GREY_COLOR
         arrow_color[num_arrows // 2: 3 * num_arrows // self.N_LCT_PER_SAT, :] = GREY_COLOR
         arrow_color[3 * num_arrows // self.N_LCT_PER_SAT:, :] = GREY_COLOR
-        arrow_color[:, 3] = np.tile(np.array([1, 0, 0], dtype=np.float32), (self.positions.shape[0] * self.N_LCT_PER_SAT, 1)).reshape(-1)
+        arrow_color[:, 3] = np.tile(np.array([1, 0.25, 0.25], dtype=np.float32), (self.positions.shape[0] * self.N_LCT_PER_SAT, 1)).reshape(-1)
 
         if self.lct_mask is not None:
             # Apply the LCT mask to the arrows.
@@ -173,8 +173,8 @@ simulation = Demo(ts, sat_array)
 print(simulation.FRONT_COLOR, simulation.BACK_COLOR, simulation.RIGHT_COLOR, simulation.LEFT_COLOR)
 simulation.PLOT_SAT_POINT_SIZE = 15
 simulation.PLOT_GWS_POINT_SIZE = 15
-simulation.PLOT_POTENTIAL_LISL = True
-simulation.PLOT_POTENTIAL_LISL_LINE_WIDTH = 3.5
+simulation.PLOT_POTENTIAL_LISL = False
+simulation.PLOT_POTENTIAL_LISL_LINE_WIDTH = 2.5
 simulation.config_l_mask()
 simulation.update_space()
 
