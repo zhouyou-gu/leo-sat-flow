@@ -5,7 +5,7 @@ import numpy as np
 
 #create a figure with (2,1) subplots
 FONT_SIZE = 9
-fig_width_px = 425
+fig_width_px = 400
 fig_height_px = 200
 dpi = 100  # Typical screen DPI, adjust if necessary
 fig_width_in = fig_width_px / dpi
@@ -77,15 +77,18 @@ for i, b in enumerate(beta):
     # line, = axs.plot(np.arange(N_POINTS)+1, res[i,3,:],linewidth=1)
     # lines.append(line)
 
-axs.set_position([0.15, 0.2, 0.3, 0.765])
+axs.set_position([0.18, 0.2, 0.3, 0.765])
 # axs.set_title('Beam Intensity')
 axs.set_xlabel(r'Number of Iterations, $K$')
 axs.set_ylabel(r'Dual Function Value, $g(\lambda)$')
 axs.set_xlim(0, N_POINTS)
-# axs.set_ylim(-2500, -500)
+axs.set_ylim(-1200, -400)
 # axs.set_xscale('log')
 # axs.set_yscale('log')
 axs.grid(True, zorder=0)
+axs.text(20, -1200, r'$\bf{(a)}$', fontsize=FONT_SIZE+2, verticalalignment='bottom')
+
+
 # Add a legend
 
 data_name_list = [r"$\beta=$"+f"{i}" for i in beta] 
@@ -130,7 +133,7 @@ for i, b in enumerate(beta):
 line, = axs.plot(np.arange(N_POINTS)+1, -res[0,2,:],linewidth=1)
 lines1.append(line)
 
-axs.set_position([0.6, 0.2, 0.33, 0.765])
+axs.set_position([0.63, 0.2, 0.33, 0.765])
 # axs.set_title('Beam Intensity')
 axs.set_xlabel(r'Number of Iterations, $K$')
 axs.set_ylabel(r'Total Flow Rate (Gbps)')
@@ -139,6 +142,7 @@ axs.set_ylim(0, 180)
 # axs.set_xscale('log')
 # axs.set_yscale('log')
 axs.grid(True, zorder=0)
+axs.text(20, 0, r'$\bf{(b)}$', fontsize=FONT_SIZE+2, verticalalignment='bottom')
 
 
 data_name_list = [r"$\beta=$"+f"{i}" for i in beta] 
