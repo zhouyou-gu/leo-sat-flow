@@ -38,6 +38,7 @@ class Demo(Simulation):
     def get_simulation_time(self):
         # return time at 2025 jun 1st
         return self.ts.utc(2025, 7, 16, 16, 0, 0)
+    
     def run_step(self):
         time.sleep(0.01)  # Simulate some processing time
         data_source, data_target = self.solver.data_source, self.solver.data_target
@@ -118,7 +119,7 @@ class Demo(Simulation):
         
         
     def setup_visualization(self):
-        self.canvas, self.viz_list = setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(1, 1))
+        self.canvas, self.viz_list = setup_viz_list_one_canvas(screen_size=(1200, 800), shape=(1, 1))
         for viz in self.viz_list:
             viz['axes'].visible = False
             viz['view'].camera.azimuth = self.compute_rotation() + 90

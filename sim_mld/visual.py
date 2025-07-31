@@ -49,7 +49,7 @@ def compute_texcoords(faces: np.ndarray) -> np.ndarray:
         texcoords.extend(compute_face_texcoords(face))
     return np.array(texcoords)
 
-def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 0) -> dict:
+def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 0, earth_texture=None) -> dict:
     """
     Set up the Vispy visualization environment including canvas, view, sphere, and markers.
 
@@ -86,7 +86,10 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
     axes.transform = STTransform(scale=(2, 2, 2))
 
     # Load texture image for the Earth sphere.
-    texture_path = "population_density_texture.png"
+    if earth_texture is None:
+        texture_path = "population_density_texture.png"
+    else:
+        texture_path = earth_texture
     try:
         texture_image = Image.open(texture_path)
     except Exception as e:
@@ -217,9 +220,9 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
     }
 
             
-def setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(3, 3)):
+def setup_viz_list_one_canvas(screen_size=(1200, 800), shape=(3, 3)):
     ret = []
-    canvas = scene.SceneCanvas(title='Mega-Constellation Simulation',size=sceen_size, position=(0, 0),
+    canvas = scene.SceneCanvas(title='Mega-Constellation Simulation',size=screen_size, position=(0, 0),
             keys='interactive', show=True, bgcolor=(1.0, 1.0, 1.0, 1.0))
     grid = canvas.central_widget.add_grid()
     camera = scene.cameras.TurntableCamera(fov=45, azimuth=0, elevation=45, distance=3)
@@ -227,8 +230,8 @@ def setup_viz_list_one_canvas(sceen_size=(1200, 800), shape=(3, 3)):
     for i in range(shape[0]):
         for j in range(shape[1]):
             view = grid.add_view(row=i, col=j)
-            view.pos = (j * (sceen_size[0] // shape[1]), i * (sceen_size[1] // shape[0]))
-            view.size = (sceen_size[0] // shape[1], sceen_size[1] // shape[0])
+            view.pos = (j * (screen_size[0] // shape[1]), i * (screen_size[1] // shape[0]))
+            view.size = (screen_size[0] // shape[1], screen_size[1] // shape[0])
             view.camera = camera
             ret.append(setup_visualization(view=view, idx=(i, j)))
     return canvas, ret
