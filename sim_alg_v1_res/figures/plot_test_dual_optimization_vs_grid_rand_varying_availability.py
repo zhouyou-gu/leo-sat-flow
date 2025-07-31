@@ -33,7 +33,7 @@ results_file = "/home/zhouyou/leo-sat-flow/sim_alg_v1_res/test_dual_optimization
 fig, axs = plt.subplots(1,1)
 fig.set_size_inches(fig_width_in, fig_height_in)  # 3.5 inches width, height adjusted to maintain aspect ratio
 
-name = ["LaDu","+Grid","Rand","MRate"]
+name = ["DuJo","+Grid","Rand","MRate"]
 data = np.genfromtxt(results_file, delimiter=',')
 markers = ['o', 's', 'D', '^', 'v', 'x', '*']
 
