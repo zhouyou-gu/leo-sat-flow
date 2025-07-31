@@ -173,7 +173,7 @@ simulation = Demo(ts, sat_array)
 print(simulation.FRONT_COLOR, simulation.BACK_COLOR, simulation.RIGHT_COLOR, simulation.LEFT_COLOR)
 simulation.PLOT_SAT_POINT_SIZE = 15
 simulation.PLOT_GWS_POINT_SIZE = 15
-simulation.PLOT_POTENTIAL_LISL = False
+simulation.PLOT_POTENTIAL_LISL = True
 simulation.PLOT_POTENTIAL_LISL_LINE_WIDTH = 2.5
 simulation.config_l_mask()
 simulation.update_space()
