@@ -44,7 +44,7 @@ for i in range(data.shape[1]):
     b = axs.bar(index + (i -1.5)* bar_width, data[:, i], bar_width, label=name[i], zorder=3)
     bars.append(b)
 axs.set_position([0.175, 0.18, 0.8, 0.7])
-axs.set_ylabel(r"Total Flow Rate (Gbps)")
+axs.set_ylabel(r"Network Throughput (Gbps)")
 axs.set_xlabel(r'Number of Satellites, $I$')
 axs.set_xticks(index)
 axs.set_xticklabels(["500", "750", "1000", "1250", "1500", "1750", "2000"])

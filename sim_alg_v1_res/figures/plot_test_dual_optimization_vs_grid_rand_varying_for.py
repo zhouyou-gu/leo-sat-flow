@@ -27,7 +27,7 @@ plt.rc('mathtext', fontset='cm')
 
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-results_file = "/home/zhouyou/leo-sat-flow/sim_alg_v1_res/test_dual_optimization_mixed_constellation_lct_failure_rate/test_dual_optimization_mixed_constellation_lct_failure_rate-2025-July-23-20-18-16-ail/res.csv"
+results_file = "/home/zhouyou/leo-sat-flow/sim_alg_v1_res/test_dual_optimization_starlink_1000_varying_for/test_dual_optimization_starlink_1000_varying_for-2025-July-31-20-51-49-ail/res.csv"
 
 # Plot the data
 fig, axs = plt.subplots(1,1)
@@ -37,19 +37,41 @@ name = ["DuJo","+Grid","Rand","MRate"]
 data = np.genfromtxt(results_file, delimiter=',')
 markers = ['o', 's', 'D', '^', 'v', 'x', '*']
 
-data = -data[:, [4,5,7,6]]  # Select the relevant columns and negate them
+data = -data[:6, [4,5,7,6]]  # Select the relevant columns and negate them
 bar_width = 0.4
 bars = []
 index = np.arange(data.shape[0])*2
 for i in range(data.shape[1]):
-    b = axs.bar(index + (i -1.5)* bar_width, data[::-1, i], bar_width, label=name[i], zorder=3)
+    b = axs.bar(index + (i -1.5)* bar_width, data[:, i], bar_width, label=name[i], zorder=3)
     bars.append(b)
 axs.set_position([0.175, 0.18, 0.8, 0.7])
 axs.set_ylabel(r"Network Throughput (Gbps)")
-axs.set_xlabel(r"Average Number of LCTs per Satellite, $\mathbb{E}[N']$")
+axs.set_xlabel(r"Field of regard size of satellites in degree, $\theta$")
 axs.set_xticks(index)
-axs.set_xticklabels(["0.8", "1.0", "1.2", "1.4", "1.6", "1.8", "2.0"])
+axs.set_xticklabels(["30", "40", "50", "60", "70", "80"])
 axs.grid(True, zorder=0)
+# axs.set_position([0.18, 0.2, 0.775, 0.765])
+# # axs.set_title('Beam Intensity')
+# axs.set_xlabel('Number of Iterations')
+# axs.set_ylabel(r'$g(\lambda)$')
+# axs.set_xlim(1, N_POINTS)
+# axs.set_ylim(-1600, -400)
+# # axs.set_xscale('log')
+# # axs.set_yscale('log')
+# axs.grid()
+# # Add a legend
+
+# data_name_list = [r"$\beta=$"+f"{0.1+0.2*i:.1f}" for i in range(5)] 
+# ncol = 3  # Number of columns in the legend
+# h, l = lines1, data_name_list
+# nrows = -(-len(h) // ncol)                         # ceiling division
+# idx   = np.arange(len(h))
+# pad   = nrows * ncol - len(idx)
+# idx   = np.concatenate([idx, np.full(pad, -1)])    # pad
+# order = idx.reshape(nrows, ncol).T.ravel()
+# order = order[order >= 0]                          # drop sentinels
+# h = [h[i] for i in order]
+# l = [l[i] for i in order]
 
 leg = fig.legend(bars, name ,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.175, 0.9, 0.8, 0.125), mode="expand",ncol = 4 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.2, 
 frameon=True,          # draw a frame
