@@ -470,7 +470,7 @@ class Simulation(STATS_OBJECT):
         self.accumulated_update_time += elapsed
         self.average_update_time = 0.9 * self.average_update_time + 0.1 * elapsed
 
-    def _update_o_lisl(self, satp = None, edge_weight=None, viz=None, binary=False):
+    def _update_o_lisl(self, satp = None, edge_weight=None, viz=None, binary=False, color=None, width=5):
         # Update optional LISL lines.
         if np.asarray(satp).size == 0:
             return
@@ -499,7 +499,11 @@ class Simulation(STATS_OBJECT):
                 edge_weight_green = (edge_weight < 0.5).astype(np.float32)
                 edges_color_data[:, 0] = np.concatenate((edge_weight_red, edge_weight_red), axis=1).reshape(-1)
                 edges_color_data[:, 1] = np.concatenate((edge_weight_green, edge_weight_green), axis=1).reshape(-1)
-            viz['o_lisl'].set_data(pos=o_lisl_data, color=edges_color_data, width=2, connect='segments')
+            
+            if color is not None:
+                edges_color_data[:, :3] = np.tile(color, (o_lisl_data.shape[0], 1))
+        
+            viz['o_lisl'].set_data(pos=o_lisl_data, color=edges_color_data, width=width, connect='segments')
         
         toc = time.perf_counter()
         self.profiled_time['draw_matching'] = toc - tic

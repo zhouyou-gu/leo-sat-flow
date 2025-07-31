@@ -150,16 +150,15 @@ class DualSimulation(Simulation):
             capacity = self.solver.compute_capacity(
                 np.linalg.norm(self.positions[connected_sat[:, 0]] - self.positions[connected_sat[:, 1]], axis=1)
             )
+            # self._update_o_lisl(satp=connected_sat, viz=self.viz_list[0], binary=True, color=np.array([0.5, 0.5, 1.], dtype=np.float32), width=3)
+            # self._update_o_lisl(satp=srouting[:,0:2].astype(np.int64), viz=self.viz_list[1], binary=True, width=3)
+
+            p_o_heu, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = simulation.solver.get_prim_objective_heuristic(with_rates=True,
+                            matching_method="mc", routing_method="ospf", seed=i
+            )
             self._update_o_lisl(satp=connected_sat, viz=self.viz_list[0], binary=True, color=np.array([0.5, 0.5, 1.], dtype=np.float32), width=3)
             self._update_o_lisl(satp=srouting[:,0:2].astype(np.int64), viz=self.viz_list[1], binary=True, width=3)
-
-            # p_o_heu, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = simulation.solver.get_prim_objective_heuristic(with_rates=True,
-            #                 matching_method="mc", routing_method="ospf", seed=i
-            # )
-            # self._update_o_lisl(satp=connected_sat, viz=self.viz_list[2], binary=True)
-            # self._update_o_lisl(satp=srouting[:,0:2].astype(np.int64), viz=self.viz_list[3], binary=True)
-
-    
+            
         p_o_mwm, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective_mwm(with_rates=True)
         self._printalltime(f"Prim objective: {p_o}, MWM: {p_o_mwm}, Ratio: {p_o/p_o_mwm:.3f}")
         self._add_np_log("mwm", self.N_STEP, np.array([p_o_mwm]))
@@ -243,7 +242,7 @@ class DualSimulation(Simulation):
         for viz in self.viz_list:
             viz['axes'].visible = False
             viz['view'].camera.azimuth = self.compute_rotation() + 90
-            viz['view'].camera.elevation = 30
+            viz['view'].camera.elevation = 50
             viz['view'].camera.distance = 2.5
             viz['text_title'].text = f"" 
 
