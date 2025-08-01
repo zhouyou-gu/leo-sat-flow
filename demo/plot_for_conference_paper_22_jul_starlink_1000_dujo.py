@@ -130,6 +130,7 @@ class DualSimulation(Simulation):
         # Compute the prim p.
         tic = self._get_tic()
         p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective(with_rates=True)
+        print(f"++++++++++++++++++++++ DuJo Lengths: {lengths[lengths > 0].shape}, {np.mean(lengths[lengths > 0]):.3f}")
         toc = self._get_tim(tic)
         self._printalltime(f"Prim objective: {p_o}, Time: {toc:.4f} us")        
         s_t = np.column_stack((self.solver.data_source, self.solver.data_target))
@@ -161,6 +162,8 @@ class DualSimulation(Simulation):
 
     
         p_o_mwm, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective_mwm(with_rates=True)
+        print(f"++++++++++++++++++++++ MRate Lengths: {lengths[lengths > 0].shape}, {np.mean(lengths[lengths > 0]):.3f}")
+
         self._printalltime(f"Prim objective: {p_o}, MWM: {p_o_mwm}, Ratio: {p_o/p_o_mwm:.3f}")
         self._add_np_log("mwm", self.N_STEP, np.array([p_o_mwm]))
         self._add_np_log("ratio", self.N_STEP, np.array([p_o/p_o_mwm]))
