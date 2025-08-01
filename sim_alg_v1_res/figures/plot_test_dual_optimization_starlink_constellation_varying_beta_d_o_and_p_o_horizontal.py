@@ -24,7 +24,8 @@ plt.rcParams.update({
     'legend.fontsize'  : FONT_SIZE,
 })
 plt.rc('mathtext', fontset='cm')
-
+plt.rcParams['pdf.fonttype'] = 42
+plt.rcParams['ps.fonttype'] = 42
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 results_dir = os.path.join(current_dir, os.path.pardir, "test_dual_optimization_starlink_1000_varying_beta")

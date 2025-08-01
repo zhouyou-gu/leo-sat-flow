@@ -24,7 +24,8 @@ plt.rcParams.update({
     'legend.fontsize'  : FONT_SIZE,
 })
 plt.rc('mathtext', fontset='cm')
-
+plt.rcParams['pdf.fonttype'] = 42
+plt.rcParams['ps.fonttype'] = 42
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 results_file = "/home/zhouyou/leo-sat-flow/sim_alg_v1_res/test_dual_optimization_mixed_constellation_lct_failure_rate/test_dual_optimization_mixed_constellation_lct_failure_rate-2025-July-23-20-18-16-ail/res.csv"
