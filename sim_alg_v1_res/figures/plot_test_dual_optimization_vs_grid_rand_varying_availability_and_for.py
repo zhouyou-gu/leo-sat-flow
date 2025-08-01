@@ -46,10 +46,9 @@ index = np.arange(data.shape[0])*2
 for i in range(data.shape[1]):
     b = axs.bar(index + (i -1.5)* bar_width, data[:, i], bar_width, label=name[i], zorder=3)
     bars.append(b)
-axs.set_position([0.125, 0.18, 0.415, 0.7])
-axs.set_ylabel(r"Network Throughput (Gbps)")
+axs.set_position([0.575, 0.18, 0.415, 0.7])
 axs.set_yticks([0, 50, 100, 150, 200])
-axs.set_yticklabels([0, 50, 100, 150, 200])
+axs.set_yticklabels([])
 axs.set_xlabel(r"Field of Regard Size (Degree)")
 axs.set_xticks(index)
 axs.set_xticklabels(["30", "40", "50", "60", "70", "80"])
@@ -68,11 +67,11 @@ index = np.arange(data.shape[0])*2
 for i in range(data.shape[1]):
     b = axs.bar(index + (i -1.5)* bar_width, data[::-1, i], bar_width, label=name[i], zorder=3)
     bars.append(b)
-axs.set_position([0.575, 0.18, 0.415, 0.7])
+axs.set_position([0.125, 0.18, 0.415, 0.7])
 # axs.set_ylabel(r"Network Throughput (Gbps)")
 axs.set_yticks([0, 50, 100, 150, 200])
-axs.set_yticklabels([])
-
+axs.set_yticklabels([0, 50, 100, 150, 200])
+axs.set_ylabel(r"Network Throughput (Gbps)")
 axs.set_xlabel(r"Average Number of LCTs per Sat.")
 axs.set_xticks(index)
 axs.set_xticklabels(["0.8", "1.0", "1.2", "1.4", "1.6", "1.8", "2.0"])
