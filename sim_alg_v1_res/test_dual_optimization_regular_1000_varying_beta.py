@@ -109,7 +109,7 @@ class lpdsolver(mr_solver):
 class DualSimulation(Simulation):  
     def get_simulation_time(self):
         # return time at 2025 jun 1st
-        return self.ts.utc(2025, 6, 1, 0, 0, 0)
+        return self.ts.utc(2025, 7, 16, 16, 0, 0)
 
     def run_step(self):
         if self.filtered_lct_pair_expanded.size == 0:

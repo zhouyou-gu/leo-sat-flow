@@ -1,3 +1,6 @@
+#Author: Zhouyou Gu at SUTD
+#Email: zhouyou_gu@sutd.edu.sg
+
 #!/usr/bin/env python3
 """
 Simulation of Starlink satellites with Earth rotation and Vispy visualization.

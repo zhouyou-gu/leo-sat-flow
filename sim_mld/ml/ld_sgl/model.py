@@ -16,7 +16,8 @@ from torch_geometric.data import Data
 
 import plotext
 class ld_model(base_model):
-    def __init__(self, LR =0.001, TAU = 0.001):
+    def __init__(self, LR =0.001, TAU = 0.001, BETA=0.5):
+        self.BETA = BETA
         base_model.__init__(self, LR = LR, TAU=TAU, WITH_TARGET = True)
         self.batch_size = 1
         self.data_set = ReplayMemory(self.batch_size)
@@ -29,9 +30,8 @@ class ld_model(base_model):
         #     self.model = torch.compile(self.model)
 
     def init_optim(self):
-        self.model_optim = torch.optim.Adam(self.model.parameters(), lr=self.LR, weight_decay=1e-5)
-        # self.model_optim = SGD(self.model.parameters(), lr=self.LR, weight_decay=1e-5)
-        self.lr_scheduler = LambdaLR(self.model_optim, lr_lambda=lambda epoch: 1.0/(epoch+1)**0.2)
+        self.model_optim = torch.optim.SGD(self.model.parameters(), lr=self.LR)
+        self.lr_scheduler = LambdaLR(self.model_optim, lr_lambda=lambda epoch: 1.0/(epoch+1)**self.BETA)
 
     def _add_graph(self, data):
         """
