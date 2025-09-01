@@ -251,8 +251,8 @@ class CSV_WRITER_OBJECT:
             self.files[data_name] = open(os.path.join(self.path,data_name), 'w', newline='')
             self.writers[data_name] = csv.writer(self.files[data_name])
 
-        self.files[data_name].writerow([g_iteration, iteration, value])
-        self.writers[data_name].flush()
+        self.writers[data_name].writerow([g_iteration, iteration, value])
+        self.files[data_name].flush()
 
     def log_mul_scalar(self, data_name, iteration, values, g_iteration = 0):
         if self.path is None:

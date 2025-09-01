@@ -16,7 +16,7 @@ from torch_geometric.data import Data
 
 import plotext
 class ld_model(base_model):
-    def __init__(self, LR =0.001, TAU = 0.001, BETA=0.5):
+    def __init__(self, LR =0.001, TAU = 0.001, BETA=0.1):
         self.BETA = BETA
         base_model.__init__(self, LR = LR, TAU=TAU, WITH_TARGET = True)
         self.batch_size = 1
@@ -30,7 +30,7 @@ class ld_model(base_model):
         #     self.model = torch.compile(self.model)
 
     def init_optim(self):
-        self.model_optim = torch.optim.SGD(self.model.parameters(), lr=self.LR)
+        self.model_optim = torch.optim.Adam(self.model.parameters(), lr=self.LR, weight_decay=1e-5)
         self.lr_scheduler = LambdaLR(self.model_optim, lr_lambda=lambda epoch: 1.0/(epoch+1)**self.BETA)
 
     def _add_graph(self, data):
@@ -89,31 +89,40 @@ class ld_model(base_model):
         prices = self.model.forward(batch.x, batch.cp_edge_index, batch.cp_edge_attr)   
         subg = (batch.qx_edge_attr - batch.rc_edge_attr)
         print("subg", subg)
+        print("counting subg>0", (subg > 0).sum().item())
+        print("counting subg==0", (subg == 0).sum().item())
+        print("counting subg<0", (subg < 0).sum().item())
         print("qx_edge_attr", batch.qx_edge_attr)
+        print("counting qx>0", (batch.qx_edge_attr > 0).sum().item())
+        print("counting qx<=0", (batch.qx_edge_attr <= 0).sum().item())
         print("rc_edge_attr", batch.rc_edge_attr)
+        print("counting rc>0", (batch.rc_edge_attr > 0).sum().item())
+        print("counting rc<=0", (batch.rc_edge_attr <= 0).sum().item())
         print("prices", prices)
-
-        plotext.title("Prices Distribution")
-        plotext.hist(np.log10(to_numpy(prices)+1e-5), bins=50, norm=True)
-        plotext.plotsize(100, 30)
-        plotext.show()
-        plotext.clf()
-        plotext.title("SubG Distribution")
-        plotext.hist(to_numpy(subg), bins=50, norm=True)
-        plotext.plotsize(100, 30)
-        plotext.show()
-        plotext.clf()
-        plotext.title("Qx Edge Attr Distribution")
-        plotext.hist(np.log10(to_numpy(batch.qx_edge_attr)+1e-5), bins=50, norm=True)
-        plotext.plotsize(100, 30)
-        plotext.show()
-        plotext.clf()
-        plotext.title("RC Edge Attr Distribution")
-        plotext.hist(np.log10(to_numpy(batch.rc_edge_attr)+1e-5), bins=50, norm=True)
-        plotext.plotsize(100, 30)
-        plotext.show()
-        plotext.clf()
-        loss_d = -prices * subg
+        try:
+            plotext.title("Prices Distribution")
+            plotext.hist(np.log10(to_numpy(prices)+1e-5), bins=50, norm=True)
+            plotext.plotsize(100, 30)
+            plotext.show()
+            plotext.clf()
+            plotext.title("SubG Distribution")
+            plotext.hist(to_numpy(subg), bins=50, norm=True)
+            plotext.plotsize(100, 30)
+            plotext.show()
+            plotext.clf()
+            plotext.title("Qx Edge Attr Distribution")
+            plotext.hist(np.log10(to_numpy(batch.qx_edge_attr)+1e-5), bins=50, norm=True)
+            plotext.plotsize(100, 30)
+            plotext.show()
+            plotext.clf()
+            plotext.title("RC Edge Attr Distribution")
+            plotext.hist(np.log10(to_numpy(batch.rc_edge_attr)+1e-5), bins=50, norm=True)
+            plotext.plotsize(100, 30)
+            plotext.show()
+            plotext.clf()
+        except Exception as e:
+            pass
+        loss_d = -prices * subg *0.001
 
         loss_d_mean = torch.mean(loss_d)
         self._add_np_log("loss_d",self.N_STEP,[loss_d_mean.item()])

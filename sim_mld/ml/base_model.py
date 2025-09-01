@@ -58,10 +58,10 @@ class base_model(STATS_OBJECT):
     def update_target_nn(self,hard=False):
         if self.WITH_TARGET:
             if hard:
-                soft_update_inplace(self.model_target, self.model, self.TAU)
-            else:
                 hard_update_inplace(self.model_target, self.model)
-            
+            else:
+                soft_update_inplace(self.model_target, self.model, self.TAU)
+
     def save(self, path: str, postfix: str):
         try:
             os.mkdir(path)

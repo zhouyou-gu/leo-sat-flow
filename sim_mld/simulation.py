@@ -48,7 +48,7 @@ def khot_matrix(n_rows, n_cols, k, rng=None, seed=None, dtype=np.float32):
 
 
 class Simulation(STATS_OBJECT):
-    FOR_THETA_HALF: float = 60.0  # Angle in degrees for the satellite LT direction.
+    FOR_THETA_HALF: float = 30.0  # Angle in degrees for the satellite LT direction.
     LISL_MAX_DISTANCE: float = 3000.0  # Maximum distance for LISL in km.
     TIME_SCALE: float = 15.0
     EARTH_RADIUS: float = 6371.0  # Earth's radius in km.

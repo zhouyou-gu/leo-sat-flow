@@ -9,6 +9,7 @@ and visualizes both the Earth (with a textured sphere) and satellites in a 3D sc
 import math
 import time
 
+import plotext
 import psutil
 import numpy as np
 from scipy.spatial import cKDTree
@@ -26,7 +27,7 @@ from sim_mld.simulation import Simulation
 from vispy import app
 import logging
 
-from sim_src.util import GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT, counted
+from sim_src.util import CSV_WRITER_OBJECT, GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT, counted
 from working_dir_path import get_working_dir_path
 
 import torch
@@ -46,14 +47,14 @@ class gnnsolver(mr_solver):
         capacity = self.compute_capacity(
             np.linalg.norm(self.positions[self.possible_sat_pair_expanded[:, 0]] - self.positions[self.possible_sat_pair_expanded[:, 1]], axis=1)
         )
-        indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, capacity, merging_method='sum')
+        indptr, indices, data = build_csr(self.n_sat, self.possible_sat_pair_expanded, capacity, merging_method='avg', sym_half=True)
         cp_edge_list = csr_to_edge_list(indptr, indices, data)
         print(f"cp_edge_list shape: {cp_edge_list.shape}, possible_sat_pair_expanded shape: {self.possible_sat_pair_expanded.shape}")
         possible_sat_pair_non_expanded_sym = cp_edge_list[:, 0:2]
         possible_capacity_non_expanded_sym = cp_edge_list[:, 2]
         
-        sat_capacity = self.forward_traffic_capacity/self.forward_traffic_capacity.mean()
-        sat_demand = self.forward_traffic_demand/self.forward_traffic_demand.mean()
+        sat_capacity = self.forward_traffic_capacity
+        sat_demand = self.forward_traffic_demand
         self._printalltime(f"sat_capacity: max: {np.max(sat_capacity)}, min: {np.min(sat_capacity)}, avg: {np.mean(sat_capacity)}, shape: {sat_capacity.shape}")
         self._printalltime(f"sat_demand: max: {np.max(sat_demand)}, min: {np.min(sat_demand)}, avg: {np.mean(sat_demand)}, shape: {sat_demand.shape}")
         x = np.concatenate((sat_capacity.reshape(-1, 1), sat_demand.reshape(-1, 1)), axis=1)
@@ -98,8 +99,8 @@ class gnnsolver(mr_solver):
         tic = self._get_tic()
         self.s_t_traffic_rates = self.get_rates_dual(costs=costs)
         print(f"rates shape: {self.s_t_traffic_rates.shape}, costs shape: {costs.shape}")
-        print("self.s_t_traffic_rates[costs>1].mean():", self.s_t_traffic_rates[costs>1].mean())
-        print(f"approximate rates: max: {np.max(self.s_t_traffic_rates)}, min: {np.min(self.s_t_traffic_rates)}, avg: {np.mean(self.s_t_traffic_rates)}")
+        # print("self.s_t_traffic_rates[costs>1].mean():", self.s_t_traffic_rates[costs>1].mean())
+        print(f": max: {np.max(self.s_t_traffic_rates)}, min: {np.min(self.s_t_traffic_rates)}, avg: {np.mean(self.s_t_traffic_rates)}")
         tim = self._get_tim(tic)
         self._printalltime(f"Computed rates: {self.s_t_traffic_rates.shape}, Time: {tim:.4f} us")
 
@@ -111,7 +112,7 @@ class gnnsolver(mr_solver):
             return
         
         ## rate per edge
-        qx = build_csr(self.n_sat, srouting[:,0:2], srouting[:,4], merging_method='sum')
+        qx = build_csr(self.n_sat, srouting[:,0:2], srouting[:,4], merging_method='sum', sym_half=False)
         qx_edge_list = csr_to_edge_list(qx[0], qx[1], qx[2])
         qx_weights = extract_weights(possible_sat_pair_non_expanded_sym, qx_edge_list)
         qx_edge_list = np.column_stack((possible_sat_pair_non_expanded_sym, qx_weights))
@@ -134,8 +135,6 @@ class gnnsolver(mr_solver):
             print("pr_edge_attr:", prices_edge_list[qx_positive & pr_greater1])
             print("++++++++++++++++++++++++++++++++++++++++++")
         
-        
-        
         data = {}
         data["x"] = x
         data["cp_edge_index"] = cp_edge_list[:, 0:2]
@@ -149,9 +148,18 @@ class gnnsolver(mr_solver):
 
         self.model.step(data)
 
-        new_prices = self.model.get_output_np_edge_weight(x, possible_sat_pair_non_expanded_sym, possible_capacity_non_expanded_sym)
+        new_prices = self.model.get_output_np_edge_weight(x, possible_sat_pair_non_expanded_sym, possible_capacity_non_expanded_sym, use_target=False)
 
         self.price_graph.price_graph = sp.csr_matrix((new_prices, (possible_sat_pair_non_expanded_sym[:, 0], possible_sat_pair_non_expanded_sym[:, 1])), shape=(self.n_sat, self.n_sat))
+        
+        d_sym = self.price_graph.price_graph - self.price_graph.price_graph.T
+        d_sym.data = np.abs(d_sym.data)
+        print(f"d_sym: {d_sym.data}")
+        plotext.title("d_sym Distribution")
+        plotext.hist(np.log10(d_sym.data+1e-5), bins=50, norm=True)
+        plotext.plotsize(100, 30)
+        plotext.show()
+        plotext.clf()
         return
 
 class GNNSimulation(Simulation):
@@ -184,6 +192,7 @@ class GNNSimulation(Simulation):
         p_o_mwm, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective_heuristic(with_rates=True)
         self._printalltime(f"Prim objective: {p_o}, MWM: {p_o_mwm}, Ratio: {p_o/p_o_mwm}")
         self._add_np_log("objective", self.N_STEP, [p_o, p_o_mwm])
+        return p_o/p_o_mwm
         
 # Load tle data.
 from working_dir_path import get_working_dir_path
@@ -193,18 +202,23 @@ tle_file_path = os.path.join(get_working_dir_path(),'starlink_16_jul_2025_1600.t
 LOG_OBJ = STATS_OBJECT()
 LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
 
-for beta in [0.5, 0.7, 0.9]:
-    print(f"Running simulation with beta: {int(beta*10)}")
+LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
+
+solver = gnnsolver()
+solver.init_gnn()
+
+for step in range(500):
+    print(f"Running simulation with step: {step}")
     # Create simulation instance.
-    i = 1
-    ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0.0, starlink_tle_path=tle_file_path, seed=i)
+    ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0.0, starlink_tle_path=tle_file_path, seed=step)
     simulation = GNNSimulation(ts, sat_array)
-    simulation.config_l_mask(seed=i)
+    simulation.config_l_mask(seed=step)
 
     simulation.update_space()
-
-    solver = gnnsolver()
-    solver.init_gnn()
     simulation.set_solver(solver)
-    simulation.run(TOT_STEPS=500,visualize=False)
-    simulation.save_np(LOG_DIR,"final")
+    ratio = simulation.run_step()
+    # LOG_CSV_WRITTER.log_one_scalar("res.csv", step, ratio)
+
+    # simulation.run(TOT_STEPS=500,visualize=False)
+    # simulation.save_np(LOG_DIR,"final")
+
