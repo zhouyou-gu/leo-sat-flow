@@ -36,10 +36,10 @@ torch.set_float32_matmul_precision('medium')
 np.set_printoptions(precision=4, suppress=True)
 
 class gnnsolver(mr_solver):
-    def init_gnn(self, path=None):
+    def init_gnn(self, path=None, BETA = 0.5, GAMMA=0.001):
         print("Initializing GNN model")
-        self.model = ld_model()
-    
+        self.model = ld_model(BETA=BETA, GAMMA=GAMMA)
+
     @counted
     def update_step_rates_prices(self):
         print("Updating step rates and prices")
@@ -204,21 +204,22 @@ LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
 
 LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
 
-solver = gnnsolver()
-solver.init_gnn()
 
-for step in range(500):
-    print(f"Running simulation with step: {step}")
-    # Create simulation instance.
-    ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0.0, starlink_tle_path=tle_file_path, seed=step)
-    simulation = GNNSimulation(ts, sat_array)
-    simulation.config_l_mask(seed=step)
+for BETA in [0.5, 0.7, 0.9]:
+    solver = gnnsolver()
+    solver.init_gnn(BETA=BETA, GAMMA=1)
+    for step in range(500):
+        print(f"Running simulation with step: {step}")
+        # Create simulation instance.
+        ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0.0, starlink_tle_path=tle_file_path, seed=step)
+        simulation = GNNSimulation(ts, sat_array)
+        simulation.config_l_mask(seed=step)
 
-    simulation.update_space()
-    simulation.set_solver(solver)
-    ratio = simulation.run_step()
-    # LOG_CSV_WRITTER.log_one_scalar("res.csv", step, ratio)
-
-    # simulation.run(TOT_STEPS=500,visualize=False)
-    # simulation.save_np(LOG_DIR,"final")
-
+        simulation.update_space()
+        simulation.set_solver(solver)
+        ratio = simulation.run_step()
+        BETA_TEXT = f"BETA_{BETA:.4f}".replace('.','_')
+        LOG_CSV_WRITTER.log_one_scalar(BETA_TEXT, step, ratio)
+        # if (step+1) % 100 == 0:
+        #     solver.model.save(LOG_DIR, str(step+1))
+        # solver.model.save(LOG_DIR, 'final')

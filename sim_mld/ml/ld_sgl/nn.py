@@ -62,7 +62,7 @@ class PriceGNN(torch.nn.Module):
             e_dec
         ], dim=-1)
         w = self.edge_decoder(z_edge).squeeze(-1)
-        return F.elu(w + self.elu_offset) + 1
+        return F.sigmoid(w)
     
     
     

@@ -397,7 +397,7 @@ class mr_solver(STATS_OBJECT):
             # raise ValueError("No valid lengths found, The graph is not connected")
         return costs, lengths, paths_all
 
-    def get_dual_objective(self, with_prices=False):
+    def get_dual_objective(self, with_prices=False, with_objective=False):
         self._print("Computing dual objective")
         connected_sat, connected_lct = self.get_dual_matching()
         costs, lengths, paths_all = self.get_dual_srouting()
@@ -410,12 +410,16 @@ class mr_solver(STATS_OBJECT):
         
         rates = self.get_rates_dual(costs)
         
-        ret =- np.sum(prices * capacity_on_graph)
-        ret += np.sum(rates * (-1 + costs))
+        ret_rate_mtch = - np.sum(prices * capacity_on_graph)
+        ret_rate_cost = np.sum(rates * (-1 + costs))
+        ret = ret_rate_cost + ret_rate_mtch
         if with_prices:
             return ret, np.concatenate((self.possible_sat_pair_expanded,self.price_graph.get_prices(self.possible_sat_pair_expanded,sum_both_direction=True).reshape(-1,1)), axis=1)
         else:
-            return ret
+            if with_objective:
+                return ret, ret_rate_cost, ret_rate_mtch
+            else:
+                return ret
 
     def get_prim_objective(self, with_rates=False):
         self._print("Computing prim objective")

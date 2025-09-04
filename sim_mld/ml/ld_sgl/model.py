@@ -16,21 +16,21 @@ from torch_geometric.data import Data
 
 import plotext
 class ld_model(base_model):
-    def __init__(self, LR =0.001, TAU = 0.001, BETA=0.1):
+    def __init__(self, LR =0.001, TAU = 0.001, BETA=0.5, GAMMA=0.001):
         self.BETA = BETA
+        self.GAMMA = GAMMA
         base_model.__init__(self, LR = LR, TAU=TAU, WITH_TARGET = True)
         self.batch_size = 1
+        self.GAMMA = GAMMA/self.batch_size
         self.data_set = ReplayMemory(self.batch_size)
         
     def init_model(self):
         self.model = PriceGNN()
         self.model_target = PriceGNN()
         self.update_target_nn(hard=True)
-        # if hasattr(torch, 'compile'):
-        #     self.model = torch.compile(self.model)
 
     def init_optim(self):
-        self.model_optim = torch.optim.Adam(self.model.parameters(), lr=self.LR, weight_decay=1e-5)
+        self.model_optim = torch.optim.Adam(self.model.parameters(), lr=self.LR)
         self.lr_scheduler = LambdaLR(self.model_optim, lr_lambda=lambda epoch: 1.0/(epoch+1)**self.BETA)
 
     def _add_graph(self, data):
@@ -121,8 +121,9 @@ class ld_model(base_model):
             plotext.show()
             plotext.clf()
         except Exception as e:
+            print("Plotext error:", e)
             pass
-        loss_d = -prices * subg *0.001
+        loss_d = - prices * subg * self.GAMMA
 
         loss_d_mean = torch.mean(loss_d)
         self._add_np_log("loss_d",self.N_STEP,[loss_d_mean.item()])
