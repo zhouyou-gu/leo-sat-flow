@@ -155,18 +155,21 @@ class gnnsolver(mr_solver):
         d_sym = self.price_graph.price_graph - self.price_graph.price_graph.T
         d_sym.data = np.abs(d_sym.data)
         print(f"d_sym: {d_sym.data}")
-        plotext.title("d_sym Distribution")
-        plotext.hist(np.log10(d_sym.data+1e-5), bins=50, norm=True)
-        plotext.plotsize(100, 30)
-        plotext.show()
-        plotext.clf()
+        try:
+            plotext.title("d_sym Distribution")
+            plotext.hist(np.log10(d_sym.data+1e-5), bins=50, norm=True)
+            plotext.plotsize(100, 30)
+            plotext.show()
+            plotext.clf()
+        except Exception as e:
+            print("Plotext error:", e)
+            pass
         return
 
 class GNNSimulation(Simulation):
     def get_simulation_time(self):
         # return time at 2025 jun 1st
         return self.ts.utc(2025, 7, 16, 16, 0, 0)
-
     
     def run_step(self):
         self._printalltime(f"run_step")
@@ -205,9 +208,9 @@ LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
 LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
 
 
-for BETA in [0.5, 0.7, 0.9]:
+for GAMMA in [1, 0.1, 0.01, 0.001, 0.0001]:
     solver = gnnsolver()
-    solver.init_gnn(BETA=BETA, GAMMA=1)
+    solver.init_gnn(GAMMA=GAMMA)
     for step in range(500):
         print(f"Running simulation with step: {step}")
         # Create simulation instance.
@@ -218,8 +221,5 @@ for BETA in [0.5, 0.7, 0.9]:
         simulation.update_space()
         simulation.set_solver(solver)
         ratio = simulation.run_step()
-        BETA_TEXT = f"BETA_{BETA:.4f}".replace('.','_')
-        LOG_CSV_WRITTER.log_one_scalar(BETA_TEXT, step, ratio)
-        # if (step+1) % 100 == 0:
-        #     solver.model.save(LOG_DIR, str(step+1))
-        # solver.model.save(LOG_DIR, 'final')
+        GAMMA_TEXT = f"GAMMA_{GAMMA:.4f}".replace('.','_')
+        LOG_CSV_WRITTER.log_one_scalar(GAMMA_TEXT, step, ratio)

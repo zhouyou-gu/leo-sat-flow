@@ -36,7 +36,6 @@ torch.set_float32_matmul_precision('medium')
 np.set_printoptions(precision=4, suppress=True)
 
 class lemma1(mr_solver):
-
     @counted
     def update_step_rates_prices(self):
         print("Updating step rates and prices")
@@ -125,4 +124,3 @@ for step in range(500):
     simulation.update_space()
     simulation.set_solver(solver)
     ratio = simulation.run_step()
-

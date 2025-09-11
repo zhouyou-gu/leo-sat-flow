@@ -224,11 +224,12 @@ class STATS_OBJECT:
         self.timers.append((self.ntimer,time()))
         return self.ntimer
 
-    def _get_tim(self,tic_id):
+    def _get_tim(self,tic_id,remove_timer=True):
         for t in self.timers:
             if t[0] == tic_id:
                 tim = t[1]
-                self.timers.remove(t)
+                if remove_timer:
+                    self.timers.remove(t)
                 return (time()-tim)*1e6
         raise Exception("no timer is found.")
 
@@ -243,7 +244,7 @@ class CSV_WRITER_OBJECT:
         self.files = {}
         self.writers = {}
 
-    def log_one_scalar(self, data_name, iteration, value, g_iteration = 0):
+    def log_one_scalar(self, data_name, iteration, value, g_step = 0):
         if self.path is None:
             return
 
@@ -251,10 +252,10 @@ class CSV_WRITER_OBJECT:
             self.files[data_name] = open(os.path.join(self.path,data_name), 'w', newline='')
             self.writers[data_name] = csv.writer(self.files[data_name])
 
-        self.writers[data_name].writerow([g_iteration, iteration, value])
+        self.writers[data_name].writerow([g_step, iteration, value])
         self.files[data_name].flush()
 
-    def log_mul_scalar(self, data_name, iteration, values, g_iteration = 0):
+    def log_mul_scalar(self, data_name, iteration, values, g_step = 0):
         if self.path is None:
             return
 
@@ -262,7 +263,7 @@ class CSV_WRITER_OBJECT:
             self.files[data_name] = open(os.path.join(self.path,data_name), 'w', newline='')
             self.writers[data_name] = csv.writer(self.files[data_name])
 
-        self.writers[data_name].writerow([g_iteration, iteration]+ [v for v in values])
+        self.writers[data_name].writerow([g_step, iteration]+ [v for v in values])
         self.files[data_name].flush()
     
     def close(self):

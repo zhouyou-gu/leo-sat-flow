@@ -36,7 +36,7 @@ torch.set_float32_matmul_precision('medium')
 np.set_printoptions(precision=4, suppress=True)
 
 class gnnsolver(mr_solver):
-    def init_gnn(self, path=None, BETA = 0.5, GAMMA=0.001):
+    def init_gnn(self, path=None, BETA = 0.5, GAMMA=1):
         print("Initializing GNN model")
         self.model = ld_model(BETA=BETA, GAMMA=GAMMA)
 
@@ -145,7 +145,9 @@ class gnnsolver(mr_solver):
         data["rc_edge_attr"] = rc_edge_list[:, 2]
         data["pr_edge_index"] = prices_edge_list[:, 0:2]
         data["pr_edge_attr"] = prices_edge_list[:, 2]
-
+        data["st_pair_index"] = np.column_stack((self.data_source, self.data_target))
+        data["st_pair_attr"] = self.s_t_traffic_rates
+        
         self.model.step(data)
 
         new_prices = self.model.get_output_np_edge_weight(x, possible_sat_pair_non_expanded_sym, possible_capacity_non_expanded_sym, use_target=False)
@@ -155,17 +157,22 @@ class gnnsolver(mr_solver):
         d_sym = self.price_graph.price_graph - self.price_graph.price_graph.T
         d_sym.data = np.abs(d_sym.data)
         print(f"d_sym: {d_sym.data}")
-        plotext.title("d_sym Distribution")
-        plotext.hist(np.log10(d_sym.data+1e-5), bins=50, norm=True)
-        plotext.plotsize(100, 30)
-        plotext.show()
-        plotext.clf()
+        try:
+            plotext.title("d_sym Distribution")
+            plotext.hist(np.log10(d_sym.data+1e-5), bins=50, norm=True)
+            plotext.plotsize(100, 30)
+            plotext.show()
+            plotext.clf()
+        except Exception as e:
+            print("Plotext error:", e)
+            pass
         return
 
 class GNNSimulation(Simulation):
     def get_simulation_time(self):
         # return time at 2025 jun 1st
         return self.ts.utc(2025, 7, 16, 16, 0, 0)
+
     
     def run_step(self):
         self._printalltime(f"run_step")
@@ -191,22 +198,25 @@ class GNNSimulation(Simulation):
         p_o_mwm, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = self.solver.get_prim_objective_heuristic(with_rates=True)
         self._printalltime(f"Prim objective: {p_o}, MWM: {p_o_mwm}, Ratio: {p_o/p_o_mwm}")
         self._add_np_log("objective", self.N_STEP, [p_o, p_o_mwm])
-        return p_o/p_o_mwm
-        
-# Load tle data.
-from working_dir_path import get_working_dir_path
-import os
-tle_file_path = os.path.join(get_working_dir_path(),'starlink_16_jul_2025_1600.tle')
-
-LOG_OBJ = STATS_OBJECT()
-LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
-
-LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
+        return p_o/p_o_mwm, p_o, d_o, p_o_mwm
 
 
-for GAMMA in [1, 0.1, 0.01, 0.001, 0.0001]:
+
+if __name__ == "__main__":
+    # Load tle data.
+    from working_dir_path import get_working_dir_path
+    import os
+    tle_file_path = os.path.join(get_working_dir_path(),'starlink_16_jul_2025_1600.tle')
+
+    LOG_OBJ = STATS_OBJECT()
+    LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
+
+    LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
+
+
     solver = gnnsolver()
-    solver.init_gnn(GAMMA=GAMMA)
+    solver.init_gnn(BETA=0.5, GAMMA=1)
+    tic = LOG_OBJ._get_tic()
     for step in range(500):
         print(f"Running simulation with step: {step}")
         # Create simulation instance.
@@ -216,9 +226,6 @@ for GAMMA in [1, 0.1, 0.01, 0.001, 0.0001]:
 
         simulation.update_space()
         simulation.set_solver(solver)
-        ratio = simulation.run_step()
-        GAMMA_TEXT = f"GAMMA_{GAMMA:.4f}".replace('.','_')
-        LOG_CSV_WRITTER.log_one_scalar(GAMMA_TEXT, step, ratio)
-        # if (step+1) % 100 == 0:
-        #     solver.model.save(LOG_DIR, str(step+1))
-        # solver.model.save(LOG_DIR, 'final')
+        ratio, p_o, d_o, p_o_mwm = simulation.run_step()
+        tim = LOG_OBJ._get_tim(tic,remove_timer=False)
+        LOG_CSV_WRITTER.log_mul_scalar("res", step, [tim, ratio, p_o, d_o, p_o_mwm])

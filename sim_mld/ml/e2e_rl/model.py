@@ -6,7 +6,7 @@ from torch.optim.lr_scheduler import LambdaLR
 from sim_src.util import *
 
 from sim_mld.ml.base_model import base_model, ReplayMemory
-from sim_mld.ml.ld_sgl.nn import PriceGNN 
+from sim_mld.ml.e2e_rl.nn import AC_NN 
 
 from torch_geometric.data import Data, Batch
 
@@ -15,23 +15,30 @@ torch.autograd.set_detect_anomaly(True)
 from torch_geometric.data import Data
 
 import plotext
-class ld_model(base_model):
-    def __init__(self, LR =0.001, TAU = 0.001, BETA=0.5, GAMMA=1.):
+
+class rl_model(base_model):
+    def __init__(self, LR =0.001, TAU = 0.001, BETA=0.5, GAMMA=0.001, DET=True):
         self.BETA = BETA
         self.GAMMA = GAMMA
         base_model.__init__(self, LR = LR, TAU=TAU, WITH_TARGET = True)
         self.batch_size = 1
         self.GAMMA = GAMMA/self.batch_size
         self.data_set = ReplayMemory(self.batch_size)
+        self.DET = DET
+        self.mean_rwd = 0.
+
         
     def init_model(self):
-        self.model = PriceGNN()
-        self.model_target = PriceGNN()
+        self.model = AC_NN()
+        self.model_target = AC_NN()
         self.update_target_nn(hard=True)
 
     def init_optim(self):
-        self.model_optim = torch.optim.Adam(self.model.parameters(), lr=self.LR)
-        self.lr_scheduler = LambdaLR(self.model_optim, lr_lambda=lambda epoch: 1.0/(epoch+1)**self.BETA)
+        self.actor_optim = torch.optim.Adam(self.model.parameters(), lr=self.LR)
+        self.lr_scheduler_actor = LambdaLR(self.actor_optim, lr_lambda=lambda epoch: 1.0/(epoch+1)**self.BETA)
+
+        self.critic_optim = torch.optim.Adam(self.model.parameters(), lr=self.LR)
+        self.lr_scheduler_critic = LambdaLR(self.critic_optim, lr_lambda=lambda epoch: 1.0/(epoch+1)**self.BETA)
 
     def _add_graph(self, data):
         """
@@ -54,6 +61,8 @@ class ld_model(base_model):
             rc_edge_attr=to_tensor(data["rc_edge_attr"]),
             pr_edge_index=to_tensor(data["pr_edge_index"],dtype=LONG_TYPE).T,
             pr_edge_attr=to_tensor(data["pr_edge_attr"]),
+            st_pair_index=to_tensor(data["st_pair_index"],dtype=LONG_TYPE).T,
+            st_pair_attr=to_tensor(data["st_pair_attr"]),
         )
         self.data_set.push(data_tensor)
     
@@ -85,8 +94,32 @@ class ld_model(base_model):
         for key, tensor in self.model.state_dict().items():
             if 'weight' in key:
                 max_vals.append(tensor.abs().max().item())
-        print("Max weight:", max(max_vals))
-        prices = self.model.forward(batch.x, batch.cp_edge_index, batch.cp_edge_attr)   
+        print("Max weight:", max(max_vals))        
+        if self.DET:
+            q_approx = self.model.evaluate(batch.x, batch.cp_edge_index, batch.cp_edge_attr, batch.pr_edge_attr, batch.st_pair_index)
+            q_approx = q_approx.squeeze()
+            print("Q approx shape:", q_approx.shape, "ST pair attr shape:", batch.st_pair_attr.shape, "st_pair_index shape:", batch.st_pair_index.shape)
+            loss_eva = torch.nn.functional.mse_loss(q_approx, batch.st_pair_attr, reduction="mean")
+            self.critic_optim.zero_grad()
+            loss_eva.backward()
+            self.critic_optim.step()
+            self.critic_optim.zero_grad()
+            
+            prices = self.model.forward(batch.x,batch.cp_edge_index,batch.cp_edge_attr).squeeze()
+            q_approx = self.model.evaluate(batch.x, batch.cp_edge_index, batch.cp_edge_attr, prices, batch.st_pair_index)
+            q_approx = q_approx.squeeze()
+            loss_act = -q_approx.mean()
+        else:
+            prices = self.model.forward(batch.x,batch.cp_edge_index,batch.cp_edge_attr).squeeze()
+            prices = torch.clamp(prices,min=1e-5)
+            self.mean_rwd = 0.1*batch.st_pair_attr.mean().item() + self.mean_rwd*0.9
+            loss_act = - torch.log(prices).mean() * (batch.st_pair_attr.mean().item()-self.mean_rwd)
+
+        self.actor_optim.zero_grad()
+        loss_act.backward()
+        self.actor_optim.step()
+        self.actor_optim.zero_grad()
+        
         subg = (batch.qx_edge_attr - batch.rc_edge_attr)
         print("subg", subg)
         print("counting subg>0", (subg > 0).sum().item())
@@ -98,7 +131,6 @@ class ld_model(base_model):
         print("rc_edge_attr", batch.rc_edge_attr)
         print("counting rc>0", (batch.rc_edge_attr > 0).sum().item())
         print("counting rc<=0", (batch.rc_edge_attr <= 0).sum().item())
-        print("prices", prices)
         try:
             plotext.title("Prices Distribution")
             plotext.hist(np.log10(to_numpy(prices)+1e-5), bins=50, norm=True)
@@ -123,21 +155,9 @@ class ld_model(base_model):
         except Exception as e:
             print("Plotext error:", e)
             pass
-        loss_d = - prices * subg * self.GAMMA
-
-        loss_d_mean = torch.mean(loss_d)
-        self._add_np_log("loss_d",self.N_STEP,[loss_d_mean.item()])
-
-        loss = loss_d_mean
-        self._add_np_log("loss_all",self.N_STEP,[loss.item()])
-
-        text = f"loss: {loss.item():.4f}, loss_d: {loss_d_mean.item():.4f}"
-        self._printalltime(text)
-        self.model_optim.zero_grad()
-        loss.backward()
-        self.model_optim.step()
-        self.model_optim.zero_grad()
-        self.lr_scheduler.step()
+        
+        self.lr_scheduler_actor.step()
+        self.lr_scheduler_critic.step()
         self.update_target_nn(hard=False)
         self.clear_memory()
 

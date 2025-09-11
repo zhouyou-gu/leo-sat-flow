@@ -3,9 +3,12 @@ import torch.nn.functional as F
 from torch_geometric.nn import NNConv, BatchNorm, GATv2Conv
 
 class PriceGNN(torch.nn.Module):
-    def __init__(self, in_node_dim=2, in_edge_dim=1, hidden=64, num_layers=3, elu_offset=-1,
+    def __init__(self, in_node_dim=2, in_edge_dim=1, ot_edge_dim = 1 ,hidden=64, num_layers=3, elu_offset=-1,
                     heads=4):
         super().__init__()
+        self.in_node_dim = in_node_dim
+        self.in_edge_dim = in_edge_dim
+        self.ot_edge_dim = ot_edge_dim
         # Encoders
         self.node_encoder = torch.nn.Linear(in_node_dim, hidden)
         # Keep an edge encoder for decoder context; GATv2 will take raw edge_attr with edge_dim=1
@@ -19,50 +22,48 @@ class PriceGNN(torch.nn.Module):
             # concat=False keeps output dim == hidden regardless of heads
             self.convs.append(GATv2Conv(hidden, hidden, heads=heads, concat=False, edge_dim=hidden))
             self.bns.append(BatchNorm(hidden))
-            self.edge_emb.append(torch.nn.Sequential(
-            torch.nn.Linear(3 * hidden + in_node_dim * 2, hidden),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden, hidden),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden, hidden))
-            )
         # Decoders
         self.edge_decoder = torch.nn.Sequential(
             torch.nn.Linear(3 * hidden + in_node_dim * 2, hidden),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden, hidden),
             torch.nn.ReLU(),
-            torch.nn.Linear(hidden, 1),
+            torch.nn.Linear(hidden, ot_edge_dim),
+        )
+        self.pair_decoder = torch.nn.Sequential(
+            torch.nn.Linear(2 * hidden + in_node_dim * 2, hidden),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden, hidden),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden, ot_edge_dim),
         )
         self.elu_offset = elu_offset
 
-    def forward(self, x, edge_index, edge_attr):
+    def forward(self, x, edge_index, edge_attr, dec_pair_index=None, dec_active_func=F.sigmoid):
         # Encode inputs
         xx = x
         x = self.node_encoder(x)
         # Edge embedding for decoder context
-        e_dec = self.edge_encoder(edge_attr.unsqueeze(-1))
+        e_dec = self.edge_encoder(edge_attr.reshape(-1,self.in_edge_dim))
 
         for conv, bn, edge_emb in zip(self.convs, self.bns, self.edge_emb):
             x = F.elu(conv(x, edge_index, edge_attr=e_dec))
             x = bn(x)
-            # row, col = edge_index
-            # z_edge = torch.cat([
-            #     x[row], xx[row],
-            #     x[col], xx[col],
-            #     e_dec
-            # ], dim=-1)
-            # e_dec = edge_emb(z_edge)
 
         # Edge weight prediction
-        row, col = edge_index
-        z_edge = torch.cat([
-            x[row], xx[row],
-            x[col], xx[col],
-            e_dec
-        ], dim=-1)
-        w = self.edge_decoder(z_edge).squeeze(-1)
-        return F.sigmoid(w)
-    
-    
-    
+        if dec_pair_index is not None:
+            row, col = dec_pair_index
+            z_edge = torch.cat([
+                x[row], xx[row],
+                x[col], xx[col]
+            ], dim=-1)
+            w = self.pair_decoder(z_edge).squeeze(-1)
+        else:
+            row, col = edge_index
+            z_edge = torch.cat([
+                x[row], xx[row],
+                x[col], xx[col],
+                e_dec
+            ], dim=-1)
+            w = self.edge_decoder(z_edge).squeeze(-1)
+        return dec_active_func(w)
