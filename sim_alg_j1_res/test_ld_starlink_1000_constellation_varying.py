@@ -36,43 +36,112 @@ from sim_alg_j1_res.test_ld_starlink_1000_sg_compare import ldl_sg_compare_solve
 class Time_Varying_Simulation(GNNSimulation):
     def step_time_us(self, time_us):
         delta_days = time_us / 1e6 / 86400  # Convert microseconds to days.
-        now = self.ts.now()
+        now = self.current_time
         new_tt_jd = now.tt + delta_days
         self.current_time = self.ts.tt(jd=new_tt_jd)
         return self.current_time
-        
-# Load tle data.
-from working_dir_path import get_working_dir_path
-import os
-tle_file_path = os.path.join(get_working_dir_path(),'starlink_16_jul_2025_1600.tle')
-
-LOG_OBJ = STATS_OBJECT()
-LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
-
-LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
-
-for seed in range(100):
-    solver = ldl_sg_compare_solver()
-    ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0.0, starlink_tle_path=tle_file_path, seed=seed)
-    simulation = GNNSimulation(ts, sat_array)
-    simulation.config_l_mask(seed=seed)
-    simulation.update_space()
-    simulation.set_solver(solver)
-    tic = LOG_OBJ._get_tic()
-    for step in range(500):
-        print(f"Running simulation with step: {step}")
-        ratio, p_o, d_o, p_o_mwm = simulation.run_step()
-        tim = LOG_OBJ._get_tim(tic,remove_timer=False)
-        LOG_CSV_WRITTER.log_mul_scalar("sg", step, [tim,ratio, p_o, d_o, p_o_mwm], g_step=seed)
-
-    tic = LOG_OBJ._get_tic()
-    PATH = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_ld_starlink_1000_varying_beta/train_ld_starlink_1000_varying_beta-2025-September-11-13-34-44-ail/ld_model_target.model_final_beta_0_5000_pt.pt"
-    solver.load_gnn(path=PATH)
-    solver.infer_gnn()
-    d_o, edge_prices = solver.get_dual_objective(with_prices=True)
-    p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = solver.get_prim_objective(with_rates=True)
-    tim = LOG_OBJ._get_tim(tic,remove_timer=True)
-    LOG_CSV_WRITTER.log_mul_scalar("ldl", step, [tim, ratio, p_o, d_o, p_o_mwm], g_step=seed)
-
     
+    def get_simulation_time(self):
+        # return time at 2025 jun 1st
+        return self.current_time
+    
+    def reset_simulation_time(self):
+        self.current_time = self.ts.utc(2025, 7, 16, 16, 0, 0)
+        
+if __name__ == "__main__":
+    SG_STEPS = 500
+    N_CONSTELLATION = 100
+    
+    # Load tle data.
+    from working_dir_path import get_working_dir_path
+    import os
+    tle_file_path = os.path.join(get_working_dir_path(),'starlink_16_jul_2025_1600.tle')
+
+    LOG_OBJ = STATS_OBJECT()
+    LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
+
+    LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
+
+    for seed in range(N_CONSTELLATION):
+        sg_solver = ldl_sg_compare_solver()
+        ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0.0, starlink_tle_path=tle_file_path, seed=seed)
+        init_simulation = Time_Varying_Simulation(ts, sat_array)
+        init_simulation.reset_simulation_time()
+        init_simulation.config_l_mask(seed=seed)
+        init_simulation.update_space()
+        init_simulation.set_solver(sg_solver)
+        
+        varying_sg_simulation = Time_Varying_Simulation(ts, sat_array)
+        varying_sg_simulation.reset_simulation_time()
+        varying_sg_simulation.config_l_mask(seed=seed)
+        varying_sg_simulation.update_space()
+
+        tic = LOG_OBJ._get_tic()
+        for step in range(SG_STEPS):
+            print(f"Running simulation with step: {step}")
+            ratio, p_o, d_o, p_o_mwm = init_simulation.run_step()
+            tim = LOG_OBJ._get_tim(tic,remove_timer=False)
+            varying_sg_simulation.reset_simulation_time()
+            varying_sg_simulation.step_time_us(tim)
+            varying_sg_simulation.update_space()
+            tmp_solver = ldl_sg_compare_solver()
+            varying_sg_simulation.set_solver(tmp_solver)
+            tmp_solver.price_graph.price_graph = sg_solver.price_graph.price_graph.copy()
+            varying_sg_simulation.update_solver_traffic_info(seed=seed)
+            p_o_delayed = tmp_solver.get_prim_objective(with_rates=False)
+            p_o_instant = sg_solver.get_prim_objective(with_rates=False)
+            print(f"Instant p_o: {p_o_instant}, delayed p_o: {p_o_delayed}")
+            LOG_CSV_WRITTER.log_mul_scalar("sg", step, [tim, p_o_delayed, p_o_instant], g_step=seed)
+
+
+        varying_gnn_simulation = Time_Varying_Simulation(ts, sat_array)
+        varying_gnn_simulation.reset_simulation_time()
+        varying_gnn_simulation.config_l_mask(seed=seed)
+        varying_gnn_simulation.update_space()
+        
+        gnn_solver = ldl_sg_compare_solver()
+        init_simulation = Time_Varying_Simulation(ts, sat_array)
+        init_simulation.reset_simulation_time()
+        init_simulation.config_l_mask(seed=seed)
+        init_simulation.update_space()
+        init_simulation.set_solver(gnn_solver)
+        init_simulation.update_solver_traffic_info(seed=seed)
+
+        PATH = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_ld_starlink_1000_varying_beta/train_ld_starlink_1000_varying_beta-2025-September-12-17-01-45-ail/ld_model.model_final_beta_0_5000_pt.pt"
+        
+        gnn_solver.load_gnn(path=PATH)
+        tic = LOG_OBJ._get_tic()
+        gnn_solver.infer_gnn()
+        p_o_gnn_instant = gnn_solver.get_prim_objective(with_rates=False)
+        tim = LOG_OBJ._get_tim(tic,remove_timer=True)
+        varying_gnn_simulation.step_time_us(0)
+        varying_gnn_simulation.update_space()
+        
+        tmp_solver = ldl_sg_compare_solver()
+    
+        varying_gnn_simulation.set_solver(tmp_solver)
+        varying_gnn_simulation.update_solver_traffic_info(seed=seed)
+        tmp_solver.price_graph.price_graph = gnn_solver.price_graph.price_graph.copy()
+
+        p_o_gnn_delayed = tmp_solver.get_prim_objective(with_rates=False)
+        LOG_CSV_WRITTER.log_mul_scalar("ldl", step, [tim, p_o_gnn_delayed, p_o_gnn_instant], g_step=seed)
+        print(f"GNN delayed p_o: {p_o_gnn_delayed}")
+        varying_heu_simulation = Time_Varying_Simulation(ts, sat_array)
+        varying_heu_simulation.reset_simulation_time()
+        varying_heu_simulation.config_l_mask(seed=seed)
+        varying_heu_simulation.update_space()
+        
+        heu_solver = ldl_sg_compare_solver()
+        init_simulation = Time_Varying_Simulation(ts, sat_array)
+        init_simulation.reset_simulation_time()
+        init_simulation.config_l_mask(seed=seed)
+        init_simulation.update_space()
+        init_simulation.set_solver(heu_solver)
+        init_simulation.update_solver_traffic_info(seed=seed)
+        
+        tic = LOG_OBJ._get_tic()
+        p_o_heu = heu_solver.get_prim_objective_heuristic(with_rates=False)
+        tim = LOG_OBJ._get_tim(tic,remove_timer=True)
+
+        LOG_CSV_WRITTER.log_mul_scalar("heu", step, [tim, p_o_heu], g_step=seed)
 

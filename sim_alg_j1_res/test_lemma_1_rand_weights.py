@@ -100,7 +100,7 @@ class Lemma1Simulation(Simulation):
         # Compute the prim p.
         self._add_np_log("dual_objective", self.N_STEP, [o_1_rate_cost, o_1_rate_mtch, o_2_rate_cost, o_2_rate_mtch])
         self._printalltime(f"Dual Objective: {d_o_1:.4f}:{d_o_2:.4f}, Rate Cost: {o_1_rate_cost:.4f}:{o_2_rate_cost:.4f}, Rate Mtch: {o_1_rate_mtch:.4f}:{o_2_rate_mtch:.4f}")
-        return
+        return o_1_rate_cost, o_1_rate_mtch, o_2_rate_cost, o_2_rate_mtch
         
 # Load tle data.
 from working_dir_path import get_working_dir_path
@@ -123,4 +123,7 @@ for step in range(500):
 
     simulation.update_space()
     simulation.set_solver(solver)
-    ratio = simulation.run_step()
+    o_1_rate_cost, o_1_rate_mtch, o_2_rate_cost, o_2_rate_mtch = simulation.run_step()
+    LOG_CSV_WRITTER.log_mul_scalar("d_o_component", step, [o_1_rate_cost, o_1_rate_mtch, o_2_rate_cost, o_2_rate_mtch], g_step=step)
+
+
