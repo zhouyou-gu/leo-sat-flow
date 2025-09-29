@@ -113,8 +113,19 @@ class rl_model(base_model):
             prices = self.model.forward(batch.x,batch.cp_edge_index,batch.cp_edge_attr).squeeze()
             prices = torch.clamp(prices,min=1e-5)
             self.mean_rwd = 0.1*batch.st_pair_attr.mean().item() + self.mean_rwd*0.9
-            loss_act = - torch.log(prices).mean() * (batch.st_pair_attr.mean().item()-self.mean_rwd)
-
+            
+            prices = torch.clamp(prices, min=1e-5, max=1-1e-5)
+            prices_logit = torch.log(prices/(1-prices))
+            std_of_normal = 1.0
+            
+            prices_sample = batch.pr_edge_attr
+            prices_sample = torch.clamp(prices_sample, min=1e-5, max=1-1e-5)
+            prices_sample_logit = torch.log(prices_sample/(1-prices_sample))
+            log_prob = - ((prices_logit - prices_sample_logit)**2) / (2*std_of_normal**2) - torch.log(prices*(1-prices)*std_of_normal * (2*math.pi)**0.5)
+            log_prob = log_prob.mean()
+            
+            loss_act = - log_prob * (batch.st_pair_attr.mean().item()-self.mean_rwd)
+            
         self.actor_optim.zero_grad()
         loss_act.backward()
         self.actor_optim.step()
@@ -173,6 +184,17 @@ class rl_model(base_model):
             prices = self.model_target.forward(x, cp_edge_index, cp_edge_attr)
         else:
             prices = self.model.forward(x, cp_edge_index, cp_edge_attr)
+            
+        if self.DET:
+            pass
+        else:
+            # sample from logistic normal distribution
+            # inverse of sigmoid
+            prices = torch.clamp(prices, min=1e-5, max=1-1e-5)
+            mean_of_normal = torch.log(prices / (1 - prices))
+            std_of_normal = 1.0
+            normal_sample = torch.normal(mean_of_normal, std_of_normal)
+            prices = torch.sigmoid(normal_sample)
         return to_numpy(prices)
 
     
