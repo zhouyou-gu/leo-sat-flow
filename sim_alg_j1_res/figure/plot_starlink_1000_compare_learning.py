@@ -30,29 +30,29 @@ plt.rcParams['ps.fonttype'] = 42
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
 results_dir = [
-    "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_rl_starlink_1000_ld/train_rl_starlink_1000_ld-2025-September-10-11-23-31-ail/ld",
-    "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_rl_starlink_1000_dpg/train_rl_starlink_1000_dpg-2025-September-10-10-52-42-ail/dpg",
-    "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_rl_starlink_1000_pg/train_rl_starlink_1000_pg-2025-September-10-11-13-02-ail/pg",
+    "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_rl_starlink_1000_ld/train_rl_starlink_1000_ld-2025-September-30-19-54-44-ail/res",
+    "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_rl_starlink_1000_dpg/train_rl_starlink_1000_dpg-2025-September-30-20-06-43-ail/res",
+    "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_rl_starlink_1000_pg/train_rl_starlink_1000_pg-2025-October-20-14-30-29-ail/res",
 ]
 # Plot the data
 fig, axs_list = plt.subplots(1,2,)
 fig.set_size_inches(fig_width_in, fig_height_in)  # 3.5 inches width, height adjusted to maintain aspect ratio
 
-N_POINTS = 200
+N_POINTS = 500
 res = np.zeros((len(results_dir), 4, N_POINTS))
 result_list = []
 for i, data_file in enumerate(results_dir):
     data = np.genfromtxt(data_file, delimiter=',')
-    res[i, 0, :] = data[:, 4]
-    res[i, 1, :] = data[:, 3]
+    res[i, 0, :] = data[:, 5]
+    res[i, 1, :] = data[:, 4]
 
 axs = axs_list[0]
 lines1 = []
 lines2 = []
 for i, b in enumerate(results_dir):
     AVG_N = 5
-    avg = np.convolve(res[i,0,:], np.ones(AVG_N)/AVG_N, mode='full')[:N_POINTS]
-    line, = axs.plot(np.arange(N_POINTS)+1, avg,linewidth=1, zorder=3)
+    avg = np.convolve(res[i,0,:], np.ones(AVG_N)/AVG_N, mode='full')[AVG_N:N_POINTS]
+    line, = axs.plot(np.arange(N_POINTS-AVG_N)+1, avg,linewidth=1, zorder=3)
     lines1.append(line)
     print(avg)
 axs.set_position([0.18, 0.2, 0.3, 0.765])
@@ -65,7 +65,7 @@ axs.text(20, -5000, r'$\bf{(a)}$', fontsize=FONT_SIZE+2, verticalalignment='bott
 
 
 
-data_name_list = [r"LDL", r"DPG", r"PG"] 
+data_name_list = [r"LaDuGL", r"DPG", r"PG"] 
 ncol = 1  # Number of columns in the legend
 h, l = lines1, data_name_list
 # nrows = -(-len(h) // ncol)                         # ceiling division
@@ -77,7 +77,7 @@ h, l = lines1, data_name_list
 # h = [h[i] for i in order]
 # l = [l[i] for i in order]
 
-leg = axs.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.4, 0.025, 0.5, 0.3), mode="expand",ncol = 1 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.2, 
+leg = axs.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.35, 0.025, 0.6, 0.3), mode="expand",ncol = 1 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.5, 
 frameon=True,          # draw a frame
 fancybox=False,        # <-- square corners (like MATLAB)
 edgecolor='black',     # black  frame edge
@@ -109,12 +109,13 @@ axs.set_position([0.63, 0.2, 0.33, 0.765])
 axs.set_xlabel(r'Number of Iterations, $K$')
 axs.set_ylabel(r"Network Throughput (Gbps)")
 axs.set_xlim(0, N_POINTS)
-axs.set_ylim(0, 180)
+axs.set_ylim(0, 150)
+axs.set_yticks([0, 25, 50, 75, 100, 125, 150])
 axs.grid(True, zorder=0)
 axs.text(20, 0, r'$\bf{(b)}$', fontsize=FONT_SIZE+2, verticalalignment='bottom')
 
 
-data_name_list = [r"LDL", r"DPG", r"PG"]
+data_name_list = [r"LaDuGL", r"DPG", r"PG"]
 data_name_list.append(r"MRate")
 ncol = 1  # Number of columns in the legend
 h, l = lines1, data_name_list
@@ -127,7 +128,7 @@ h, l = lines1, data_name_list
 # h = [h[i] for i in order]
 # l = [l[i] for i in order]
 
-leg = axs.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.4, 0.025, 0.5, 0.3), mode="expand",ncol = 1 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.2, 
+leg = axs.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.35, 0.025, 0.6, 0.3), mode="expand",ncol = 1 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.5, 
 frameon=True,          # draw a frame
 fancybox=False,        # <-- square corners (like MATLAB)
 edgecolor='black',     # black  frame edge
