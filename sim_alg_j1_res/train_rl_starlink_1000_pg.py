@@ -56,12 +56,13 @@ if __name__ == "__main__":
 
 
     solver = pg_gnnsolver()
-    solver.init_gnn(BETA=0.5, GAMMA=1)
+    solver.init_gnn(BETA=0.7, GAMMA=1)
     tic = LOG_OBJ._get_tic()
     for step in range(500):
         print(f"Running simulation with step: {step}")
         # Create simulation instance.
         ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0.0, starlink_tle_path=tle_file_path, seed=step)
+        GNNSimulation.FOR_THETA_HALF = 30.0  # Set the angle for LT direction.
         simulation = GNNSimulation(ts, sat_array)
         simulation.config_l_mask(seed=step)
 

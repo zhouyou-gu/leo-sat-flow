@@ -20,7 +20,7 @@ class PriceGNN(torch.nn.Module):
         self.edge_emb = torch.nn.ModuleList()
         for _ in range(num_layers):
             # concat=False keeps output dim == hidden regardless of heads
-            self.convs.append(GATv2Conv(hidden, hidden, heads=heads, concat=False, edge_dim=hidden))
+            self.convs.append(GATv2Conv(hidden, hidden, heads=heads, concat=False, edge_dim=hidden, dropout=0.5))
             self.bns.append(BatchNorm(hidden))
         # Decoders
         self.edge_decoder = torch.nn.Sequential(

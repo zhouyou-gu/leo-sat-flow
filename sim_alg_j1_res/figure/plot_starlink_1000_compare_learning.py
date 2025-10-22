@@ -30,9 +30,9 @@ plt.rcParams['ps.fonttype'] = 42
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
 results_dir = [
-    "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_rl_starlink_1000_ld/train_rl_starlink_1000_ld-2025-September-30-19-54-44-ail/res",
-    "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_rl_starlink_1000_dpg/train_rl_starlink_1000_dpg-2025-September-30-20-06-43-ail/res",
-    "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_rl_starlink_1000_pg/train_rl_starlink_1000_pg-2025-October-20-14-30-29-ail/res",
+    "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_ld_starlink_1000_varying_beta/train_ld_starlink_1000_varying_beta-2025-October-22-10-55-40-ail/BETA_0_7000",
+    "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_rl_starlink_1000_dpg/train_rl_starlink_1000_dpg-2025-October-22-11-37-48-ail/res",
+    "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_rl_starlink_1000_pg/train_rl_starlink_1000_pg-2025-October-22-12-12-05-ail/res",
 ]
 # Plot the data
 fig, axs_list = plt.subplots(1,2,)
@@ -43,8 +43,12 @@ res = np.zeros((len(results_dir), 4, N_POINTS))
 result_list = []
 for i, data_file in enumerate(results_dir):
     data = np.genfromtxt(data_file, delimiter=',')
-    res[i, 0, :] = data[:, 5]
-    res[i, 1, :] = data[:, 4]
+    if i == 0:
+        res[i, 0, :] = data[:, 4]
+        res[i, 1, :] = data[:, 3]
+    else:
+        res[i, 0, :] = data[:, 5]
+        res[i, 1, :] = data[:, 4]
 
 axs = axs_list[0]
 lines1 = []
@@ -59,7 +63,7 @@ axs.set_position([0.18, 0.2, 0.3, 0.765])
 axs.set_xlabel(r'Number of Iterations, $K$')
 axs.set_ylabel(r'Dual Function Value, $g(\lambda)$')
 axs.set_xlim(0, N_POINTS)
-axs.set_ylim(-5000, -0)
+axs.set_ylim(-3000, -0)
 axs.grid(True, zorder=0)
 axs.text(20, -5000, r'$\bf{(a)}$', fontsize=FONT_SIZE+2, verticalalignment='bottom')
 
@@ -93,8 +97,8 @@ lines1 = []
 lines2 = []
 for i, b in enumerate(results_dir):
     AVG_N = 5
-    avg = np.convolve(-res[i,1,:], np.ones(AVG_N)/AVG_N, mode='full')[:N_POINTS]
-    line, = axs.plot(np.arange(N_POINTS)+1, avg, linewidth=1., zorder=3)
+    avg = np.convolve(-res[i,1,:], np.ones(AVG_N)/AVG_N, mode='full')[AVG_N:N_POINTS]
+    line, = axs.plot(np.arange(N_POINTS-AVG_N)+1, avg, linewidth=1., zorder=3)
     lines1.append(line)
     # line, = axs.plot(np.arange(N_POINTS)+1, res[i,1,:],linewidth=1)
     # lines2.append(line)
@@ -115,7 +119,7 @@ axs.grid(True, zorder=0)
 axs.text(20, 0, r'$\bf{(b)}$', fontsize=FONT_SIZE+2, verticalalignment='bottom')
 
 
-data_name_list = [r"LaDuGL", r"DPG", r"PG"]
+data_name_list = [r"LaDuGL", r"DDPG", r"PG"]
 data_name_list.append(r"MRate")
 ncol = 1  # Number of columns in the legend
 h, l = lines1, data_name_list

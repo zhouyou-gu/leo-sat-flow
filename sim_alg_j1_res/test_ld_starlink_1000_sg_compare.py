@@ -167,7 +167,7 @@ if __name__ == "__main__":
             tim = LOG_OBJ._get_tim(tic,remove_timer=False)
             LOG_CSV_WRITTER.log_mul_scalar("sg", step, [tim,ratio, p_o, d_o, p_o_mwm], g_step=seed)
 
-        PATH = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_ld_starlink_1000_varying_beta/train_ld_starlink_1000_varying_beta-2025-September-12-17-01-45-ail/ld_model_target.model_final_beta_0_5000_pt.pt"
+        PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "selected_nn/BETA_0_7000")
         solver.load_gnn(path=PATH)
         tic = LOG_OBJ._get_tic()
         solver.infer_gnn()

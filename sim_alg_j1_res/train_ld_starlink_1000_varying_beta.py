@@ -55,6 +55,7 @@ for BETA in [0.5, 0.7, 0.9]:
         print(f"Running simulation with step: {step}")
         # Create simulation instance.
         ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0.0, starlink_tle_path=tle_file_path, seed=step)
+        GNNSimulation.FOR_THETA_HALF = 30.0  # Set the angle for LT direction.
         simulation = GNNSimulation(ts, sat_array)
         simulation.config_l_mask(seed=step)
 

@@ -28,7 +28,7 @@ plt.rcParams['pdf.fonttype'] = 42
 plt.rcParams['ps.fonttype'] = 42
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-results_dir = os.path.join("/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_ld_starlink_1000_varying_beta/train_ld_starlink_1000_varying_beta-2025-September-10-11-49-13-ail")
+results_dir = os.path.join("/home/zhouyou/leo-sat-flow/sim_alg_j1_res/train_ld_starlink_1000_varying_beta/train_ld_starlink_1000_varying_beta-2025-October-22-10-55-40-ail")
 
 # Plot the data
 fig, axs_list = plt.subplots(1,2,)
@@ -49,11 +49,12 @@ for i, b in enumerate(beta):
 axs = axs_list[0]
 lines1 = []
 lines2 = []
+colors = ["#4cb5ff", "#0083e1", "#005C9D"]
 for i, b in enumerate(beta):
     print(f"Plotting beta = {b}",i)
     AVG_N = 5
-    avg = np.convolve(res[i,0,:], np.ones(AVG_N)/AVG_N, mode='full')[:N_POINTS]
-    line, = axs.plot(np.arange(N_POINTS)+1, avg,linewidth=1, zorder=3)
+    avg = np.convolve(res[i,0,:], np.ones(AVG_N)/AVG_N, mode='full')[AVG_N:N_POINTS]
+    line, = axs.plot(np.arange(N_POINTS-AVG_N)+1, avg, linewidth=0.5+i/2., zorder=3, color=colors[i])
     lines1.append(line)
     
 axs.set_position([0.18, 0.2, 0.3, 0.765])
@@ -61,7 +62,7 @@ axs.set_position([0.18, 0.2, 0.3, 0.765])
 axs.set_xlabel(r'Number of Iterations, $K$')
 axs.set_ylabel(r'Dual Function Value, $g(\lambda)$')
 axs.set_xlim(0, N_POINTS)
-axs.set_ylim(-2000, -0)
+axs.set_ylim(-3000, -0)
 # axs.set_xscale('log')
 # axs.set_yscale('log')
 axs.grid(True, zorder=0)
@@ -95,12 +96,13 @@ leg.get_frame().set_linewidth(0.8)  # MATLAB-thin border
 axs = axs_list[1]
 lines1 = []
 lines2 = []
+colors = ["#4cb5ff", "#0083e1", "#005C9D"]
 for i, b in enumerate(beta):
     print(f"Plotting beta = {b}",i)
     print(result_list)
     AVG_N = 5
     avg = np.convolve(-res[i,1,:], np.ones(AVG_N)/AVG_N, mode='full')[:N_POINTS]
-    line, = axs.plot(np.arange(N_POINTS)+1, avg, linewidth=1., zorder=3)
+    line, = axs.plot(np.arange(N_POINTS)+1, avg, linewidth=0.5+i/2., zorder=3, color=colors[i])
     lines1.append(line)
     # line, = axs.plot(np.arange(N_POINTS)+1, res[i,1,:],linewidth=1)
     # lines2.append(line)
@@ -115,7 +117,7 @@ axs.set_position([0.63, 0.2, 0.33, 0.765])
 axs.set_xlabel(r'Number of Iterations, $K$')
 axs.set_ylabel(r"Network Throughput (Gbps)")
 axs.set_xlim(0, N_POINTS)
-axs.set_ylim(0, 180)
+axs.set_ylim(0, 150)
 axs.grid(True, zorder=0)
 axs.text(20, 0, r'$\bf{(b)}$', fontsize=FONT_SIZE+2, verticalalignment='bottom')
 
