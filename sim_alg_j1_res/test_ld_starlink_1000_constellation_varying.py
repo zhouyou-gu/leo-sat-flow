@@ -107,7 +107,7 @@ if __name__ == "__main__":
         init_simulation.set_solver(gnn_solver)
         init_simulation.update_solver_traffic_info(seed=seed)
 
-        PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "selected_nn/BETA_0_7000")
+        PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "selected_nn/ld_model_target.model_final_beta_0_7000_pt.pt")
                 
         gnn_solver.load_gnn(path=PATH)
         tic = LOG_OBJ._get_tic()

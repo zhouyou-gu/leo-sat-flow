@@ -72,7 +72,7 @@ if __name__ == "__main__":
                 if N_SAT <= RUN_SG_N_SAT:            
                    LOG_CSV_WRITTER.log_mul_scalar("sg", step, [tim, ratio, p_o, d_o, p_o_mwm, N_SAT], g_step=seed)
 
-            PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "selected_nn/BETA_0_7000")
+            PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "selected_nn/ld_model_target.model_final_beta_0_7000_pt.pt")
             solver.load_gnn(path=PATH)
             tic = LOG_OBJ._get_tic()
             solver.infer_gnn()

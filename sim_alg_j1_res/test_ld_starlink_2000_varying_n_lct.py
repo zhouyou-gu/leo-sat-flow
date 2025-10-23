@@ -52,7 +52,6 @@ class N_LCT_GNNSimulation(GNNSimulation):
 if __name__ == "__main__":
     N_CONSTELLATION = 20
     SG_STEPS_ALL = 500
-    RUN_SG_N_SAT = 2000
     # Load tle data.
     from working_dir_path import get_working_dir_path
     import os
@@ -75,7 +74,7 @@ if __name__ == "__main__":
             # simulation.solver.update_step_rates_prices()
 
 
-            PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "selected_nn/BETA_0_7000")
+            PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "selected_nn/ld_model_target.model_final_beta_0_7000_pt.pt")
             solver.load_gnn(path=PATH)
             tic = LOG_OBJ._get_tic()
             solver.infer_gnn()
