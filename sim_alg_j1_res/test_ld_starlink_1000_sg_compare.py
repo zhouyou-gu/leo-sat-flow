@@ -167,7 +167,7 @@ if __name__ == "__main__":
             tim = LOG_OBJ._get_tim(tic,remove_timer=False)
             LOG_CSV_WRITTER.log_mul_scalar("sg", step, [tim,ratio, p_o, d_o, p_o_mwm], g_step=seed)
 
-        PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "selected_nn/ld_model_target.model_final_beta_0_7000_pt.pt")
+        PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "selected_nn/ld_model.model_final_beta_0_7000_pt.pt")
         solver.load_gnn(path=PATH)
         tic = LOG_OBJ._get_tic()
         solver.infer_gnn()
