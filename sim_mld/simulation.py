@@ -501,8 +501,12 @@ class Simulation(STATS_OBJECT):
                 edges_color_data[:, 1] = np.concatenate((edge_weight_green, edge_weight_green), axis=1).reshape(-1)
             
             if color is not None:
-                edges_color_data[:, :3] = np.tile(color, (o_lisl_data.shape[0], 1))
-        
+                if color.shape[1] == 3:
+                    edges_color_data[:, :3] = np.tile(color, (1, 2)).reshape(-1, 3)
+                elif color.shape[1] == 4:
+                    edges_color_data[:, :4] = np.tile(color, (1, 2)).reshape(-1, 4)
+                else:
+                    raise ValueError("Color array must have shape (N, 3) or (N, 4).")    
             viz['o_lisl'].set_data(pos=o_lisl_data, color=edges_color_data, width=width, connect='segments')
         
         toc = time.perf_counter()
@@ -574,7 +578,10 @@ class Simulation(STATS_OBJECT):
         self.canvas.update()
         app.process_events()
         time.sleep(0.01)
-        
+
+    def close_app(self):
+        app.quit()
+
     def set_viz_data(self):
         pass
     

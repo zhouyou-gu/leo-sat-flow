@@ -7,8 +7,8 @@ from scipy.stats import gaussian_kde
 
 #create a figure with (2,1) subplots
 FONT_SIZE = 9
-fig_width_px = 1200
-fig_height_px = 600
+fig_width_px = 900
+fig_height_px = 360
 dpi = 100  # Typical screen DPI, adjust if necessary
 fig_width_in = fig_width_px / dpi
 fig_height_in = fig_height_px / dpi
@@ -39,17 +39,25 @@ axs_list = [fig.add_subplot(3, 4, i+1) for i in range(12)]  # Create 2D subplots
 
 #generate a list of subplot positions in a 3x4 grid of the figure's relative coordinates
 horizontal_gap = 0.01
-vertical_gap = 0.07
-subplot_width = (1 - 5 * horizontal_gap) / 4 - 0.02
-subplot_height = (1 - 4 * vertical_gap) / 3
-horizontal_offset = 0.05
-vertical_offset = 0.
+vertical_gap = 0.03
+# Calculate subplot dimensions based on figure size and gaps, 
+# ensuring X:Y aspect ratio is 2:1
+subplot_width = (1 - 5 * horizontal_gap) / 4 - 0.03
+subplot_height = subplot_width / 2 * (fig_width_in / fig_height_in)
+horizontal_offset = 0.08
+vertical_offset = 0.02257
 
-subplot_positions = [ ( (i % 4) * (subplot_width + horizontal_gap) + horizontal_offset, 1 - (i // 4 + 1) * (subplot_height + vertical_gap) + vertical_offset, subplot_width , subplot_height ) for i in range(12) ]
+subplot_positions = [ ( (i % 4) * (subplot_width + horizontal_gap) + horizontal_offset, 1 - (i // 4 + 1) * (subplot_height + vertical_gap) - vertical_offset, subplot_width , subplot_height ) for i in range(12) ]
 
 result_list = []
 FOR_list = [30, 60, 90]
 METHOD_list = ['dujo','mwm', 'rand', 'grid']
+METHOD_LABELS = {
+    'dujo': 'LaDuGL',
+    'mwm': 'MRate',
+    'rand': 'Rand',
+    'grid': '+Grid'
+}
 lines1 = []
 counter = 0
 for i, FOR in enumerate(FOR_list):
@@ -74,55 +82,67 @@ for i, FOR in enumerate(FOR_list):
         x, y, z = x[idx], y[idx], z[idx]
         z = z*1e6
         print(f"Z min: {np.min(z)}, Z max: {np.max(z)}")
-        l = axs.scatter(y, x, c=z, alpha=0.5, label=f"FOR {FOR} - {METHOD}", s=5, cmap='viridis', vmax=5, vmin=0)
+        l = axs.scatter(y, x, c=z, alpha=1, label=f"FOR {FOR} - {METHOD}", s=5, cmap='viridis', vmax=1, vmin=0, zorder=3)
         lines1.append(l)
+        axs.grid(True, zorder=0)
 
         axs_list[counter].set_xlim(-3000, 3000)
         axs_list[counter].set_ylim(0, 3000)
-        axs_list[counter].set_xlabel('X')
-        axs_list[counter].set_ylabel('Y')
-        axs_list[counter].set_title(f'FOR = {FOR}')
-        axs_list[counter].set_aspect('equal', adjustable='box')
         axs_list[counter].set_position(subplot_positions[counter])
-        
+        # axs_list[counter].set_aspect('equal', adjustable='box')
+        axs_list[counter].set_xticks([-3000, -2000, -1000, 0, 1000, 2000, 3000])
+        axs_list[counter].set_yticks([0, 1000, 2000, 3000])
+        axs_list[counter].set_xticklabels([])
+        axs_list[counter].set_yticklabels([])
+        if counter <= 3:
+            axs_list[counter].set_title(f'{METHOD_LABELS[METHOD]}', fontsize=FONT_SIZE)
+        if counter % 4 == 0:
+            axs_list[counter].set_ylabel('Y (km)', fontsize=FONT_SIZE)
+            axs_list[counter].set_yticklabels([0, 1000, 2000, 3000])
+            # title on y-axis
+            axs_list[counter].text(-0.35, 0.5, f'FOR={FOR}°', va='center', ha='center', rotation='vertical', fontsize=FONT_SIZE, transform=axs_list[counter].transAxes)
+        if counter >= 8:
+            axs_list[counter].set_xlabel('X (km)', fontsize=FONT_SIZE)
+            axs_list[counter].set_xticklabels([None, -2000, -1000, 0, 1000, 2000, None])
+        print(axs_list[counter].get_position())
         counter += 1
 
-# axs.set_position([0.18, 0.2, 0.3, 0.765])
-# axs.set_xlabel(r'Number of Iterations, $K$')
-# axs.set_ylabel(r'Dual Function Value, $g(\lambda)$')
-# axs.set_xlim(0, N_POINTS)
-# axs.set_ylim(-3000, -0)
-# axs.grid(True, zorder=0)
-# axs.text(20, -5000, r'$\bf{(a)}$', fontsize=FONT_SIZE+2, verticalalignment='bottom')
 
+# Draw colorbar at the bottom of the figure, in horizontal orientation
+cbar_ax = fig.add_axes([0.945, 0.109305, 0.01, 0.94743-0.109305])  # [left, bottom, width, height]
+cbar = fig.colorbar(lines1[0], cax=cbar_ax)
+# Set ticks and tick labels
+cbar.set_ticks([0, 0.5, 1])
+cbar.set_ticklabels([r'0', r'0.5', r'$\geq 1.0$'], fontsize=FONT_SIZE)
+cbar.set_label('Point Density')
+fig.text(0.97, 0.15, 'Point Density (per km$^2$)', va='bottom', ha='left', rotation='vertical',
+         fontsize=FONT_SIZE, horizontalalignment='center')
 
+# data_name_list = [r"LaDuGL", r"DPG", r"PG"] 
+# ncol = 1  # Number of columns in the legend
+# h, l = lines1, data_name_list
+# # nrows = -(-len(h) // ncol)                         # ceiling division
+# # idx   = np.arange(len(h))
+# # pad   = nrows * ncol - len(idx)
+# # idx   = np.concatenate([idx, np.full(pad, -1)])    # pad
+# # order = idx.reshape(nrows, ncol).T.ravel()
+# # order = order[order >= 0]                          # drop sentinels
+# # h = [h[i] for i in order]
+# # l = [l[i] for i in order]
 
-data_name_list = [r"LaDuGL", r"DPG", r"PG"] 
-ncol = 1  # Number of columns in the legend
-h, l = lines1, data_name_list
-# nrows = -(-len(h) // ncol)                         # ceiling division
-# idx   = np.arange(len(h))
-# pad   = nrows * ncol - len(idx)
-# idx   = np.concatenate([idx, np.full(pad, -1)])    # pad
-# order = idx.reshape(nrows, ncol).T.ravel()
-# order = order[order >= 0]                          # drop sentinels
-# h = [h[i] for i in order]
-# l = [l[i] for i in order]
+# leg = axs.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.35, 0.025, 0.6, 0.3), mode="expand",ncol = 1 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.5, 
+# frameon=True,          # draw a frame
+# fancybox=False,        # <-- square corners (like MATLAB)
+# edgecolor='black',     # black  frame edge
+# facecolor='white',     # white background
+# framealpha=1,          # fully opaque
+# borderpad=0.3,         # tight inner padding (font-size units)
+# labelspacing=0.2,      # tight vertical space between rows
+# )   
+# leg.get_frame().set_linewidth(0.8)  # MATLAB-thin border
 
-leg = axs.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.35, 0.025, 0.6, 0.3), mode="expand",ncol = 1 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.5, 
-frameon=True,          # draw a frame
-fancybox=False,        # <-- square corners (like MATLAB)
-edgecolor='black',     # black  frame edge
-facecolor='white',     # white background
-framealpha=1,          # fully opaque
-borderpad=0.3,         # tight inner padding (font-size units)
-labelspacing=0.2,      # tight vertical space between rows
-)   
-leg.get_frame().set_linewidth(0.8)  # MATLAB-thin border
+# Save the figure as a PDF
+print("Saving figure to:", current_dir)
+output_path = os.path.join(current_dir, os.path.splitext(os.path.basename(__file__))[0]) + '.pdf'
 
-plt.show()
-# # Save the figure as a PDF
-# print("Saving figure to:", current_dir)
-# output_path = os.path.join(current_dir, os.path.splitext(os.path.basename(__file__))[0]) + '.pdf'
-
-# fig.savefig(output_path, format='pdf', pad_inches=0.)
+fig.savefig(output_path, format='pdf', pad_inches=0.)

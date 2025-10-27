@@ -219,8 +219,8 @@ def setup_visualization(size = (1200, 800), position = (0, 0), view=None, idx = 
         "text_bot_right": text_bot_right,
     }
 
-            
-def setup_viz_list_one_canvas(screen_size=(1200, 800), shape=(3, 3)):
+
+def setup_viz_list_one_canvas(screen_size=(1200, 800), shape=(3, 3), earth_texture=None):
     ret = []
     canvas = scene.SceneCanvas(title='Mega-Constellation Simulation',size=screen_size, position=(0, 0),
             keys='interactive', show=True, bgcolor=(1.0, 1.0, 1.0, 1.0))
@@ -233,5 +233,5 @@ def setup_viz_list_one_canvas(screen_size=(1200, 800), shape=(3, 3)):
             view.pos = (j * (screen_size[0] // shape[1]), i * (screen_size[1] // shape[0]))
             view.size = (screen_size[0] // shape[1], screen_size[1] // shape[0])
             view.camera = camera
-            ret.append(setup_visualization(view=view, idx=(i, j)))
+            ret.append(setup_visualization(view=view, idx=(i, j), earth_texture=earth_texture))
     return canvas, ret
