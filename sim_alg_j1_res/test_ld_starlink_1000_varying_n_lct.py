@@ -50,7 +50,7 @@ class N_LCT_GNNSimulation(GNNSimulation):
         self._printalltime(f"LCT mask: {self.lct_mask}, mean: {self.lct_mask.mean(axis=0)}")
 
 if __name__ == "__main__":
-    N_CONSTELLATION = 20
+    N_CONSTELLATION = 2
     SG_STEPS_ALL = 500
     # Load tle data.
     from working_dir_path import get_working_dir_path
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     for rho in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]:
         for seed in range(N_CONSTELLATION):
             solver = ldl_sg_compare_solver()
-            ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=2000, ratio=0.0, starlink_tle_path=tle_file_path, seed=seed)
+            ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0.0, starlink_tle_path=tle_file_path, seed=seed)
             N_LCT_GNNSimulation.LCT_FAILURE_RATE = rho
             simulation = N_LCT_GNNSimulation(ts, sat_array)
             simulation.config_l_mask(seed=seed)

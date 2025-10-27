@@ -29,8 +29,8 @@ plt.rcParams['ps.fonttype'] = 42
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
-ldl_path = "sim_alg_j1_res/test_ld_starlink_varying_constellation_size/test_ld_starlink_varying_constellation_size-2025-October-03-11-38-09-ail/ldl"
-sg_path = "sim_alg_j1_res/test_ld_starlink_varying_constellation_size/test_ld_starlink_varying_constellation_size-2025-October-03-11-38-09-ail/sg"
+ldl_path = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_varying_constellation_size/test_ld_starlink_varying_constellation_size-2025-October-23-21-39-03-ail/ldl"
+sg_path = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_varying_constellation_size/test_ld_starlink_varying_constellation_size-2025-October-23-21-39-03-ail/sg"
 
 
 
@@ -57,7 +57,9 @@ data = np.concatenate((
     lml_res.reshape(-1,1),
     sg_res_selected,
 ), axis=1)
-bar_width = 1.5/data.shape[0]
+data = data[0:5, :]
+
+bar_width = 1/data.shape[0]
 bars = []
 index = np.arange(data.shape[0])*2
 
@@ -65,9 +67,9 @@ print(data)
 # gradient colors start from the second color
 # light purple to dark purple
 colors = ["#0084ff", "#d7a7ff", "#b066ff", "#8a2bff", "#5c00ff", "#3a00cc", "#1a0099", "#000066", "#000033"]
-data_name_list = [r"LaDuGL GNN", r"SG-$5$", r"SG-$10$", r"SG-$20$", r"SG-$50$", r"SG-$100$", r"SG-$200$", r"SG-$500$"]
+data_name_list = [r"LaDuGL", r"LaDu-$5$", r"LaDu-$10$", r"LaDu-$20$", r"LaDu-$50$", r"LaDu-$100$", r"LaDu-$200$", r"LaDu-$500$"]
 for i in range(data.shape[1]):
-    b = axs.bar(index + (i-1.5)*bar_width, data[:, i], bar_width, label=data_name_list[i], zorder=3, color=colors[i])
+    b = axs.bar(index + (i+1.5)*bar_width-1, data[:, i], bar_width, label=data_name_list[i], zorder=3, color=colors[i])
     bars.append(b)
 axs.set_position([0.175, 0.18, 0.8, 0.625])
 axs.set_xticks(index)

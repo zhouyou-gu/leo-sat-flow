@@ -50,7 +50,7 @@ class Time_Varying_Simulation(GNNSimulation):
         
 if __name__ == "__main__":
     SG_STEPS = 500
-    N_CONSTELLATION = 100
+    N_CONSTELLATION = 10
     
     # Load tle data.
     from working_dir_path import get_working_dir_path
@@ -62,86 +62,87 @@ if __name__ == "__main__":
 
     LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
 
-    for seed in range(N_CONSTELLATION):
-        sg_solver = ldl_sg_compare_solver()
-        ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0.0, starlink_tle_path=tle_file_path, seed=seed)
-        init_simulation = Time_Varying_Simulation(ts, sat_array)
-        init_simulation.reset_simulation_time()
-        init_simulation.config_l_mask(seed=seed)
-        init_simulation.update_space()
-        init_simulation.set_solver(sg_solver)
-        
-        varying_sg_simulation = Time_Varying_Simulation(ts, sat_array)
-        varying_sg_simulation.reset_simulation_time()
-        varying_sg_simulation.config_l_mask(seed=seed)
-        varying_sg_simulation.update_space()
-
-        tic = LOG_OBJ._get_tic()
-        for step in range(SG_STEPS):
-            print(f"Running simulation with step: {step}")
-            ratio, p_o, d_o, p_o_mwm = init_simulation.run_step()
-            tim = LOG_OBJ._get_tim(tic,remove_timer=False)
+    for N_SAT in [500, 750, 1000, 1250, 1500]:
+        for seed in range(N_CONSTELLATION):
+            sg_solver = ldl_sg_compare_solver()
+            ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=N_SAT, ratio=0.0, starlink_tle_path=tle_file_path, seed=seed)
+            init_simulation = Time_Varying_Simulation(ts, sat_array)
+            init_simulation.reset_simulation_time()
+            init_simulation.config_l_mask(seed=seed)
+            init_simulation.update_space()
+            init_simulation.set_solver(sg_solver)
+            
+            varying_sg_simulation = Time_Varying_Simulation(ts, sat_array)
             varying_sg_simulation.reset_simulation_time()
-            varying_sg_simulation.step_time_us(tim)
+            varying_sg_simulation.config_l_mask(seed=seed)
             varying_sg_simulation.update_space()
+
+            tic = LOG_OBJ._get_tic()
+            for step in range(SG_STEPS):
+                print(f"Running simulation with step: {step}")
+                ratio, p_o, d_o, p_o_mwm = init_simulation.run_step()
+                tim = LOG_OBJ._get_tim(tic,remove_timer=False)
+                varying_sg_simulation.reset_simulation_time()
+                varying_sg_simulation.step_time_us(tim)
+                varying_sg_simulation.update_space()
+                tmp_solver = ldl_sg_compare_solver()
+                varying_sg_simulation.set_solver(tmp_solver)
+                tmp_solver.price_graph.price_graph = sg_solver.price_graph.price_graph.copy()
+                varying_sg_simulation.update_solver_traffic_info(seed=seed)
+                p_o_delayed = tmp_solver.get_prim_objective(with_rates=False)
+                p_o_instant = sg_solver.get_prim_objective(with_rates=False)
+                print(f"Instant p_o: {p_o_instant}, delayed p_o: {p_o_delayed}")
+                LOG_CSV_WRITTER.log_mul_scalar("sg", step, [tim, p_o_delayed, p_o_instant, N_SAT], g_step=seed)
+
+
+            varying_gnn_simulation = Time_Varying_Simulation(ts, sat_array)
+            varying_gnn_simulation.reset_simulation_time()
+            varying_gnn_simulation.config_l_mask(seed=seed)
+            varying_gnn_simulation.update_space()
+            
+            gnn_solver = ldl_sg_compare_solver()
+            init_simulation = Time_Varying_Simulation(ts, sat_array)
+            init_simulation.reset_simulation_time()
+            init_simulation.config_l_mask(seed=seed)
+            init_simulation.update_space()
+            init_simulation.set_solver(gnn_solver)
+            init_simulation.update_solver_traffic_info(seed=seed)
+
+            PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "selected_nn/ld_model.model_final_beta_0_7000_pt.pt")
+                    
+            gnn_solver.load_gnn(path=PATH)
+            tic = LOG_OBJ._get_tic()
+            gnn_solver.infer_gnn()
+            p_o_gnn_instant = gnn_solver.get_prim_objective(with_rates=False)
+            tim = LOG_OBJ._get_tim(tic,remove_timer=True)
+            varying_gnn_simulation.step_time_us(0)
+            varying_gnn_simulation.update_space()
+            
             tmp_solver = ldl_sg_compare_solver()
-            varying_sg_simulation.set_solver(tmp_solver)
-            tmp_solver.price_graph.price_graph = sg_solver.price_graph.price_graph.copy()
-            varying_sg_simulation.update_solver_traffic_info(seed=seed)
-            p_o_delayed = tmp_solver.get_prim_objective(with_rates=False)
-            p_o_instant = sg_solver.get_prim_objective(with_rates=False)
-            print(f"Instant p_o: {p_o_instant}, delayed p_o: {p_o_delayed}")
-            LOG_CSV_WRITTER.log_mul_scalar("sg", step, [tim, p_o_delayed, p_o_instant], g_step=seed)
-
-
-        varying_gnn_simulation = Time_Varying_Simulation(ts, sat_array)
-        varying_gnn_simulation.reset_simulation_time()
-        varying_gnn_simulation.config_l_mask(seed=seed)
-        varying_gnn_simulation.update_space()
         
-        gnn_solver = ldl_sg_compare_solver()
-        init_simulation = Time_Varying_Simulation(ts, sat_array)
-        init_simulation.reset_simulation_time()
-        init_simulation.config_l_mask(seed=seed)
-        init_simulation.update_space()
-        init_simulation.set_solver(gnn_solver)
-        init_simulation.update_solver_traffic_info(seed=seed)
+            varying_gnn_simulation.set_solver(tmp_solver)
+            varying_gnn_simulation.update_solver_traffic_info(seed=seed)
+            tmp_solver.price_graph.price_graph = gnn_solver.price_graph.price_graph.copy()
 
-        PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "selected_nn/ld_model.model_final_beta_0_7000_pt.pt")
-                
-        gnn_solver.load_gnn(path=PATH)
-        tic = LOG_OBJ._get_tic()
-        gnn_solver.infer_gnn()
-        p_o_gnn_instant = gnn_solver.get_prim_objective(with_rates=False)
-        tim = LOG_OBJ._get_tim(tic,remove_timer=True)
-        varying_gnn_simulation.step_time_us(0)
-        varying_gnn_simulation.update_space()
-        
-        tmp_solver = ldl_sg_compare_solver()
-    
-        varying_gnn_simulation.set_solver(tmp_solver)
-        varying_gnn_simulation.update_solver_traffic_info(seed=seed)
-        tmp_solver.price_graph.price_graph = gnn_solver.price_graph.price_graph.copy()
+            p_o_gnn_delayed = tmp_solver.get_prim_objective(with_rates=False)
+            LOG_CSV_WRITTER.log_mul_scalar("ldl", step, [tim, p_o_gnn_delayed, p_o_gnn_instant, N_SAT], g_step=seed)
+            print(f"GNN delayed p_o: {p_o_gnn_delayed}")
+            varying_heu_simulation = Time_Varying_Simulation(ts, sat_array)
+            varying_heu_simulation.reset_simulation_time()
+            varying_heu_simulation.config_l_mask(seed=seed)
+            varying_heu_simulation.update_space()
+            
+            heu_solver = ldl_sg_compare_solver()
+            init_simulation = Time_Varying_Simulation(ts, sat_array)
+            init_simulation.reset_simulation_time()
+            init_simulation.config_l_mask(seed=seed)
+            init_simulation.update_space()
+            init_simulation.set_solver(heu_solver)
+            init_simulation.update_solver_traffic_info(seed=seed)
+            
+            tic = LOG_OBJ._get_tic()
+            p_o_heu = heu_solver.get_prim_objective_heuristic(with_rates=False)
+            tim = LOG_OBJ._get_tim(tic,remove_timer=True)
 
-        p_o_gnn_delayed = tmp_solver.get_prim_objective(with_rates=False)
-        LOG_CSV_WRITTER.log_mul_scalar("ldl", step, [tim, p_o_gnn_delayed, p_o_gnn_instant], g_step=seed)
-        print(f"GNN delayed p_o: {p_o_gnn_delayed}")
-        varying_heu_simulation = Time_Varying_Simulation(ts, sat_array)
-        varying_heu_simulation.reset_simulation_time()
-        varying_heu_simulation.config_l_mask(seed=seed)
-        varying_heu_simulation.update_space()
-        
-        heu_solver = ldl_sg_compare_solver()
-        init_simulation = Time_Varying_Simulation(ts, sat_array)
-        init_simulation.reset_simulation_time()
-        init_simulation.config_l_mask(seed=seed)
-        init_simulation.update_space()
-        init_simulation.set_solver(heu_solver)
-        init_simulation.update_solver_traffic_info(seed=seed)
-        
-        tic = LOG_OBJ._get_tic()
-        p_o_heu = heu_solver.get_prim_objective_heuristic(with_rates=False)
-        tim = LOG_OBJ._get_tim(tic,remove_timer=True)
-
-        LOG_CSV_WRITTER.log_mul_scalar("heu", step, [tim, p_o_heu], g_step=seed)
+            LOG_CSV_WRITTER.log_mul_scalar("heu", step, [tim, p_o_heu, N_SAT], g_step=seed)
 

@@ -34,8 +34,8 @@ fig, axs_list = plt.subplots(1,2)
 fig.set_size_inches(fig_width_in, fig_height_in)  # 3.5 inches width, height adjusted to maintain aspect ratio
 
 
-N_POINTS = 20
-results_file = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_varying_for/test_ld_starlink_varying_for-2025-October-20-18-35-14-ail/ldl"
+N_POINTS = 2
+results_file = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_1000_varying_for/test_ld_starlink_1000_varying_for-2025-October-25-19-44-10-ail/ldl"
 name = ["DuJo","+Grid","Rand","MRate"]
 data = np.genfromtxt(results_file, delimiter=',')
 data = -data[:, [4,7,8,6]]  # Select the relevant columns and negate them
@@ -59,8 +59,8 @@ axs.set_xticklabels(["30", "40", "50", "60", "70", "80", "90"])
 axs.grid(True, zorder=0)
 
 
-results_file = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_varying_n_lct/test_ld_starlink_varying_n_lct-2025-October-20-18-54-08-ail/ldl"
-name = ["DuJo","+Grid","Rand","MRate"]
+results_file = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_1000_varying_n_lct/test_ld_starlink_1000_varying_n_lct-2025-October-25-19-44-44-ail/ldl"
+name = ["DuJoGL","+Grid","Rand","MRate"]
 data = np.genfromtxt(results_file, delimiter=',')
 data = -data[:, [4,7,8,6]]  # Select the relevant columns and negate them
 data = data.reshape(7,N_POINTS, 4)

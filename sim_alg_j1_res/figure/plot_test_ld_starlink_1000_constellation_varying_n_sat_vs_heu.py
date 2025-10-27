@@ -29,7 +29,7 @@ plt.rcParams['ps.fonttype'] = 42
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
-ldl_path = "sim_alg_j1_res/test_ld_starlink_varying_constellation_size/test_ld_starlink_varying_constellation_size-2025-October-03-11-38-09-ail/ldl"
+ldl_path = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_varying_constellation_size/test_ld_starlink_varying_constellation_size-2025-October-23-21-39-03-ail/ldl"
 
 
 
@@ -58,20 +58,21 @@ data = np.concatenate((
     grd_res.reshape(-1,1),
     mwm_res.reshape(-1,1),
 ), axis=1)
+data = data[0:5, :]
 bar_width = 0.4
 bars = []
 index = np.arange(data.shape[0])*2
 
 print(data)
 
-data_name_list = [r"LaDuGL GNN", r"Random", r"+Grid", r"MRate"]
+data_name_list = [r"LaDuGL", r"Random", r"+Grid", r"MRate"]
 for i in range(data.shape[1]):
     b = axs.bar(index + (i -1.5)* bar_width, data[:, i], bar_width, label=data_name_list[i], zorder=3)
     bars.append(b)
 axs.set_position([0.175, 0.18, 0.8, 0.7])
 axs.set_xticks(index)
 print(index)
-axs.set_xticklabels(["500", "750", "1000", "1250", "1500", "1750", "2000", "2500", "3000"])
+axs.set_xticklabels(["500", "750", "1000", "1250", "1500"])
 axs.set_xlabel(r'Number of Satellites, $I$')
 axs.set_ylabel(r'Network Throughput (Gbps)')
 axs.grid(True, zorder=0)
