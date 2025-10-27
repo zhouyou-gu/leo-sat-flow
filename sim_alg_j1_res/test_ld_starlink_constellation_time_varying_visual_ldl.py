@@ -35,8 +35,9 @@ np.set_printoptions(precision=4, suppress=True)
 
 from sim_alg_j1_res.test_ld_starlink_1000_sg_compare import ldl_sg_compare_solver
 
-from sim_alg_j1_res.test_ld_starlink_constellation_time_varying import Time_Varying_Simulation
+from sim_alg_j1_res.test_ld_starlink_1000_constellation_time_varying import Time_Varying_Simulation
 
+import os
 class Visual_Time_Varying_Simulation(Time_Varying_Simulation):
     def setup_visualization(self):
         self.canvas, self.viz_list = setup_viz_list_one_canvas(screen_size=(1200, 800), shape=(1, 1))
@@ -73,7 +74,7 @@ class Visual_Time_Varying_Simulation(Time_Varying_Simulation):
             os.mkdir(path)
         except:
             pass
-        path = os.path.join(path, GET_FILE_NAME_FOR_SIM_SCRIPT(__file__) + f"_{self.N_STEP:05d}_{name}.png")
+        path = os.path.join(path, f"_{self.N_STEP:05d}_{name}.png")
         io.write_png(path,img)
 
     def update_connectable_lct_pairs(self, connectable_lct_pairs, active_indicators):
@@ -157,11 +158,6 @@ class Visual_Time_Varying_Simulation(Time_Varying_Simulation):
 
         self.viz_list[0]['triangle'].set_data(vertices=a_data, faces=faces, vertex_colors=arrow_color)
         
-    def run_step(self):
-        connectable_lct_pairs = self.solver.possible_lct_pair_expanded
-        active_indicators = np.ones(connectable_lct_pairs.shape[0], dtype=bool)
-        self.update_links(connectable_lct_pairs, active_indicators)
-        time.sleep(0.1)
 
 if __name__ == "__main__":
     SG_STEPS = 500
@@ -187,7 +183,10 @@ if __name__ == "__main__":
         init_simulation.update_space()
         init_simulation.set_solver(solver)
         init_simulation.update_solver_traffic_info(seed=seed)
-        p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = solver.get_prim_objective_heuristic(with_rates=True, matching_method='mwm')
+        PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "selected_nn/ld_model.model_final_beta_0_7000_pt.pt")
+        solver.load_gnn(path=PATH)
+        solver.infer_gnn()
+        p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = solver.get_prim_objective(with_rates=True)
         active_indicators = np.ones(connected_lct.shape[0], dtype=bool)
         init_simulation.update_connected_lct_pairs(connected_lct, active_indicators)
         connectable_lct_pairs = solver.possible_lct_pair_expanded
@@ -216,6 +215,3 @@ if __name__ == "__main__":
         init_simulation.save_img(LOG_DIR)
         
         init_simulation.close_app()
-        
-
-    for seed in range(N_CONSTELLATION):
