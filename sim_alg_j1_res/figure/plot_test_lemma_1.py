@@ -61,7 +61,7 @@ axs.scatter(-data[:,3], -data[:,5], s=1)
 axs.set_xlabel('Part (a)',
                 labelpad=5,       # distance from axis
                 loc='center')      # align: 'center', 'top', or 'bottom'
-axs.set_ylabel('Part (a) with \n  Clipped Multipliers', 
+axs.set_ylabel('Parts (a) with \n  Clipped Multipliers', 
               labelpad=5,       # distance from axis
               loc='center')      # align: 'center', 'top', or 'bottom'
 axs.set_xlim(2000,10000)
@@ -84,10 +84,10 @@ axs = axs_list[1]
 axs.set_position([0.5, 0.275, 0.625, 0.625])
 
 axs.scatter(data[:,2], data[:,4], s=1)
-axs.set_xlabel('Part (b)',
+axs.set_xlabel('Part (b)(c)',
                 labelpad=5,       # distance from axis
                 loc='center')      # align: 'center', 'top', or 'bottom'
-axs.set_ylabel('Part (b) with \n  Clipped Multipliers', 
+axs.set_ylabel('Parts (b)(c) with \n  Clipped Multipliers', 
               labelpad=5,       # distance from axis
               loc='center')      # align: 'center', 'top', or 'bottom'
 axs.set_xlim(-125,-50)
