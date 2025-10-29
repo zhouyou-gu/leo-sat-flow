@@ -39,6 +39,7 @@ from sim_alg_j1_res.train_rl_starlink_1000_ld import GNNSimulation
 
 
 class ldl_sg_compare_solver(mr_solver):
+    GNN_INITIALIZED = False
     def load_gnn(self, path):
         print("Initializing GNN model")
         self.model = ld_model()

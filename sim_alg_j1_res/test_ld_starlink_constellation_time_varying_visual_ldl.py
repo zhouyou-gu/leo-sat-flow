@@ -35,7 +35,7 @@ np.set_printoptions(precision=4, suppress=True)
 
 from sim_alg_j1_res.test_ld_starlink_1000_sg_compare import ldl_sg_compare_solver
 
-from sim_alg_j1_res.test_ld_starlink_1000_constellation_time_varying import Time_Varying_Simulation
+from sim_alg_j1_res.test_ld_starlink_constellation_time_varying import Time_Varying_Simulation
 
 import os
 class Visual_Time_Varying_Simulation(Time_Varying_Simulation):

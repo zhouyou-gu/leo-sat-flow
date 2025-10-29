@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
     LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
 
-    for N_SAT in [1000]:
+    for N_SAT in [500, 750, 1000, 1250, 1500]:
         for seed in range(N_CONSTELLATION):
             sg_solver = ldl_sg_compare_solver()
             ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=N_SAT, ratio=0.0, starlink_tle_path=tle_file_path, seed=seed)
@@ -111,6 +111,9 @@ if __name__ == "__main__":
             PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "selected_nn/ld_model.model_final_beta_0_7000_pt.pt")
     
             gnn_solver.load_gnn(path=PATH)
+            if gnn_solver.GNN_INITIALIZED == False:
+                gnn_solver.infer_gnn()
+                gnn_solver.GNN_INITIALIZED = True
             tic = LOG_OBJ._get_tic()
             gnn_solver.infer_gnn()
             p_o_gnn_instant = gnn_solver.get_prim_objective(with_rates=False)

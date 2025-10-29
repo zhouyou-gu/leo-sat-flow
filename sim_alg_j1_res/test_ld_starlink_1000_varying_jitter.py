@@ -51,8 +51,8 @@ if __name__ == "__main__":
     LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
 
     LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
-    for jitter in [0, 10, 20, 30, 40, 50]:
-        for angle_spread in [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]:
+    for jitter in [5, 10, 20, 30, 40, 50]:
+        for angle_spread in [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]:
             ldl_sg_compare_solver.ANGULAR_SPREADING = angle_spread * 1e-6
             from sim_mld.lisl_channel_model import w0_from_angular_spreading
             ldl_sg_compare_solver.BEAM_WAIST = w0_from_angular_spreading(ldl_sg_compare_solver.ANGULAR_SPREADING,ldl_sg_compare_solver.WAVELENGTH)
