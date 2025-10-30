@@ -49,6 +49,7 @@ class Visual_Time_Varying_Simulation(Time_Varying_Simulation):
         
         self.viz_list[0]['t_lisl'] = scene.visuals.Arrow()
         self.viz_list[0]['view'].add(self.viz_list[0]['t_lisl'])
+        self.viz_list[0]['t_lisl'].visible = False
 
         triangle = scene.visuals.Mesh(shading=None)
         self.viz_list[0]['view'].add(triangle)
@@ -196,6 +197,7 @@ if __name__ == "__main__":
         init_simulation.camera_rotate_to_0_lat()
         init_simulation.visualize()
         init_simulation.save_img(LOG_DIR)
+        init_simulation.viz_list[0]['t_lisl'].visible = True
         init_simulation.N_STEP += 1
         init_simulation.step_time_us(22e3)
         init_simulation.update_space()

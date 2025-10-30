@@ -79,7 +79,8 @@ if __name__ == "__main__":
         init_simulation.camera_rotate_to_0_lat()
         init_simulation.visualize()
         init_simulation.save_img(LOG_DIR)
-        
+        init_simulation.viz_list[0]['t_lisl'].visible = True
+
 
         init_simulation.N_STEP += 1
         init_simulation.step_time_us(tim)
