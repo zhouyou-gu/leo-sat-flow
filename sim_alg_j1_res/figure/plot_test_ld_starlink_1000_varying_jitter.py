@@ -42,6 +42,8 @@ lml_res = -lml_data[:, 6].reshape(-1,10)
 markers = ['o', 's', '^', '+', 'x', '>', 'p', '*', 'h']
 lines1 = []
 for i in range(lml_res.shape[0]):
+    if i == 0:
+        continue
     l, = axs.plot((np.arange(lml_res.shape[1])+1)*50, lml_res[i], marker=markers[i], markersize=5, zorder=5)
     lines1.append(l)
 
@@ -53,7 +55,7 @@ axs.set_xlim(50, 500)
 axs.grid(True, zorder=0)
 # axs.text(20, -5000, r'$\bf{(a)}$', fontsize=FONT_SIZE+2, verticalalignment='bottom')
 
-data_name_list = [r"$\sigma_\mathrm{J}=0\ \mu$rad", r"$\sigma_\mathrm{J}=10\ \mu$rad", r"$\sigma_\mathrm{J}=20\ \mu$rad", r"$\sigma_\mathrm{J}=30\ \mu$rad", r"$\sigma_\mathrm{J}=40\ \mu$rad", r"$\sigma_\mathrm{J}=50\ \mu$rad"]
+data_name_list = [r"$\sigma_\mathrm{J}=10\ \mu$rad", r"$\sigma_\mathrm{J}=20\ \mu$rad", r"$\sigma_\mathrm{J}=30\ \mu$rad", r"$\sigma_\mathrm{J}=40\ \mu$rad", r"$\sigma_\mathrm{J}=50\ \mu$rad"]
 ncol = 3  # Number of columns in the legend
 h, l = lines1, data_name_list
 nrows = -(-len(h) // ncol)                         # ceiling division

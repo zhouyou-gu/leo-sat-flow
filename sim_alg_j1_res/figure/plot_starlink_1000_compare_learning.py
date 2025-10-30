@@ -69,7 +69,7 @@ axs.text(20, -3000, r'$\bf{(a)}$', fontsize=FONT_SIZE+2, verticalalignment='bott
 
 
 
-data_name_list = [r"LaDuGL", r"DPG", r"PG"] 
+data_name_list = [r"LaDuGL", r"DDPG", r"PG"] 
 ncol = 1  # Number of columns in the legend
 h, l = lines1, data_name_list
 # nrows = -(-len(h) // ncol)                         # ceiling division
