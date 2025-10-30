@@ -66,7 +66,7 @@ axs.set_ylim(-3000, -0)
 # axs.set_xscale('log')
 # axs.set_yscale('log')
 axs.grid(True, zorder=0)
-axs.text(20, -2000, r'$\bf{(a)}$', fontsize=FONT_SIZE+2, verticalalignment='bottom')
+axs.text(20, -3000, r'$\bf{(a)}$', fontsize=FONT_SIZE+2, verticalalignment='bottom')
 
 
 

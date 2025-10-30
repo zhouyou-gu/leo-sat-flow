@@ -65,7 +65,7 @@ axs.set_ylabel(r'Dual Function Value, $g(\lambda)$')
 axs.set_xlim(0, N_POINTS)
 axs.set_ylim(-3000, -0)
 axs.grid(True, zorder=0)
-axs.text(20, -5000, r'$\bf{(a)}$', fontsize=FONT_SIZE+2, verticalalignment='bottom')
+axs.text(20, -3000, r'$\bf{(a)}$', fontsize=FONT_SIZE+2, verticalalignment='bottom')
 
 
 
