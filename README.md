@@ -45,3 +45,6 @@ TBB Threading Layer Available : True
 
 need the following solver in cvxpy backend
 pip install highspy
+
+
+show the git usage to sixi
