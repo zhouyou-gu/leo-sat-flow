@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+
+import math
+import time
+
+import plotext
+import psutil
+import numpy as np
+from scipy.spatial import cKDTree
+
+from skyfield.api import load
+from skyfield.sgp4lib import TEME
+
+from sim_mld.ml.ld_sgl.model import ld_model
+from sim_mld.solver import *
+from sim_mld.visual import *
+from sim_mld.tle import *
+from sim_mld.constellation import *
+from sim_mld.simulation import Simulation
+
+from vispy import app
+import logging
+
+from sim_src.util import CSV_WRITER_OBJECT, GET_LOG_PATH_FOR_SIM_SCRIPT, STATS_OBJECT, counted
+from working_dir_path import get_working_dir_path
+
+import torch
+torch.set_float32_matmul_precision('medium')
+
+np.set_printoptions(precision=4, suppress=True)
+
+from sim_alg_j1_res.train_rl_starlink_1000_ld import GNNSimulation
+
+from sim_alg_j1_res.test_ld_starlink_1000_sg_compare import ldl_sg_compare_solver
+
+class Time_Varying_Simulation(GNNSimulation):
+    def step_time_us(self, time_us):
+        delta_days = time_us / 1e6 / 86400  # Convert microseconds to days.
+        now = self.current_time
+        new_tt_jd = now.tt + delta_days
+        self.current_time = self.ts.tt(jd=new_tt_jd)
+        return self.current_time
+    
+    def get_simulation_time(self):
+        # return time at 2025 jun 1st
+        return self.current_time
+    
+    def reset_simulation_time(self):
+        self.current_time = self.ts.utc(2025, 7, 16, 16, 0, 0)
+        
+if __name__ == "__main__":
+    N_CONSTELLATION = 10
+    
+    # Load tle data.
+    from working_dir_path import get_working_dir_path
+    import os
+    tle_file_path = os.path.join(get_working_dir_path(),'starlink_16_jul_2025_1600.tle')
+
+    LOG_OBJ = STATS_OBJECT()
+    LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
+
+    LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
+
+    for N_SAT in [500, 750, 1000, 1250, 1500]:
+        for seed in range(N_CONSTELLATION):
+            sg_solver = ldl_sg_compare_solver()
+            ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=N_SAT, ratio=0.0, starlink_tle_path=tle_file_path, seed=seed)
+            init_simulation = Time_Varying_Simulation(ts, sat_array)
+            init_simulation.reset_simulation_time()
+            init_simulation.config_l_mask(seed=seed)
+            init_simulation.update_space()
+            init_simulation.set_solver(sg_solver)
+            
+            connectable_lct_pairs = init_simulation.filtered_lct_pair_expanded.copy()
+                    
+            varying_sg_simulation = Time_Varying_Simulation(ts, sat_array)
+            varying_sg_simulation.reset_simulation_time()
+            varying_sg_simulation.config_l_mask(seed=seed)
+            varying_sg_simulation.update_space()
+
+
+            time_step_us_list = [1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8]
+            TEST_STEPS = len(time_step_us_list)
+            for step in range(TEST_STEPS):
+                print(f"Running simulation with step: {step}")
+                varying_sg_simulation.reset_simulation_time()
+                varying_sg_simulation.step_time_us(time_step_us_list[step])
+                varying_sg_simulation.update_space()
+                tmp_solver = ldl_sg_compare_solver()
+                varying_sg_simulation.set_solver(tmp_solver)
+                tmp_solver.price_graph.price_graph = sg_solver.price_graph.price_graph.copy()
+                varying_sg_simulation.update_solver_traffic_info(seed=seed)
+                
+                now_connectable_lct_pairs = varying_sg_simulation.filtered_lct_pair_expanded.copy()
+                
+                # Compare the connectable LCT pairs (k,2) array
+                set_init = set(map(tuple, connectable_lct_pairs))
+                set_now = set(map(tuple, now_connectable_lct_pairs))
+                
+                removed_links = set_init - set_now
+                
+                # number of removed links
+                num_removed = len(removed_links)
+            
+                total_links = len(set_init)                
+            
+                LOG_CSV_WRITTER.log_mul_scalar("rm_links", step, [N_SAT, time_step_us_list[step], num_removed, total_links], g_step=seed)
