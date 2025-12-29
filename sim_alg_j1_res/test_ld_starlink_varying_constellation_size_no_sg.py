@@ -39,19 +39,10 @@ from sim_alg_j1_res.train_rl_starlink_1000_ld import GNNSimulation
 
 from sim_alg_j1_res.test_ld_starlink_1000_sg_compare import ldl_sg_compare_solver
 
-
-class N_LCT_GNNSimulation(GNNSimulation):
-    LCT_FAILURE_RATE = 0.1
-    def config_l_mask(self, seed=0):
-        rng = np.random.default_rng(seed)
-        self.lct_mask = np.zeros((self.n_sat, self.N_LCT_PER_SAT), dtype=np.float32)
-        self.lct_mask[:,0] = rng.choice([0, 1],p=[self.LCT_FAILURE_RATE, 1-self.LCT_FAILURE_RATE],size=self.n_sat)
-        self.lct_mask[:,1] = rng.choice([0, 1],p=[self.LCT_FAILURE_RATE, 1-self.LCT_FAILURE_RATE],size=self.n_sat)
-        self._printalltime(f"LCT mask: {self.lct_mask}, mean: {self.lct_mask.mean(axis=0)}")
-
 if __name__ == "__main__":
-    N_CONSTELLATION = 2
+    N_CONSTELLATION = 20
     SG_STEPS_ALL = 500
+    RUN_SG_N_SAT = 2000
     # Load tle data.
     from working_dir_path import get_working_dir_path
     import os
@@ -61,18 +52,25 @@ if __name__ == "__main__":
     LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
 
     LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
-    for rho in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]:
+    for N_SAT in [500, 750, 1000, 1250, 1500]:
         for seed in range(N_CONSTELLATION):
             solver = ldl_sg_compare_solver()
-            ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0.0, starlink_tle_path=tle_file_path, seed=seed)
-            N_LCT_GNNSimulation.LCT_FAILURE_RATE = rho
-            simulation = N_LCT_GNNSimulation(ts, sat_array)
+            ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=N_SAT, ratio=0.0, starlink_tle_path=tle_file_path, seed=seed)
+            simulation = GNNSimulation(ts, sat_array)
             simulation.config_l_mask(seed=seed)
             simulation.update_space()
             simulation.set_solver(solver)
-            simulation.update_solver_traffic_info(seed=0)
-            # simulation.solver.update_step_rates_prices()
-
+            # tic = LOG_OBJ._get_tic()
+            # if N_SAT <= RUN_SG_N_SAT:
+            #     SG_STEPS = SG_STEPS_ALL
+            # else:
+            #     SG_STEPS = 1
+            # for step in range(SG_STEPS):
+            #     print(f"Running simulation with step: {step}")
+            ratio, p_o, d_o, p_o_mwm = simulation.run_step()
+            #     tim = LOG_OBJ._get_tim(tic,remove_timer=False)
+            #     if N_SAT <= RUN_SG_N_SAT:            
+            #        LOG_CSV_WRITTER.log_mul_scalar("sg", step, [tim, ratio, p_o, d_o, p_o_mwm, N_SAT], g_step=seed)
 
             PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "selected_nn/ld_model.model_final_beta_0_7000_pt.pt")
             solver.load_gnn(path=PATH)
@@ -84,7 +82,7 @@ if __name__ == "__main__":
             p_o_mwm = solver.get_prim_objective_heuristic(with_rates=False, matching_method='mwm')
             p_o_random = solver.get_prim_objective_heuristic(with_rates=False, matching_method='rand')
             p_o_grid = solver.get_prim_objective_heuristic(with_rates=False, matching_method='grid')
+
             p_o_sate = solver.get_prim_objective_heuristic(with_rates=False, matching_method='mwm', routing_method='spf')
 
-
-            LOG_CSV_WRITTER.log_mul_scalar("ldl", 0, [tim, 1., p_o, d_o, p_o_mwm, p_o_random, p_o_grid, p_o_sate], g_step=seed)
+            LOG_CSV_WRITTER.log_mul_scalar("ldl", 0, [tim, ratio, p_o, d_o, p_o_mwm, p_o_random, p_o_grid, p_o_sate], g_step=seed)

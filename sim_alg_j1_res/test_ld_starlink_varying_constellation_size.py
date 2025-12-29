@@ -41,7 +41,7 @@ from sim_alg_j1_res.test_ld_starlink_1000_sg_compare import ldl_sg_compare_solve
 
 if __name__ == "__main__":
     N_CONSTELLATION = 20
-    SG_STEPS_ALL = 500
+    SG_STEPS_ALL = 1
     RUN_SG_N_SAT = 2000
     # Load tle data.
     from working_dir_path import get_working_dir_path
@@ -83,4 +83,6 @@ if __name__ == "__main__":
             p_o_random = solver.get_prim_objective_heuristic(with_rates=False, matching_method='rand')
             p_o_grid = solver.get_prim_objective_heuristic(with_rates=False, matching_method='grid')
 
-            LOG_CSV_WRITTER.log_mul_scalar("ldl", step, [tim, ratio, p_o, d_o, p_o_mwm, p_o_random, p_o_grid], g_step=seed)
+            p_o_sate = solver.get_prim_objective_heuristic(with_rates=False, matching_method='grid', routing_method='spf')
+
+            LOG_CSV_WRITTER.log_mul_scalar("ldl", step, [tim, ratio, p_o, d_o, p_o_mwm, p_o_random, p_o_grid, p_o_sate], g_step=seed)

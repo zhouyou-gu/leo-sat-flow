@@ -29,8 +29,9 @@ plt.rcParams['ps.fonttype'] = 42
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
-ldl_path = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_varying_constellation_size/test_ld_starlink_varying_constellation_size-2025-October-23-21-39-03-ail/ldl"
+# ldl_path = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_varying_constellation_size/test_ld_starlink_varying_constellation_size-2025-October-23-21-39-03-ail/ldl"
 
+ldl_path = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_varying_constellation_size_no_sg/test_ld_starlink_varying_constellation_size_no_sg-2025-November-27-13-17-03-ail/ldl"
 
 
 # Plot the data
@@ -40,34 +41,38 @@ fig.set_size_inches(fig_width_in, fig_height_in)  # 3.5 inches width, height adj
 N_POINTS = 20
 
 lml_data = np.genfromtxt(ldl_path, delimiter=',')
-lml_res = -lml_data[:, 4].reshape(-1, N_POINTS)
+lml_res = -lml_data[0:100, 4].reshape(-1, N_POINTS)
 lml_res = lml_res.mean(axis=1)
 
-mwm_res = -lml_data[:, 6].reshape(-1, N_POINTS)
+mwm_res = -lml_data[0:100, 6].reshape(-1, N_POINTS)
 mwm_res = mwm_res.mean(axis=1)
 
-rnd_res = -lml_data[:, 7].reshape(-1, N_POINTS)
+rnd_res = -lml_data[0:100, 7].reshape(-1, N_POINTS)
 rnd_res = rnd_res.mean(axis=1)
 
-grd_res = -lml_data[:, 8].reshape(-1, N_POINTS)
+grd_res = -lml_data[0:100, 8].reshape(-1, N_POINTS)
 grd_res = grd_res.mean(axis=1)
+
+ste_res = -lml_data[0:100, 9].reshape(-1, N_POINTS)
+ste_res = ste_res.mean(axis=1)
 
 data = np.concatenate((
     lml_res.reshape(-1,1),
     rnd_res.reshape(-1,1),
     grd_res.reshape(-1,1),
     mwm_res.reshape(-1,1),
+    ste_res.reshape(-1,1),
 ), axis=1)
 data = data[0:5, :]
-bar_width = 0.4
+bar_width = 0.275
 bars = []
 index = np.arange(data.shape[0])*2
 
 print(data)
 
-data_name_list = [r"LaDuGL", r"Random", r"+Grid", r"MRate"]
+data_name_list = [r"LaDuGL", r"Random", r"+Grid", r"MRate", r"SaTE"]
 for i in range(data.shape[1]):
-    b = axs.bar(index + (i -1.5)* bar_width, data[:, i], bar_width, label=data_name_list[i], zorder=3)
+    b = axs.bar(index + (i -2)* bar_width, data[:, i], bar_width, label=data_name_list[i], zorder=3)
     bars.append(b)
 axs.set_position([0.175, 0.18, 0.8, 0.7])
 axs.set_xticks(index)
@@ -90,7 +95,7 @@ h, l = bars, data_name_list
 # h = [h[i] for i in order]
 # l = [l[i] for i in order]
 
-leg = fig.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.175, 0.9, 0.8, 0.125), mode="expand",ncol = 4 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.2, 
+leg = fig.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.175, 0.9, 0.8, 0.125), mode="expand",ncol = 5 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.2, 
 frameon=True,          # draw a frame
 fancybox=False,        # <-- square corners (like MATLAB)
 edgecolor='black',     # black  frame edge

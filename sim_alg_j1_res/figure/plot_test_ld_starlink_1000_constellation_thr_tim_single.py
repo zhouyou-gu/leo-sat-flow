@@ -45,8 +45,9 @@ fig, axs = plt.subplots(1,1,)
 fig.set_size_inches(fig_width_in, fig_height_in)  # 3.5 inches width, height adjusted to maintain aspect ratio
 
 LINE_WIDTH = 1.5
-colors = ["#D6B7FF", "#B378FF", "#934BFF", "#8E40FB", "#6A00FF"]
-markers = ['d', 's', '^', 'h', 'p', '>', 'p', '*', 'h']
+# regular_matplot_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
+colors = ['#1f77b4', '#d62728',"#D6B7FF", "#B378FF", "#934BFF", "#8E40FB", "#6A00FF"]
+markers = ['d', 's', '^', 'p', 'v', '>', 'p', '*', 'h']
 markers_n_sat = ['+',  '1', '2', '3', '4']
 lines2 = []
 marker_size = 50
@@ -71,21 +72,21 @@ for i, N_SAT in enumerate([500, 750, 1000, 1250, 1500]):
     lines3 = []
     counter = 0
     for j in range(lml_res.shape[0]):
-        l = axs.scatter(lml_time[j], lml_res[j], marker=markers[counter], s=marker_size, zorder=5, color=colors[i])
+        l = axs.scatter(lml_time[j], lml_res[j], marker=markers[i], s=marker_size, zorder=5, color=colors[counter])
         lines1.append(l)
         l = axs.scatter(1e6, 1e6, marker='o', s=marker_size, zorder=0,color=colors[counter])
         lines3.append(l)
         # l = axs.scatter(lml_time[j], lml_res[j], marker=markers[i], s=marker_size, zorder=0, color='black')
         counter += 1
     for j in range(heu_res.shape[0]):
-        l = axs.scatter(heu_time[j], heu_res[j], marker=markers[counter], s=marker_size, zorder=5, color=colors[i])
+        l = axs.scatter(heu_time[j], heu_res[j], marker=markers[i], s=marker_size, zorder=5, color=colors[counter])
         lines1.append(l)
         l = axs.scatter(1e6, 1e6, marker='o', s=marker_size, zorder=0,color=colors[counter])
         lines3.append(l)
         # l = axs.scatter(heu_time[j], heu_res[j], marker=markers[i], s=marker_size, zorder=0, color='black')
         counter += 1
     for j in range(sg_res.shape[0]):
-        l = axs.scatter(sg_time[j], sg_res[j], marker=markers[counter], s=marker_size, zorder=5, color=colors[i])
+        l = axs.scatter(sg_time[j], sg_res[j], marker=markers[i], s=marker_size, zorder=5, color=colors[counter])
         lines1.append(l)
         l = axs.scatter(1e6, 1e6, marker='o', s=marker_size, zorder=0,color=colors[counter])
         lines3.append(l)
@@ -116,8 +117,8 @@ axs.grid(True, zorder=0)
 data_name_list  = [r'LaDuGL', r'MRate', r'LaDu-20', r'LaDu-100', r'LaDu-200', r'$I=500$', r'$I=750$', r'$I=1000$', r'$I=1250$', r'$I=1500$']
 ncol = 5  # Number of columns in the legend
 
-h, l = lines2, data_name_list
-h.extend(lines3)
+h, l = lines3, data_name_list
+h.extend(lines2)
 nrows = -(-len(h) // ncol)                         # ceiling division
 idx   = np.arange(len(h))
 pad   = nrows * ncol - len(idx)

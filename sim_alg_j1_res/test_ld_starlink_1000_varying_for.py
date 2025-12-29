@@ -74,5 +74,6 @@ if __name__ == "__main__":
             p_o_mwm = solver.get_prim_objective_heuristic(with_rates=False, matching_method='mwm')
             p_o_random = solver.get_prim_objective_heuristic(with_rates=False, matching_method='rand')
             p_o_grid = solver.get_prim_objective_heuristic(with_rates=False, matching_method='grid')
+            p_o_sate = solver.get_prim_objective_heuristic(with_rates=False, matching_method='mwm', routing_method='spf')
 
-            LOG_CSV_WRITTER.log_mul_scalar("ldl", 0, [tim, 1., p_o, d_o, p_o_mwm, p_o_random, p_o_grid], g_step=seed)
+            LOG_CSV_WRITTER.log_mul_scalar("ldl", 0, [tim, 1., p_o, d_o, p_o_mwm, p_o_random, p_o_grid, p_o_sate], g_step=seed)
