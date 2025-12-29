@@ -32,7 +32,7 @@ plt.rcParams['ps.fonttype'] = 42
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
-results_dir_name = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_constellation_time_varying_coherent_time/test_ld_starlink_constellation_time_varying_coherent_time-2025-November-25-10-32-17-ail/rm_links"
+results_dir_name = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_constellation_time_varying_coherent_time_varying_for/test_ld_starlink_constellation_time_varying_coherent_time_varying_for-2025-December-29-14-00-17-ail/rm_links"
 
 
 
@@ -50,8 +50,8 @@ marker_size = 50
 data = np.genfromtxt(results_dir_name, delimiter=',')
 total_links = data[:,5]
 num_removed = data[:,4]
-for i, N_SAT in enumerate([500, 750, 1000, 1250, 1500]):
-    sat_data = data[data[:,2]==N_SAT]
+for i, FOR in enumerate([30, 45, 60, 75, 90]):
+    sat_data = data[data[:,2]==FOR]
     sat_data_total_links = sat_data[:,5].reshape(-1,16).mean(axis=0)
     sat_data_num_removed = sat_data[:,4].reshape(-1,16).mean(axis=0)
     TIME = [1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8]
@@ -84,7 +84,7 @@ axs.grid(True, zorder=0)
 #                                  mutation_scale=100,
 #                                  transform=axs.transAxes, zorder=5)
 # arrows = axs.add_patch(arrow)
-data_name_list  = [ r'$I=500$', r'$I=750$', r'$I=1000$', r'$I=1250$', r'$I=1500$']
+data_name_list  = [ r'FOR$=30$°', r'$45$°', r'$60$°', r'$75$°', r'$90$°']
 ncol = 5  # Number of columns in the legend
 
 h, l = lines2, data_name_list
