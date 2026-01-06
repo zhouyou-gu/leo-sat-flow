@@ -67,8 +67,8 @@ for i, N_SAT in enumerate([500, 750, 1000, 1250, 1500]):
     
 
 axs.set_position([0.125, 0.175, 0.85, 0.7])
-axs.set_xlabel(r'Coherent Time Variation (milliseconds)')
-axs.set_ylabel(r'Percentage of Invalid Links (%)')
+axs.set_xlabel(r'Time Elapsed (milliseconds)')
+axs.set_ylabel(r'Percentage of Lost Connectable Links (%)')
 # axs.set_xlim(0.001, 10000)
 axs.set_xscale("log")
 # axs.set_ylim(30, 180)
