@@ -114,7 +114,7 @@ axs.grid(True, zorder=0)
 #                                  mutation_scale=100,
 #                                  transform=axs.transAxes, zorder=5)
 # arrows = axs.add_patch(arrow)
-data_name_list  = [r'LaDuGL', r'MRate', r'LaDu-20', r'LaDu-100', r'LaDu-200', r'$I=500$', r'$I=750$', r'$I=1000$', r'$I=1250$', r'$I=1500$']
+data_name_list  = [r'LaDuGL', r'MRate', r'ItSD-20', r'ItSD-100', r'ItSD-200', r'$I=500$', r'$I=750$', r'$I=1000$', r'$I=1250$', r'$I=1500$']
 ncol = 5  # Number of columns in the legend
 
 h, l = lines3, data_name_list
