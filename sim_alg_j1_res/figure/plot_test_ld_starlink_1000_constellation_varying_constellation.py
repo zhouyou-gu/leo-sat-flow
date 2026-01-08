@@ -66,18 +66,20 @@ data = np.concatenate((
 data = data[0:5, :]
 bar_width = 0.275
 bars = []
-index = np.arange(data.shape[0])*2
 
 print(data)
 
 data_name_list = [r"LaDuGL", r"Random", r"+Grid", r"MRate", r"SaTE"]
+data = data[[0,2], :]
+index = np.arange(data.shape[0])*2
+
 for i in range(data.shape[1]):
     b = axs.bar(index + (i -2)* bar_width, data[:, i], bar_width, label=data_name_list[i], zorder=3)
     bars.append(b)
 axs.set_position([0.175, 0.18, 0.8, 0.7])
 axs.set_xticks(index)
 print(index)
-axs.set_xticklabels(["Starlink", "Walker-Delta", "OneWeb"])
+axs.set_xticklabels(["Starlink", "OneWeb"])
 axs.set_xlabel(r'Constellation Type')
 axs.set_ylabel(r'Network Throughput (Gbps)')
 axs.grid(True, zorder=0)
