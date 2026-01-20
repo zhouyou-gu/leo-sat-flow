@@ -56,7 +56,7 @@ for i, N_SAT in enumerate([500, 750, 1000, 1250, 1500]):
     sat_data_num_removed = sat_data[:,4].reshape(-1,16).mean(axis=0)
     TIME = [1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8]
     TIME = np.array(TIME)
-    TIME = TIME / 1e3  # convert to milliseconds
+    TIME = TIME / 1e6  # convert to milliseconds
     sat_data_total_links = sat_data_total_links.squeeze()
     sat_data_num_removed = sat_data_num_removed.squeeze()
     ratio_removed = sat_data_num_removed / sat_data_total_links
@@ -67,12 +67,14 @@ for i, N_SAT in enumerate([500, 750, 1000, 1250, 1500]):
     
 
 axs.set_position([0.125, 0.175, 0.85, 0.7])
-axs.set_xlabel(r'Time Elapsed (milliseconds)')
+axs.set_xlabel(r'Time Elapsed (s)')
 axs.set_ylabel(r'Percentage of Lost Connectable Links (%)')
 # axs.set_xlim(0.001, 10000)
 axs.set_xscale("log")
 # axs.set_ylim(30, 180)
 axs.grid(True, zorder=0)
+axs.axvline(x=1, color='black', linestyle='-', linewidth=2.5, zorder=0)
+axs.text(1.2, 0, r'     Coherent time $\approx$ 1 second ', rotation=90, verticalalignment='bottom', color='black', fontsize=FONT_SIZE)
 
 # x_tail = 0.2
 # y_tail = 0.1

@@ -103,6 +103,9 @@ axs.set_xlim(0.001, 10000)
 axs.set_xscale("log")
 axs.set_ylim(30, 180)
 axs.grid(True, zorder=0)
+# add a vertical line at x = 1; with a text "1 second" on the side of the line in vertical alignment bottom
+axs.axvline(x=1, color='black', linestyle='-', linewidth=2.5, zorder=0)
+axs.text(1.2, 35, r'     Coherent time $\approx$ 1 second ', rotation=90, verticalalignment='bottom', color='black', fontsize=FONT_SIZE)
 
 # x_tail = 0.2
 # y_tail = 0.1
