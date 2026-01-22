@@ -67,7 +67,7 @@ print(data)
 # gradient colors start from the second color
 # light purple to dark purple
 colors = ["#0084ff", "#d7a7ff", "#b066ff", "#8a2bff", "#5c00ff", "#3a00cc", "#1a0099", "#000066", "#000033"]
-data_name_list = [r"LaDuGL", r"ItSD-$5$", r"ItSD-$10$", r"ItSD-$20$", r"ItSD-$50$", r"ItSD-$100$", r"ItSD-$200$", r"ItSD-$500$"]
+data_name_list = [r"LaDuGL", r"LaDu-$5$", r"LaDu-$10$", r"LaDu-$20$", r"LaDu-$50$", r"LaDu-$100$", r"LaDu-$200$", r"LaDu-$500$"]
 for i in range(data.shape[1]):
     b = axs.bar(index + (i+1.5)*bar_width-1, data[:, i], bar_width, label=data_name_list[i], zorder=3, color=colors[i])
     bars.append(b)

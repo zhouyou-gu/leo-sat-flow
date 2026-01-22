@@ -60,7 +60,7 @@ axs.grid(True, zorder=0)
 
 
 results_file = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_1000_varying_n_lct/test_ld_starlink_1000_varying_n_lct-2025-November-27-13-36-52-ail/ldl"
-name = ["DuJo","+Grid","Rand","MRate", "SaTE"]
+name = ["LaDuGL","+Grid","Rand","MRate", "SaTE"]
 data = np.genfromtxt(results_file, delimiter=',')
 data = -data[:, [4,7,8,6,9]]  # Select the relevant columns and negate them
 data = data.reshape(7,N_POINTS, 5)
