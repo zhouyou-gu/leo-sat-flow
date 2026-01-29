@@ -69,7 +69,7 @@ axs.text(20, -3000, r'$\bf{(a)}$', fontsize=FONT_SIZE+2, verticalalignment='bott
 
 
 
-data_name_list = [r"LaDuNet", r"DDPG", r"PG"] 
+data_name_list = [r"DeepLaDu", r"DDPG", r"PG"] 
 ncol = 1  # Number of columns in the legend
 h, l = lines1, data_name_list
 # nrows = -(-len(h) // ncol)                         # ceiling division
@@ -81,7 +81,7 @@ h, l = lines1, data_name_list
 # h = [h[i] for i in order]
 # l = [l[i] for i in order]
 
-leg = axs.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.35, 0.025, 0.6, 0.3), mode="expand",ncol = 1 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.5, 
+leg = axs.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.25, 0.025, 0.7, 0.3), mode="expand",ncol = 1 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.5, 
 frameon=True,          # draw a frame
 fancybox=False,        # <-- square corners (like MATLAB)
 edgecolor='black',     # black  frame edge
@@ -119,7 +119,7 @@ axs.grid(True, zorder=0)
 axs.text(20, 0, r'$\bf{(b)}$', fontsize=FONT_SIZE+2, verticalalignment='bottom')
 
 
-data_name_list = [r"LaDuGL", r"DDPG", r"PG"]
+data_name_list = [r"DeepLaDu", r"DDPG", r"PG"]
 data_name_list.append(r"MRate")
 ncol = 1  # Number of columns in the legend
 h, l = lines1, data_name_list
@@ -132,7 +132,7 @@ h, l = lines1, data_name_list
 # h = [h[i] for i in order]
 # l = [l[i] for i in order]
 
-leg = axs.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.35, 0.025, 0.6, 0.3), mode="expand",ncol = 1 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.5, 
+leg = axs.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.25, 0.025, 0.7, 0.3), mode="expand",ncol = 1 ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.5, 
 frameon=True,          # draw a frame
 fancybox=False,        # <-- square corners (like MATLAB)
 edgecolor='black',     # black  frame edge

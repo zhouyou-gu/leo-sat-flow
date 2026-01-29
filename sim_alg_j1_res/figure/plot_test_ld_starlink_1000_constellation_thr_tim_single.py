@@ -117,7 +117,7 @@ axs.text(1.2, 35, r'     Coherent time $\approx$ 1 second ', rotation=90, vertic
 #                                  mutation_scale=100,
 #                                  transform=axs.transAxes, zorder=5)
 # arrows = axs.add_patch(arrow)
-data_name_list  = [r'LaDuNet', r'MRate', r'LaDu-20', r'LaDu-100', r'LaDu-200', r'$I=500$', r'$I=750$', r'$I=1000$', r'$I=1250$', r'$I=1500$']
+data_name_list  = [r'DeepLaDu', r'MRate', r'LaDu-20', r'LaDu-100', r'LaDu-200', r'$I=500$', r'$I=750$', r'$I=1000$', r'$I=1250$', r'$I=1500$']
 ncol = 5  # Number of columns in the legend
 
 h, l = lines3, data_name_list
@@ -131,7 +131,7 @@ order = order[order >= 0]                          # drop sentinels
 h = [h[i] for i in order]
 l = [l[i] for i in order]
 
-leg = fig.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.125, 0.835, 0.825, 0.1), mode="expand",ncol = ncol ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.35, 
+leg = fig.legend(h,l,fontsize=FONT_SIZE, loc='lower left', bbox_to_anchor=(0.125, 0.835, 0.825, 0.1), mode="expand",ncol = ncol ,borderaxespad=0.,handlelength=1, handleheight= 0.8, handletextpad=0.15, 
 frameon=True,          # draw a frame
 fancybox=False,        # <-- square corners (like MATLAB)
 edgecolor='black',     # black  frame edge

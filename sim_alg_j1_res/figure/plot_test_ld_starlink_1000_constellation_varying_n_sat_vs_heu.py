@@ -70,7 +70,7 @@ index = np.arange(data.shape[0])*2
 
 print(data)
 
-data_name_list = [r"LaDuNet", r"Random", r"+Grid", r"MRate", r"SaTE"]
+data_name_list = [r"DeepLaDu", r"Random", r"+Grid", r"MRate", r"SaTE"]
 for i in range(data.shape[1]):
     b = axs.bar(index + (i -2)* bar_width, data[:, i], bar_width, label=data_name_list[i], zorder=3)
     bars.append(b)
