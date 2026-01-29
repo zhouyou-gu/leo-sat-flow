@@ -70,76 +70,74 @@ if __name__ == "__main__":
     LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
 
     N_SAT = 1000
-    for constellation in ["starlink", "walker-delta", "oneweb", "kuiper"]:
+    for THRESHOLD_RATIO in [0.001, 0.01]:
+        for constellation in ["starlink", "oneweb", "kuiper"]:
+            for seed in range(N_CONSTELLATION):
+                if constellation == "oneweb":
+                    ts, valid_satellites, sat_array = load_url_tle_data(oneweb_tle_file_path, reload=True)
+                elif constellation == "kuiper":
+                    ts, valid_satellites, sat_array = load_url_tle_data(kuiper_tle_file_path, reload=True)
+                elif constellation == "starlink":
+                    ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0., starlink_tle_path=starlink_tle_file_path, seed=seed)
+                elif constellation == "walker-delta":
+                    ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=1., starlink_tle_path=starlink_tle_file_path, seed=seed)
 
-        for seed in range(N_CONSTELLATION):
-            if constellation == "oneweb":
-                ts, valid_satellites, sat_array = load_url_tle_data(oneweb_tle_file_path, reload=True)
-            elif constellation == "kuiper":
-                ts, valid_satellites, sat_array = load_url_tle_data(kuiper_tle_file_path, reload=True)
-            elif constellation == "starlink":
-                ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0., starlink_tle_path=starlink_tle_file_path, seed=seed)
-            elif constellation == "walker-delta":
-                ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=1., starlink_tle_path=starlink_tle_file_path, seed=seed)
-
-
-
-            sg_solver = ldl_sg_compare_solver()
-            if constellation == "kuiper":
-                init_simulation = kuiper_simulation(ts, sat_array)
-            else:
-                init_simulation = Time_Varying_Simulation(ts, sat_array)
-            if constellation == "oneweb" or constellation == "kuiper":
-                init_simulation.terrain.GW_RANGE = 1800.0  # in kilometers, range of the ground station
-                init_simulation.LISL_MAX_DISTANCE = 4000.0  # in kilometers, max distance for laser links  
-            init_simulation.reset_simulation_time()
-            init_simulation.config_l_mask(seed=seed)
-            init_simulation.update_space()
-            init_simulation.set_solver(sg_solver)
-            
-            connectable_lct_pairs = init_simulation.filtered_lct_pair_expanded.copy()
-            set_init = set(map(tuple, connectable_lct_pairs))
-
-            if constellation == "kuiper":
-                varying_sg_simulation = kuiper_simulation(ts, sat_array)
-            else:
-                varying_sg_simulation = Time_Varying_Simulation(ts, sat_array)
-            if constellation == "oneweb" or constellation == "kuiper":
-                varying_sg_simulation.terrain.GW_RANGE = 1800.0  # in kilometers, range of the ground station
-                varying_sg_simulation.LISL_MAX_DISTANCE = 4000.0  # in kilometers, max distance for laser links  
-            varying_sg_simulation.reset_simulation_time()
-            varying_sg_simulation.config_l_mask(seed=seed)
-            varying_sg_simulation.update_space()
-
-            
-            upper_time_us = 1e8
-            lower_time_us = 1e3
-            stop_delta_us = 1e3
-            
-            while upper_time_us - lower_time_us > stop_delta_us:
-                mid_time_us = (upper_time_us + lower_time_us) / 2
-                print(f"Running simulation with step: {mid_time_us}")
-                varying_sg_simulation.reset_simulation_time()
-                varying_sg_simulation.step_time_us(mid_time_us)
-                varying_sg_simulation.update_space()
-                tmp_solver = ldl_sg_compare_solver()
-                varying_sg_simulation.set_solver(tmp_solver)
-                tmp_solver.price_graph.price_graph = sg_solver.price_graph.price_graph.copy()
-                varying_sg_simulation.update_solver_traffic_info(seed=seed)
-                
-                now_connectable_lct_pairs = varying_sg_simulation.filtered_lct_pair_expanded.copy()
-                
-                # Compare the connectable LCT pairs (k,2) array
-                set_now = set(map(tuple, now_connectable_lct_pairs))
-                
-                removed_links = set_init - set_now
-                
-                # number of removed links
-                num_removed = len(removed_links)
-                total_links = len(set_init)                
-            
-                if num_removed > 0.01 * total_links:
-                    upper_time_us = mid_time_us
+                sg_solver = ldl_sg_compare_solver()
+                if constellation == "kuiper":
+                    init_simulation = kuiper_simulation(ts, sat_array)
                 else:
-                    lower_time_us = mid_time_us
-            LOG_CSV_WRITTER.log_mul_scalar("rm_links", 0, [mid_time_us, num_removed, total_links], g_step=seed)
+                    init_simulation = Time_Varying_Simulation(ts, sat_array)
+                if constellation == "oneweb" or constellation == "kuiper":
+                    init_simulation.terrain.GW_RANGE = 1800.0  # in kilometers, range of the ground station
+                    init_simulation.LISL_MAX_DISTANCE = 4000.0  # in kilometers, max distance for laser links  
+                init_simulation.reset_simulation_time()
+                init_simulation.config_l_mask(seed=seed)
+                init_simulation.update_space()
+                init_simulation.set_solver(sg_solver)
+                
+                connectable_lct_pairs = init_simulation.filtered_lct_pair_expanded.copy()
+                set_init = set(map(tuple, connectable_lct_pairs))
+
+                if constellation == "kuiper":
+                    varying_sg_simulation = kuiper_simulation(ts, sat_array)
+                else:
+                    varying_sg_simulation = Time_Varying_Simulation(ts, sat_array)
+                if constellation == "oneweb" or constellation == "kuiper":
+                    varying_sg_simulation.terrain.GW_RANGE = 1800.0  # in kilometers, range of the ground station
+                    varying_sg_simulation.LISL_MAX_DISTANCE = 4000.0  # in kilometers, max distance for laser links  
+                
+                varying_sg_simulation.reset_simulation_time()
+                varying_sg_simulation.config_l_mask(seed=seed)
+                varying_sg_simulation.update_space()
+                
+                upper_time_us = 1e8
+                lower_time_us = 1e3
+                stop_delta_us = 1e3
+                
+                while upper_time_us - lower_time_us > stop_delta_us:
+                    mid_time_us = (upper_time_us + lower_time_us) / 2
+                    print(f"Running simulation with step: {mid_time_us}")
+                    varying_sg_simulation.reset_simulation_time()
+                    varying_sg_simulation.step_time_us(mid_time_us)
+                    varying_sg_simulation.update_space()
+                    tmp_solver = ldl_sg_compare_solver()
+                    varying_sg_simulation.set_solver(tmp_solver)
+                    tmp_solver.price_graph.price_graph = sg_solver.price_graph.price_graph.copy()
+                    varying_sg_simulation.update_solver_traffic_info(seed=seed)
+                    
+                    now_connectable_lct_pairs = varying_sg_simulation.filtered_lct_pair_expanded.copy()
+                    
+                    # Compare the connectable LCT pairs (k,2) array
+                    set_now = set(map(tuple, now_connectable_lct_pairs))
+                    
+                    removed_links = set_init - set_now
+                    
+                    # number of removed links
+                    num_removed = len(removed_links)
+                    total_links = len(set_init)                
+                
+                    if num_removed > THRESHOLD_RATIO * total_links:
+                        upper_time_us = mid_time_us
+                    else:
+                        lower_time_us = mid_time_us
+                LOG_CSV_WRITTER.log_mul_scalar("rm_links", 0, [THRESHOLD_RATIO,mid_time_us, num_removed, total_links], g_step=seed)

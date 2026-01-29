@@ -69,7 +69,7 @@ bars = []
 
 print(data)
 
-data_name_list = [r"LaDuGL", r"Random", r"+Grid", r"MRate", r"SaTE"]
+data_name_list = [r"LaDuNet", r"Random", r"+Grid", r"MRate", r"SaTE"]
 data = data[[0,2], :]
 index = np.arange(data.shape[0])*2
 

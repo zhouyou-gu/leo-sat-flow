@@ -117,7 +117,7 @@ axs.text(1.2, 35, r'     Coherent time $\approx$ 1 second ', rotation=90, vertic
 #                                  mutation_scale=100,
 #                                  transform=axs.transAxes, zorder=5)
 # arrows = axs.add_patch(arrow)
-data_name_list  = [r'LaDuGL', r'MRate', r'LaDu-20', r'LaDu-100', r'LaDu-200', r'$I=500$', r'$I=750$', r'$I=1000$', r'$I=1250$', r'$I=1500$']
+data_name_list  = [r'LaDuNet', r'MRate', r'LaDu-20', r'LaDu-100', r'LaDu-200', r'$I=500$', r'$I=750$', r'$I=1000$', r'$I=1250$', r'$I=1500$']
 ncol = 5  # Number of columns in the legend
 
 h, l = lines3, data_name_list
