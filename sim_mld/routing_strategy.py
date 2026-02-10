@@ -3,6 +3,58 @@ Routing strategies for satellite network traffic.
 
 This module provides different routing strategies for computing paths
 through the satellite network, including shortest path algorithms.
+
+The routing problem is to find paths for data flows from source satellites
+to destination satellites through the inter-satellite link network. The goal
+is to minimize path cost (distance, latency, congestion) while ensuring
+connectivity.
+
+Supported Strategies
+--------------------
+- Dijkstra Routing: Single-source shortest path (SSSP) algorithm
+- (Future) OSPF: Open Shortest Path First with link state
+- (Future) Load-Balanced: Distribute traffic across multiple paths
+- (Future) QoS-Aware: Route with quality of service constraints
+
+Usage Examples
+--------------
+    from sim_mld.routing_strategy import DijkstraRoutingStrategy
+    import numpy as np
+    
+    # Network graph definition
+    n_satellites = 10
+    edges = np.array([[0, 1], [1, 2], [2, 3], ...])  # Connectivity
+    costs = np.array([100.5, 150.2, 200.1, ...])     # Edge costs (distance/latency)
+    
+    # Traffic demands
+    sources = np.array([0, 2, 4])   # Source satellites
+    targets = np.array([5, 7, 9])   # Destination satellites
+    
+    # Compute routes
+    strategy = DijkstraRoutingStrategy()
+    costs, lengths, paths = strategy.compute_routes(
+        n_satellites, edges, costs, sources, targets
+    )
+    
+    # Filter unreachable pairs
+    filtered = strategy.filter_unreachable_pairs(
+        costs, lengths, sources, targets
+    )
+
+Design Pattern
+--------------
+This module uses the Strategy pattern to enable:
+- Runtime selection of routing algorithms
+- Easy addition of new algorithms (OSPF, load balancing)
+- Benchmarking and comparison of different approaches
+- Testability in isolation
+
+Performance Notes
+-----------------
+The Dijkstra implementation uses:
+- CSR (Compressed Sparse Row) graph representation for efficiency
+- Numba JIT compilation for parallel processing
+- Multi-query optimization to route many flows simultaneously
 """
 
 import numpy as np

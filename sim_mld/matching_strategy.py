@@ -3,6 +3,42 @@ Matching strategies for satellite link assignment.
 
 This module provides different strategies for matching satellites to form
 inter-satellite links, including greedy and maximum weight matching approaches.
+
+The matching problem is to assign laser communication terminals (LCTs) on
+satellites to form inter-satellite links (ISLs) such that:
+1. Each LCT is connected to at most one other LCT
+2. The total link quality/capacity is maximized
+3. Physical constraints (field of view, distance) are satisfied
+
+Supported Strategies
+--------------------
+- Greedy Matching: Fast heuristic that selects edges in order of weight
+- (Future) Hungarian Algorithm: Optimal matching in polynomial time
+- (Future) Network Flow: General optimization-based matching
+
+Usage Examples
+--------------
+    from sim_mld.matching_strategy import GreedyMatchingStrategy
+    import numpy as np
+    
+    # Create weighted edges: [source, target, weight]
+    edges = np.array([
+        [0, 1, 10.5],  # Satellite 0 to 1, weight 10.5
+        [1, 2, 8.3],   # Satellite 1 to 2, weight 8.3
+        [0, 2, 5.1],   # Satellite 0 to 2, weight 5.1
+    ])
+    
+    # Compute matching
+    strategy = GreedyMatchingStrategy()
+    matched_pairs = strategy.compute_matching(edges)
+    # Result: [[0, 1], [2, ...]] (best matches)
+
+Design Pattern
+--------------
+This module uses the Strategy pattern to enable:
+- Runtime selection of matching algorithms
+- Easy addition of new algorithms
+- Testability and benchmarking of different approaches
 """
 
 import numpy as np

@@ -3,6 +3,37 @@ Capacity calculation module for optical inter-satellite links.
 
 This module provides functionality for computing link capacities based on
 distance and optical channel characteristics.
+
+The capacity calculations are based on Shannon's theorem applied to optical
+communication channels with Gaussian beam characteristics, accounting for
+factors such as:
+- Beam divergence and spreading
+- Atmospheric/pointing jitter
+- Receiver aperture size
+- Noise characteristics
+
+Usage Examples
+--------------
+    from sim_mld.capacity_calculator import CapacityCalculator
+    
+    # Calculate capacity for a specific distance
+    distance_m = 1500e3  # 1500 km
+    capacity_gbps = CapacityCalculator.compute_capacity(distance_m)
+    
+    # Calculate capacities for multiple satellite pairs
+    import numpy as np
+    positions = np.random.randn(100, 3)  # 100 satellites
+    sat_pairs = np.array([[0, 1], [2, 3], [4, 5]])  # 3 pairs
+    capacities = CapacityCalculator.compute_capacity_from_positions(
+        positions, sat_pairs
+    )
+
+Notes
+-----
+The capacity model includes:
+- Wavelength-dependent beam characteristics (1.55 μm telecom band)
+- Pointing jitter effects (10 μrad typical)
+- Relaxed capacity with epsilon tolerance (0.1% reliability margin)
 """
 
 import numpy as np

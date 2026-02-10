@@ -3,6 +3,36 @@ Constants and configuration values for the LEO satellite flow simulation.
 
 This module centralizes magic numbers and configuration parameters that were
 previously scattered throughout the codebase to improve maintainability.
+
+Usage Examples
+--------------
+    from sim_mld.constants import EARTH_RADIUS_KM, DEFAULT_LCT_COUNT
+    
+    # Use constants in calculations
+    distance_km = satellite_separation * EARTH_RADIUS_KM
+    
+    # Configure satellite parameters
+    num_lcts = DEFAULT_LCT_COUNT
+
+Categories
+----------
+Mathematical/Computational Constants:
+    INFINITY_THRESHOLD, LARGE_NUMBER, MIDPOINT_FACTOR, POSITION_LIFT_FACTOR
+
+Physical Constants:
+    EARTH_RADIUS_KM
+
+Optical Communication Parameters:
+    OPTICAL_RESPONSIVITY, OPTICAL_EFFICIENCY_BETA
+
+Satellite Configuration:
+    DEFAULT_LCT_COUNT, DEFAULT_FOR_THETA_HALF, DEFAULT_LISL_MAX_DISTANCE
+
+Visualization Parameters:
+    DEFAULT_ARROW_SCALE_FACTOR, DEFAULT_ALPHA_TRANSPARENCY
+
+Network Optimization:
+    DEFAULT_WEIGHT_THRESHOLD
 """
 
 # Mathematical and computational constants
