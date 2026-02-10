@@ -68,6 +68,9 @@ class CapacityCalculator:
     JITTER = 10e-6  # Pointing jitter in radians
     EPSILON = 1e-3  # Epsilon for relaxed capacity calculations
     
+    # Note: EARTH_RADIUS is kept here in meters to match the distance units
+    # expected by capacity calculations. The constant module stores it in km
+    # for general use, but this class needs it in meters for internal consistency.
     EARTH_RADIUS = EARTH_RADIUS_KM * 1e3  # Earth radius in meters
     MIN_CAPACITY = 1  # Minimum capacity threshold in Gbps
     

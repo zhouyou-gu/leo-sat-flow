@@ -255,9 +255,9 @@ The refactoring was purely structural - improving organization without changing 
 
 ### Created
 - `sim_mld/constants.py` - 34 constants defined
-- `sim_mld/capacity_calculator.py` - 91 lines
-- `sim_mld/matching_strategy.py` - 89 lines
-- `sim_mld/routing_strategy.py` - 133 lines
+- `sim_mld/capacity_calculator.py` - 129 lines
+- `sim_mld/matching_strategy.py` - 130 lines
+- `sim_mld/routing_strategy.py` - 177 lines
 - `REFACTORING_SUMMARY.md` - This document
 
 ### Modified

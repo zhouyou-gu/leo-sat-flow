@@ -163,8 +163,9 @@ class DijkstraRoutingStrategy(RoutingStrategy):
         tuple
             Filtered (sources, targets, costs, traffic_rates) with only reachable pairs
         """
-        # Filter pairs that have valid paths (length > 0)
-        valid_mask = lengths > 0
+        # Filter pairs that are reachable (cost less than infinity threshold)
+        # Note: length > 0 is not sufficient as it could include unreachable paths
+        valid_mask = (lengths > 0) & (costs < INFINITY_THRESHOLD)
         filtered_sources = sources[valid_mask]
         filtered_targets = targets[valid_mask]
         filtered_costs = costs[valid_mask]

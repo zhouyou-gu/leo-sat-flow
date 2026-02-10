@@ -108,7 +108,7 @@ def xyz_to_lat_lon(xyz: np.ndarray) -> np.ndarray:
     return lat_lon
 
 @njit(parallel=True,cache=True)
-def rotate_deg_in_vector(vectors: np.ndarray, angle_deg: float, angular_vector: np.ndarray = np.array([0,0,1])) -> np.ndarray:
+def rotate_deg_in_vector(vectors: np.ndarray, angle_deg: float, angular_vector: np.ndarray = None) -> np.ndarray:
     '''
     Rotate vectors by given angles around a specified angular vector.
     Parameters
@@ -117,13 +117,18 @@ def rotate_deg_in_vector(vectors: np.ndarray, angle_deg: float, angular_vector: 
         Array of shape (n, 3) containing vectors to be rotated.
     angle_deg : float
         Angle in degrees by which to rotate the vectors.
-    angular_vector : np.ndarray
+    angular_vector : np.ndarray, optional
         Angular vector of shape (3,) around which to rotate the vectors.
+        Defaults to [0, 0, 1] (z-axis) if not provided.
     Returns
     -------
     np.ndarray
         Array of shape (n, 3) containing the rotated vectors.
     '''
+    # Initialize default angular vector if not provided
+    if angular_vector is None:
+        angular_vector = np.array([0.0, 0.0, 1.0])
+    
     n = vectors.shape[0]
     angle_rad = np.deg2rad(angle_deg)
     cos_angle = np.cos(angle_rad)
