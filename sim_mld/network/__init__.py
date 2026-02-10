@@ -21,8 +21,15 @@ from .interfaces import (
     OpticalGaussianLinkModel,
 )
 
+# Import CapacityCalculator from capacity module
+try:
+    from .capacity import CapacityCalculator
+except ImportError:
+    CapacityCalculator = None
+
 __all__ = [
     "LinkCapacityModel",
     "LinkPhysicsModel",
     "OpticalGaussianLinkModel",
+    "CapacityCalculator",
 ]

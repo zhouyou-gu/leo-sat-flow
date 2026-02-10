@@ -18,7 +18,7 @@ Supported Strategies
 
 Usage Examples
 --------------
-    from sim_mld.routing_strategy import DijkstraRoutingStrategy
+    from sim_mld.optimization.routing import DijkstraRoutingStrategy
     import numpy as np
     
     # Network graph definition
@@ -58,8 +58,13 @@ The Dijkstra implementation uses:
 """
 
 import numpy as np
-from sim_mld.dijkstra import build_csr, multi_dijkstra_with_paths
-from sim_mld.constants import INFINITY_THRESHOLD
+
+try:
+    from sim_mld.network.graph import build_csr, multi_dijkstra_with_paths
+    from sim_mld.core.constants import INFINITY_THRESHOLD
+except ImportError:
+    from sim_mld.dijkstra import build_csr, multi_dijkstra_with_paths
+    from sim_mld.constants import INFINITY_THRESHOLD
 
 
 class RoutingStrategy:

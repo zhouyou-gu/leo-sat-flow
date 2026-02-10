@@ -37,14 +37,26 @@ The capacity model includes:
 """
 
 import numpy as np
-from sim_mld.lisl_channel_model import (
-    w0_from_angular_spreading,
-    capacity_relaxed,
-)
-from sim_mld.constants import (
-    OPTICAL_RESPONSIVITY,
-    EARTH_RADIUS_KM,
-)
+
+try:
+    from sim_mld.network.channel_model import (
+        w0_from_angular_spreading,
+        capacity_relaxed,
+    )
+    from sim_mld.core.constants import (
+        OPTICAL_RESPONSIVITY,
+        EARTH_RADIUS_KM,
+    )
+except ImportError:
+    # Fallback for backward compatibility
+    from sim_mld.lisl_channel_model import (
+        w0_from_angular_spreading,
+        capacity_relaxed,
+    )
+    from sim_mld.constants import (
+        OPTICAL_RESPONSIVITY,
+        EARTH_RADIUS_KM,
+    )
 
 
 class CapacityCalculator:

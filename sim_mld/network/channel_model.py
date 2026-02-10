@@ -1,6 +1,10 @@
 import numpy as np
 
-from sim_mld.constants import MIDPOINT_FACTOR, OPTICAL_RESPONSIVITY
+try:
+    from sim_mld.core.constants import MIDPOINT_FACTOR, OPTICAL_RESPONSIVITY
+except ImportError:
+    # Fallback for backward compatibility
+    from sim_mld.constants import MIDPOINT_FACTOR, OPTICAL_RESPONSIVITY
 
 def w0_from_angular_spreading(Theta, wavelength):
     return wavelength / (np.pi * (Theta / MIDPOINT_FACTOR))

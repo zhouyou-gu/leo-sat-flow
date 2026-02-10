@@ -2,7 +2,10 @@ import numpy as np
 import numba
 from numba import prange, typed, types
 
-from sim_mld.constants import INFINITY_THRESHOLD
+try:
+    from sim_mld.core.constants import INFINITY_THRESHOLD
+except ImportError:
+    from sim_mld.constants import INFINITY_THRESHOLD
 
 uni_tuple_t = types.UniTuple(types.int64, 2)
 
