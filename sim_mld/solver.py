@@ -10,38 +10,16 @@ from sim_mld.constants import (
     DEFAULT_LCT_COUNT,
     EARTH_RADIUS_KM,
 )
+from sim_mld.capacity_calculator import CapacityCalculator
+from sim_mld.matching_strategy import greedy_max_weight_matching, GreedyMatchingStrategy
+from sim_mld.routing_strategy import DijkstraRoutingStrategy
 
 import scipy.sparse as sp
 import cvxpy as cp
 
 from sim_src.util import STATS_OBJECT
 
-@njit(cache=True)
-def greedy_max_weight_matching(E: np.ndarray) -> list:
-    """
-    Compute a greedy heuristic maximum weight matching for a NumPy array of edges.
-    
-    Parameters:
-        E (np.ndarray): Array with shape (num_edges, 3) where each row is [u, v, weight].
-    
-    Returns:
-        list: List of tuples (u, v) representing the selected edges.
-    """
-    sorted_indices = np.argsort(-E[:, 2])
-    E_sorted = E[sorted_indices]
-    
-    matching = []
-    matched_nodes = set()
-    
-    for edge in E_sorted:
-        u, v, weight = edge
-        u, v = int(u), int(v)
-        if u not in matched_nodes and v not in matched_nodes:
-            matching.append((u, v))
-            matched_nodes.add(u)
-            matched_nodes.add(v)
-    
-    return matching
+# Note: greedy_max_weight_matching is imported from matching_strategy module
 
 @njit(cache=True)
 def graph_partition(num_nodes, indptr, indices):
@@ -255,27 +233,25 @@ class price_graph:
         self.price_graph.data[self.price_graph.data < 0] = 0
 
 class mr_solver(STATS_OBJECT):
-    WAVELENGTH = 1.55e-6  # Wavelength in meters (1.55 microns typical in telecom)
-    ANGULAR_SPREADING = 100e-6  # Angular spreading in radians
-    BEAM_WAIST = w0_from_angular_spreading(ANGULAR_SPREADING, WAVELENGTH)  # Beam waist in meters
-    PEAK_POWER_W = 20  # Convert dBm to Watts
-    BANDWIDTH = 1e9  # 1 GHz bandwidth
-    RESPONSIVITY = OPTICAL_RESPONSIVITY  # A/W responsivity
-    APERTURE_AREA = 1e-2  # Area in m^2 (example)
-    NOISE_CURRENT = 3e-7  # Example noise in A rms
-    JITTER = 10e-6  # Jitter in radians
-    EPSILON = 1e-3  # Epsilon for relaxed capacity calculations
-
-    EARTH_RADIUS = EARTH_RADIUS_KM * 1e3  # Earth radius in meters
+    """
+    Multi-resource solver for satellite network optimization.
+    
+    This class orchestrates matching and routing strategies to optimize
+    traffic flows in satellite networks.
+    """
+    
+    # Use CapacityCalculator for all capacity-related constants and computations
     N_LCT_PER_SAT = DEFAULT_LCT_COUNT  # Number of LCTs per satellite
-    
-    MIN_CAPACITY = 1
-    
     INIT_PRICES = 0.
-    
     BETA = OPTICAL_EFFICIENCY_BETA
+    
     def __init__(self):
         self.ALPHA = 0.1
+        
+        # Initialize strategy objects
+        self.capacity_calculator = CapacityCalculator()
+        self.matching_strategy = GreedyMatchingStrategy()
+        self.routing_strategy = DijkstraRoutingStrategy()
         
         # solver states
         self.objective_mode = "maxsum"
@@ -347,12 +323,24 @@ class mr_solver(STATS_OBJECT):
 
     @classmethod
     def compute_capacity(cls, distance):
-        distance = distance * cls.EARTH_RADIUS
-        return capacity_relaxed(
-            cls.BANDWIDTH, cls.RESPONSIVITY, cls.APERTURE_AREA, cls.NOISE_CURRENT,
-            cls.PEAK_POWER_W, cls.BEAM_WAIST, cls.WAVELENGTH, distance,
-            cls.JITTER, cls.EPSILON
-        )
+        """
+        Compute link capacity based on distance.
+        
+        This method delegates to CapacityCalculator for consistency.
+        
+        Parameters
+        ----------
+        distance : float or np.ndarray
+            Distance between satellites (normalized units)
+            
+        Returns
+        -------
+        float or np.ndarray
+            Link capacity in Gbps
+        """
+        # Convert distance to meters and use capacity calculator
+        distance_m = distance * CapacityCalculator.EARTH_RADIUS
+        return CapacityCalculator.compute_capacity(distance_m)
         
     def check_connected(self):
         # Check if the graph is connected
