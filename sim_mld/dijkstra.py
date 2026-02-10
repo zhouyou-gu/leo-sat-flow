@@ -2,6 +2,8 @@ import numpy as np
 import numba
 from numba import prange, typed, types
 
+from sim_mld.constants import INFINITY_THRESHOLD
+
 uni_tuple_t = types.UniTuple(types.int64, 2)
 
 
@@ -236,8 +238,7 @@ def heap_pop(heap_cost, heap_node, size):
 # ------------------------------------------------------------------------------
 @numba.njit(cache=True)
 def single_dijkstra_with_path(num_nodes, indptr, indices, data, source, target):
-    INF = 1e12  # A value larger than any realistic path cost.
-    dist = np.full(num_nodes, INF)
+    dist = np.full(num_nodes, INFINITY_THRESHOLD)
     dist[source] = 0.0
     prev = -1 * np.ones(num_nodes, dtype=np.int64)
     
@@ -378,7 +379,7 @@ def construct_edges_matrix_all_in_one(sources, targets, costs, lengths, paths_al
 
         start = offsets[i]
         src, tgt, cost = sources[i], targets[i], costs[i]
-        reach_flag = 0.0 if cost >= 1e12 else 1.0
+        reach_flag = 0.0 if cost >= INFINITY_THRESHOLD else 1.0
 
         for j in range(L - 1):
             row = start + j
@@ -420,7 +421,7 @@ if __name__ == "__main__":
     costs, lengths, paths_all = multi_dijkstra_with_paths(num_nodes, indptr, indices, data, sources, targets)
     
     for i in range(sources.shape[0]):
-        if costs[i] < 1e12:
+        if costs[i] < INFINITY_THRESHOLD:
             path = paths_all[i, :lengths[i]]
             print("Query {}: from {} to {}: cost = {}, path = {}".format(
                 i, sources[i], targets[i], costs[i], path))

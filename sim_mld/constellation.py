@@ -2,6 +2,13 @@ from numba import njit, prange
 import numpy as np
 import math
 
+from sim_mld.constants import (
+    INFINITY_THRESHOLD,
+    LARGE_NUMBER,
+    MIDPOINT_FACTOR,
+    POSITION_LIFT_FACTOR,
+)
+
 
 
 @njit(parallel=True,cache=True)
@@ -69,7 +76,7 @@ def xyz_to_lat_lon(xyz: np.ndarray) -> np.ndarray:
     return lat_lon
 
 @njit(parallel=True,cache=True)
-def rotate_deg_in_vector(vectors: np.ndarray, angle_deg: float, anglar_vector: np.ndarray = np.array([0,0,1])) -> np.ndarray:
+def rotate_deg_in_vector(vectors: np.ndarray, angle_deg: float, angular_vector: np.ndarray = np.array([0,0,1])) -> np.ndarray:
     '''
     Rotate vectors by given angles around a specified angular vector.
     Parameters
@@ -78,7 +85,7 @@ def rotate_deg_in_vector(vectors: np.ndarray, angle_deg: float, anglar_vector: n
         Array of shape (n, 3) containing vectors to be rotated.
     angle_deg : float
         Angle in degrees by which to rotate the vectors.
-    anglar_vector : np.ndarray
+    angular_vector : np.ndarray
         Angular vector of shape (3,) around which to rotate the vectors.
     Returns
     -------
@@ -89,12 +96,12 @@ def rotate_deg_in_vector(vectors: np.ndarray, angle_deg: float, anglar_vector: n
     angle_rad = np.deg2rad(angle_deg)
     cos_angle = np.cos(angle_rad)
     sin_angle = np.sin(angle_rad)
-    anglar_vector_norm = anglar_vector[0]**2 + anglar_vector[1]**2 + anglar_vector[2]**2
-    anglar_vector_norm = math.sqrt(anglar_vector_norm)
-    if anglar_vector_norm == 0:
+    angular_vector_norm = angular_vector[0]**2 + angular_vector[1]**2 + angular_vector[2]**2
+    angular_vector_norm = math.sqrt(angular_vector_norm)
+    if angular_vector_norm == 0:
         raise ValueError("Angular vector cannot be zero vector.")
-    anglar_vector = anglar_vector / anglar_vector_norm  # Normalize the angular vector
-    ux, uy, uz = anglar_vector
+    angular_vector = angular_vector / angular_vector_norm  # Normalize the angular vector
+    ux, uy, uz = angular_vector
     rotated_vectors = np.empty_like(vectors)
     for i in prange(n):
         x, y, z = vectors[i]
@@ -561,7 +568,7 @@ def compute_weighted_edges(velocities, positions, filtered_repeated,
         acos_val = math.acos(view_LT_pair_min_cos[i])
         # Protect against angular_speed being zero.
         if angular_speed[i] == 0:
-            view_time_approx[i] = 1e10  # Use a large number to represent near-infinite view time.
+            view_time_approx[i] = LARGE_NUMBER  # Use a large number to represent near-infinite view time.
         else:
             view_time_approx[i] = (theta_rad - acos_val) / math.fabs(angular_speed[i])
     
@@ -679,15 +686,15 @@ def optimize_edge_and_color_data(edges_color, connected_sat, connected_lct, posi
         idx_from = connected_sat[i, 0]
         idx_to   = connected_sat[i, 1]
         for j in range(3):
-            # Multiply by a slight factor (1.0001)
+            # Multiply by a slight factor to lift positions above surface for visualization
             if lift:
-                p_from[i, j] = positions[idx_from, j] * 1.0001
-                p_to[i, j]   = positions[idx_to, j] * 1.0001
+                p_from[i, j] = positions[idx_from, j] * POSITION_LIFT_FACTOR
+                p_to[i, j]   = positions[idx_to, j] * POSITION_LIFT_FACTOR
             else:
                 p_from[i, j] = positions[idx_from, j]
                 p_to[i, j]   = positions[idx_to, j]
             # p_mid is computed as the average.
-            p_mid[i, j]  = (p_from[i, j] + p_to[i, j]) * 0.5
+            p_mid[i, j]  = (p_from[i, j] + p_to[i, j]) * MIDPOINT_FACTOR
 
     # Build c_lisl_data_from = reshape(concatenate(p_from, p_mid, axis=1)) => shape (2*M_sat, 3)
     c_lisl_data_from = np.empty((2 * M_sat, 3), dtype=positions.dtype)

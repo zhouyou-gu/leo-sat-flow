@@ -1,7 +1,9 @@
 import numpy as np
 
+from sim_mld.constants import MIDPOINT_FACTOR, OPTICAL_RESPONSIVITY
+
 def w0_from_angular_spreading(Theta, wavelength):
-    return wavelength / (np.pi * (Theta/2.0))
+    return wavelength / (np.pi * (Theta / MIDPOINT_FACTOR))
     
 def rayleigh_range(w0, wavelength):
     return np.pi * w0**2 / wavelength
@@ -23,7 +25,7 @@ def capacity_lower_bound(B, R, A, N0, P, w0, wavelength, rho, z):
     numerator = (I * A * R)**2
     denominator = 2.0 * np.pi * np.e * (N0**2)
     argument = 1.0 + (numerator / denominator)
-    return 0.5 * B * np.log2(argument) / 1e9  # Convert to Gbps
+    return MIDPOINT_FACTOR * B * np.log2(argument) / 1e9  # Convert to Gbps
 
 def capacity_relaxed(B, R, A, N0, P, w0, wavelength, z, sigma_jitter, epsilon):
     theta_max = sigma_jitter * np.sqrt(-2.0 * np.log(epsilon))
@@ -46,7 +48,7 @@ if __name__ == "__main__":
     rho = 0.0        # on-axis, for example
     P = 20  # Watts
     B = 1e9        # 1 GHz bandwidth
-    R = 0.5        # A/W responsivity
+    R = OPTICAL_RESPONSIVITY        # A/W responsivity
     A = 1e-2      # Area in m^2 (example)
     N0 = 3e-7      # Example noise in A rms
     

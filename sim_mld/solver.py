@@ -3,6 +3,13 @@ import pandas as pd
 
 from sim_mld.dijkstra import *
 from sim_mld.lisl_channel_model import *
+from sim_mld.constants import (
+    INFINITY_THRESHOLD,
+    OPTICAL_RESPONSIVITY,
+    OPTICAL_EFFICIENCY_BETA,
+    DEFAULT_LCT_COUNT,
+    EARTH_RADIUS_KM,
+)
 
 import scipy.sparse as sp
 import cvxpy as cp
@@ -253,20 +260,20 @@ class mr_solver(STATS_OBJECT):
     BEAM_WAIST = w0_from_angular_spreading(ANGULAR_SPREADING, WAVELENGTH)  # Beam waist in meters
     PEAK_POWER_W = 20  # Convert dBm to Watts
     BANDWIDTH = 1e9  # 1 GHz bandwidth
-    RESPONSIVITY = 0.5  # A/W responsivity
+    RESPONSIVITY = OPTICAL_RESPONSIVITY  # A/W responsivity
     APERTURE_AREA = 1e-2  # Area in m^2 (example)
     NOISE_CURRENT = 3e-7  # Example noise in A rms
     JITTER = 10e-6  # Jitter in radians
     EPSILON = 1e-3  # Epsilon for relaxed capacity calculations
 
-    EARTH_RADIUS = 6371e3  # Earth radius in meters
-    N_LCT_PER_SAT = 4  # Number of LCTs per satellite
+    EARTH_RADIUS = EARTH_RADIUS_KM * 1e3  # Earth radius in meters
+    N_LCT_PER_SAT = DEFAULT_LCT_COUNT  # Number of LCTs per satellite
     
     MIN_CAPACITY = 1
     
     INIT_PRICES = 0.
     
-    BETA = 0.5
+    BETA = OPTICAL_EFFICIENCY_BETA
     def __init__(self):
         self.ALPHA = 0.1
         
@@ -386,7 +393,7 @@ class mr_solver(STATS_OBJECT):
 
         if debug:
             for i in range(self.data_source.shape[0]):
-                if costs[i] < 1e12:
+                if costs[i] < INFINITY_THRESHOLD:
                     path = paths_all[i, :lengths[i]]
                     print("Query {}: from {} to {}: cost = {}, path = {}".format(
                         i, self.data_source[i], self.data_target[i], costs[i], path))

@@ -14,6 +14,16 @@ from sim_mld.terrain import terrain
 from sim_mld.visual import *
 from sim_mld.tle import *
 from sim_mld.constellation import *
+from sim_mld.constants import (
+    EARTH_RADIUS_KM,
+    DEFAULT_LCT_COUNT,
+    DEFAULT_FOR_THETA_HALF,
+    DEFAULT_LISL_MAX_DISTANCE,
+    DEFAULT_TIME_SCALE,
+    DEFAULT_ARROW_SCALE_FACTOR,
+    DEFAULT_ALPHA_TRANSPARENCY,
+    DEFAULT_WEIGHT_THRESHOLD,
+)
 
 from sim_mld.solver import mr_solver
 
@@ -48,12 +58,12 @@ def khot_matrix(n_rows, n_cols, k, rng=None, seed=None, dtype=np.float32):
 
 
 class Simulation(STATS_OBJECT):
-    FOR_THETA_HALF: float = 60.0  # Angle in degrees for the satellite LT direction.
-    LISL_MAX_DISTANCE: float = 3000.0  # Maximum distance for LISL in km.
-    TIME_SCALE: float = 15.0
-    EARTH_RADIUS: float = 6371.0  # Earth's radius in km.
+    FOR_THETA_HALF: float = DEFAULT_FOR_THETA_HALF  # Angle in degrees for the satellite LT direction.
+    LISL_MAX_DISTANCE: float = DEFAULT_LISL_MAX_DISTANCE  # Maximum distance for LISL in km.
+    TIME_SCALE: float = DEFAULT_TIME_SCALE
+    EARTH_RADIUS: float = EARTH_RADIUS_KM  # Earth's radius in km.
     
-    N_LCT_PER_SAT: int = 4  # Number of LCTs per satellite.
+    N_LCT_PER_SAT: int = DEFAULT_LCT_COUNT  # Number of LCTs per satellite.
         
     PLOT_POTENTIAL_LISL: bool = False 
     PLOT_POTENTIAL_LISL_LINE_WIDTH: float = 0.02
@@ -253,7 +263,7 @@ class Simulation(STATS_OBJECT):
         self.front, self.back, self.down, self.right, self.left = update_arrows(self.velocities, self.positions)
         if self.PLOT_SATELLITE_LCTS:
             a_from = np.tile(self.positions, (self.N_LCT_PER_SAT, 1))
-            a_to = np.concatenate((self.front, self.back, self.right, self.left), axis=0) * 0.005 + a_from
+            a_to = np.concatenate((self.front, self.back, self.right, self.left), axis=0) * DEFAULT_ARROW_SCALE_FACTOR + a_from
             a_data = np.concatenate((a_from, a_to), axis=1).reshape(-1, 3)
 
             num_arrows = self.positions.shape[0] * 8
@@ -376,7 +386,7 @@ class Simulation(STATS_OBJECT):
         if self.PLOT_POTENTIAL_LISL:
             # Build the color array using np.array for clarity.
             edges_color_data, p_lisl_data = optimize_edge_and_color_data(self.EDGE_COLOR, self.filtered_sat_pair_repeated, self.filtered_lct_pair_expanded, self.positions)
-            edges_color_data[:, 3] = 0.5
+            edges_color_data[:, 3] = DEFAULT_ALPHA_TRANSPARENCY
             for viz in self.viz_list:
                 # Update the potential LISL lines.
                 viz['p_lisl'].set_data(pos=p_lisl_data, color=edges_color_data, width=self.PLOT_POTENTIAL_LISL_LINE_WIDTH, connect='segments')
@@ -479,7 +489,7 @@ class Simulation(STATS_OBJECT):
             edge_from = self.positions[satp[:, 0]]
             edge_to = self.positions[satp[:, 1]]
             if edge_weight is None:
-                edge_weight = np.ones(satp.shape[0], dtype=self.EDGE_COLOR.dtype)*0.5
+                edge_weight = np.ones(satp.shape[0], dtype=self.EDGE_COLOR.dtype) * DEFAULT_ALPHA_TRANSPARENCY
 
             edge_weight = edge_weight.reshape(-1, 1)
             edge_from = edge_from * (1 + 0.0001 * edge_weight)
@@ -495,8 +505,8 @@ class Simulation(STATS_OBJECT):
             else:
                 edges_color_data = np.zeros((o_lisl_data.shape[0], 4), dtype=self.EDGE_COLOR.dtype)
                 edges_color_data[:, 3] = 1
-                edge_weight_red = (edge_weight > 0.5).astype(np.float32)
-                edge_weight_green = (edge_weight < 0.5).astype(np.float32)
+                edge_weight_red = (edge_weight > DEFAULT_WEIGHT_THRESHOLD).astype(np.float32)
+                edge_weight_green = (edge_weight < DEFAULT_WEIGHT_THRESHOLD).astype(np.float32)
                 edges_color_data[:, 0] = np.concatenate((edge_weight_red, edge_weight_red), axis=1).reshape(-1)
                 edges_color_data[:, 1] = np.concatenate((edge_weight_green, edge_weight_green), axis=1).reshape(-1)
             
