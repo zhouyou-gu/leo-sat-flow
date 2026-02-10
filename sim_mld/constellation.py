@@ -10,6 +10,38 @@ from sim_mld.constants import (
 )
 
 
+@njit(cache=True)
+def _apply_rodrigues_formula(x, y, z, cos_angle, sin_angle, ux, uy, uz):
+    """
+    Apply Rodrigues' rotation formula to rotate a single vector.
+    
+    Parameters
+    ----------
+    x, y, z : float
+        Components of the vector to rotate
+    cos_angle : float
+        Cosine of the rotation angle
+    sin_angle : float
+        Sine of the rotation angle
+    ux, uy, uz : float
+        Components of the normalized rotation axis
+        
+    Returns
+    -------
+    tuple of float
+        The rotated vector components (rx, ry, rz)
+    """
+    rx = (x * (cos_angle + ux * ux * (1 - cos_angle)) +
+          y * (ux * uy * (1 - cos_angle) - uz * sin_angle) + 
+          z * (ux * uz * (1 - cos_angle) + uy * sin_angle))
+    ry = (x * (uy * ux * (1 - cos_angle) + uz * sin_angle) +
+          y * (cos_angle + uy * uy * (1 - cos_angle)) +
+          z * (uy * uz * (1 - cos_angle) - ux * sin_angle))
+    rz = (x * (uz * ux * (1 - cos_angle) - uy * sin_angle) +
+          y * (uz * uy * (1 - cos_angle) + ux * sin_angle) +
+          z * (cos_angle + uz * uz * (1 - cos_angle)))
+    return rx, ry, rz
+
 
 @njit(parallel=True,cache=True)
 def lat_lon_to_xyz(lat_lon, r=1.):
@@ -106,15 +138,9 @@ def rotate_deg_in_vector(vectors: np.ndarray, angle_deg: float, angular_vector: 
     for i in prange(n):
         x, y, z = vectors[i]
         # Apply Rodrigues' rotation formula
-        rotated_vectors[i, 0] = (x * (cos_angle + ux * ux * (1 - cos_angle)) +
-                                    y * (ux * uy * (1 - cos_angle) - uz * sin_angle) + 
-                                    z * (ux * uz * (1 - cos_angle) + uy * sin_angle))
-        rotated_vectors[i, 1] = (x * (uy * ux * (1 - cos_angle) + uz * sin_angle) +
-                                    y * (cos_angle + uy * uy * (1 - cos_angle)) +
-                                    z * (uy * uz * (1 - cos_angle) - ux * sin_angle))
-        rotated_vectors[i, 2] = (x * (uz * ux * (1 - cos_angle) - uy * sin_angle) +
-                                    y * (uz * uy * (1 - cos_angle) + ux * sin_angle) +
-                                    z * (cos_angle + uz * uz * (1 - cos_angle)))
+        rotated_vectors[i, 0], rotated_vectors[i, 1], rotated_vectors[i, 2] = _apply_rodrigues_formula(
+            x, y, z, cos_angle, sin_angle, ux, uy, uz
+        )
     # Return the rotated vectors
     return rotated_vectors
 
@@ -146,16 +172,10 @@ def rotate_deg_in_vector_element_wise(vectors: np.ndarray, angles_degs: np.ndarr
         sin_angle = np.sin(np.deg2rad(angles_degs[i]))
         angular_vector_norm = angular_vectors[i, 0]**2 + angular_vectors[i, 1]**2 + angular_vectors[i, 2]**2
         angular_vector_norm = math.sqrt(angular_vector_norm)
-        ux, uy, uz = angular_vectors[i]/ angular_vector_norm  # Normalize the angular vector
-        rotated_vectors[i, 0] = (x * (cos_angle + ux * ux * (1 - cos_angle)) +
-                                    y * (ux * uy * (1 - cos_angle) - uz * sin_angle) +
-                                    z * (ux * uz * (1 - cos_angle) + uy * sin_angle))
-        rotated_vectors[i, 1] = (x * (uy * ux * (1 - cos_angle) + uz * sin_angle) +
-                                    y * (cos_angle + uy * uy * (1 - cos_angle)) +
-                                    z * (uy * uz * (1 - cos_angle) - ux * sin_angle))
-        rotated_vectors[i, 2] = (x * (uz * ux * (1 - cos_angle) - uy * sin_angle) +
-                                    y * (uz * uy * (1 - cos_angle) + ux * sin_angle) +
-                                    z * (cos_angle + uz * uz * (1 - cos_angle)))
+        ux, uy, uz = angular_vectors[i] / angular_vector_norm  # Normalize the angular vector
+        rotated_vectors[i, 0], rotated_vectors[i, 1], rotated_vectors[i, 2] = _apply_rodrigues_formula(
+            x, y, z, cos_angle, sin_angle, ux, uy, uz
+        )
     return rotated_vectors
 
 @njit(parallel=True,cache=True)

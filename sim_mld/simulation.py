@@ -310,34 +310,17 @@ class Simulation(STATS_OBJECT):
         self.profiled_time['view_stacks'] = toc - tic
     
     def config_l_mask(self, seed=0):
+        """
+        Configure LCT mask for satellites.
+        
+        Args:
+            seed: Random seed for reproducibility (default: 0)
+        """
         rng = np.random.default_rng(seed)
         self.lct_mask = np.zeros((self.n_sat, self.N_LCT_PER_SAT), dtype=np.float32)
-        self.lct_mask[:,0] = 1.0
-        self.lct_mask[:,1] = 1.0
-        # self.lct_mask[:,2] = 1.0
-        # self.lct_mask[:,3] = 1.0
-        
-        # self.lct_mask = khot_matrix(self.n_sat, self.N_LCT_PER_SAT, 2, rng=rng, dtype=np.float32)
-        # print(self.lct_mask.sum(axis=1), self.lct_mask.shape)
-        
-        # p= 0.5
-        # n_lct4_sat = int(self.n_sat * p)
-        # permuted_indices = rng.permutation(np.arange(0, self.n_sat))
-        # lct4_indices = permuted_indices[:n_lct4_sat]
-        # self.lct_mask[lct4_indices, :] = np.ones((n_lct4_sat, self.N_LCT_PER_SAT), dtype=np.float32) 
-        
-        
-        # p = 0.4
-        # self.lct_mask = rng.choice([0, 1], size=(self.n_sat, self.N_LCT_PER_SAT), p=[1-p, p]).astype(np.float32)
-        # self.lct_mask += khot_matrix(self.n_sat, self.N_LCT_PER_SAT, 1, rng=rng, dtype=np.float32)
-        # self.lct_mask[self.lct_mask> 1] = 1  # Ensure no values exceed 1.
-
-
-        # n_lct2_sat = int(self.n_sat * lct2_rho)
-        # n_lct4_sat = int(self.n_sat * lct4_rho)        
-        # permuted_indices = rng.permutation(np.arange(0, self.n_sat))
-        # self.lct2_indices = permuted_indices[:n_lct2_sat]
-        # self.lct4_indices = permuted_indices[n_lct2_sat:n_lct2_sat + n_lct4_sat]
+        # Enable first two LCTs by default
+        self.lct_mask[:, 0] = 1.0
+        self.lct_mask[:, 1] = 1.0
         # self.lct_mask = khot_matrix(self.n_sat, self.N_LCT_PER_SAT, 1, rng=rng, dtype=np.float32)
         # self.lct_mask[self.lct2_indices] = khot_matrix(n_lct2_sat, self.N_LCT_PER_SAT, 2, rng=rng, dtype=np.float32)
         # self.lct_mask[self.lct4_indices] = khot_matrix(n_lct4_sat, self.N_LCT_PER_SAT, 4, rng=rng, dtype=np.float32)
