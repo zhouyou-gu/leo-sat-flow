@@ -4,6 +4,118 @@ from skyfield.api import load, EarthSatellite, wgs84
 from sgp4.api import SatrecArray
 import numpy as np
 
+
+def _starlink_orbital_features(valid_satellites):
+    inclinations_deg = np.array(
+        [sat.model.inclo * 180.0 / math.pi for sat in valid_satellites],
+        dtype=np.float64,
+    )
+    mean_motion_rev_per_day = np.array(
+        [sat.model.no_kozai * 1440.0 / (2.0 * math.pi) for sat in valid_satellites],
+        dtype=np.float64,
+    )
+    raan_deg = np.mod(
+        np.array([sat.model.nodeo * 180.0 / math.pi for sat in valid_satellites], dtype=np.float64),
+        360.0,
+    )
+    return inclinations_deg, mean_motion_rev_per_day, raan_deg
+
+
+def _select_circular_contiguous_block(raan_deg, n_sat):
+    if n_sat > raan_deg.size:
+        raise ValueError("Requested block size exceeds the number of satellites in the shell cluster.")
+
+    order = np.argsort(raan_deg)
+    sorted_raan = raan_deg[order]
+    extended_raan = np.concatenate((sorted_raan, sorted_raan + 360.0))
+
+    best_start = 0
+    best_span = np.inf
+    for start in range(sorted_raan.size):
+        end = start + n_sat - 1
+        span = extended_raan[end] - extended_raan[start]
+        if span < best_span:
+            best_span = span
+            best_start = start
+
+    best_indices = order[np.mod(np.arange(best_start, best_start + n_sat), sorted_raan.size)]
+    return best_indices, best_span
+
+
+def select_starlink_shell_block_indices(
+    valid_satellites,
+    n_sat=1000,
+    target_inclination_deg=53.2,
+    inclination_window_deg=0.3,
+    inclination_round_deg=0.02,
+    mean_motion_round_rev_per_day=0.003,
+):
+    inclinations_deg, mean_motion_rev_per_day, raan_deg = _starlink_orbital_features(valid_satellites)
+
+    rounded_inclinations = np.round(inclinations_deg / inclination_round_deg) * inclination_round_deg
+    rounded_mean_motion = (
+        np.round(mean_motion_rev_per_day / mean_motion_round_rev_per_day)
+        * mean_motion_round_rev_per_day
+    )
+
+    target_shell_mask = np.abs(rounded_inclinations - target_inclination_deg) <= inclination_window_deg
+    if not np.any(target_shell_mask):
+        raise ValueError("No Starlink shell cluster was found near the requested inclination.")
+
+    shell_keys, shell_counts = np.unique(
+        np.column_stack((rounded_inclinations[target_shell_mask], rounded_mean_motion[target_shell_mask])),
+        axis=0,
+        return_counts=True,
+    )
+    shell_key = shell_keys[np.argmax(shell_counts)]
+    shell_mask = (
+        np.isclose(rounded_inclinations, shell_key[0])
+        & np.isclose(rounded_mean_motion, shell_key[1])
+    )
+
+    shell_indices = np.flatnonzero(shell_mask)
+    if shell_indices.size < n_sat:
+        raise ValueError(
+            "The selected Starlink shell cluster does not contain enough satellites for the requested block."
+        )
+
+    block_local_indices, block_span_deg = _select_circular_contiguous_block(raan_deg[shell_indices], n_sat)
+    selected_indices = shell_indices[block_local_indices]
+    selected_indices = selected_indices[np.argsort(raan_deg[selected_indices])]
+
+    metadata = {
+        "shell_inclination_deg": float(shell_key[0]),
+        "shell_mean_motion_rev_per_day": float(shell_key[1]),
+        "shell_population": int(shell_indices.size),
+        "selected_population": int(selected_indices.size),
+        "raan_span_deg": float(block_span_deg),
+    }
+    return selected_indices, metadata
+
+
+def generate_tle_starlink_shell_block_constellation(
+    n_sat=1000,
+    starlink_tle_path=None,
+    target_inclination_deg=53.2,
+    inclination_window_deg=0.3,
+    inclination_round_deg=0.02,
+    mean_motion_round_rev_per_day=0.003,
+):
+    ts, valid_satellites_starlink, _ = load_url_tle_data(starlink_tle_path, reload=True)
+    selected_indices, metadata = select_starlink_shell_block_indices(
+        valid_satellites_starlink,
+        n_sat=n_sat,
+        target_inclination_deg=target_inclination_deg,
+        inclination_window_deg=inclination_window_deg,
+        inclination_round_deg=inclination_round_deg,
+        mean_motion_round_rev_per_day=mean_motion_round_rev_per_day,
+    )
+
+    valid_satellites = [valid_satellites_starlink[idx] for idx in selected_indices]
+    models = [sat.model for sat in valid_satellites]
+    sat_array = SatrecArray(models)
+    return ts, valid_satellites, sat_array, metadata
+
 def generate_tle_partly_regular_constellation1000(n_sat=1000, ratio=0.5, starlink_tle_path=None, seed=0):
     N_SAT = n_sat
     rng = np.random.default_rng(seed=seed)

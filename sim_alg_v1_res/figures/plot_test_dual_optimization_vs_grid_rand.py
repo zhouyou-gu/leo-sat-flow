@@ -37,7 +37,7 @@ fig.set_size_inches(fig_width_in, fig_height_in)  # 3.5 inches width, height adj
 name = ["DuJo","+Grid","Rand","MRate"]
 data = np.genfromtxt(results_file, delimiter=',')
 
-data = -data[:, [4,5,7,6]]  # Select the relevant columns and negate them
+data = -data[:, [4,5,7,6]]  # DuJo, +Grid, Rand, MRate
 bar_width = 0.4
 bars = []
 index = np.arange(data.shape[0])*2

@@ -38,7 +38,7 @@ name = ["DuJo","+Grid","Rand","MRate"]
 data = np.genfromtxt(results_file, delimiter=',')
 markers = ['o', 's', 'D', '^', 'v', 'x', '*']
 
-data = -data[:, [4,5,7,6]]  # Select the relevant columns and negate them
+data = -data[:, [4,5,7,6]]  # DuJo, +Grid, Rand, MRate
 data = data[[1,2,0],:]
 bar_width = 0.4
 bars = []

@@ -296,7 +296,10 @@ for n_sat in [1000]:
     for ratio in [0.]:
         for i in [4]:
             # Create simulation instance.
-            ts, valid_satellites, sat_array = generate_tle_partly_regular_constellation1000(n_sat=n_sat, ratio=ratio, starlink_tle_path=tle_file_path, seed=i)
+            ts, valid_satellites, sat_array, shell_metadata = generate_tle_starlink_shell_block_constellation(
+                n_sat=n_sat,
+                starlink_tle_path=tle_file_path,
+            )
             simulation = DualSimulation(ts, sat_array)
             simulation.config_l_mask(seed=i)
             simulation.update_space()

@@ -8,6 +8,7 @@ and visualizes both the Earth (with a textured sphere) and satellites in a 3D sc
 
 import math
 import time
+import os
 
 import plotext
 import psutil
@@ -46,11 +47,12 @@ class pg_gnnsolver(gnnsolver):
 if __name__ == "__main__":
     # Load tle data.
     from working_dir_path import get_working_dir_path
-    import os
     tle_file_path = os.path.join(get_working_dir_path(),'starlink_16_jul_2025_1600.tle')
 
     LOG_OBJ = STATS_OBJECT()
     LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
+    os.makedirs(LOG_DIR, exist_ok=True)
+    print(f"LOG_DIR: {LOG_DIR}")
 
     LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
 
@@ -71,3 +73,5 @@ if __name__ == "__main__":
         ratio, p_o, d_o, p_o_mwm = simulation.run_step()
         tim = LOG_OBJ._get_tim(tic,remove_timer=False)
         LOG_CSV_WRITTER.log_mul_scalar("res", step, [tim, ratio, p_o, d_o, p_o_mwm])
+    solver.model.save(LOG_DIR, "model_final_pg")
+    LOG_CSV_WRITTER.close()
