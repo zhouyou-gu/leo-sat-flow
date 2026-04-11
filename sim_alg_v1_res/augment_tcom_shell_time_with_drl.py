@@ -127,7 +127,7 @@ def main():
 
     timestamp = datetime.now().strftime("%Y-%B-%d-%H-%M-%S")
 
-    load_scaling_output = os.path.join(load_scaling_parent, f"merged-{timestamp}")
+    load_scaling_output = os.path.join(load_scaling_parent, f"merged-{timestamp}-ail")
     os.makedirs(load_scaling_output, exist_ok=True)
     merged_df.to_csv(os.path.join(load_scaling_output, "results.csv"), index=False)
 
@@ -148,7 +148,7 @@ def main():
 
     baselines_output = os.path.join(
         baselines_parent,
-        f"test_tcom_shell_time_baselines-{timestamp}-drl",
+        f"test_tcom_shell_time_baselines-{timestamp}-drl-ail",
     )
     os.makedirs(baselines_output, exist_ok=True)
     baseline_df.to_csv(os.path.join(baselines_output, "results.csv"), index=False)

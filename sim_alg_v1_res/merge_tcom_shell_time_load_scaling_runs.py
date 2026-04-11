@@ -80,7 +80,7 @@ def main():
     )
 
     timestamp = datetime.now().strftime("%Y-%B-%d-%H-%M-%S")
-    output_dir = os.path.join(args.parent_dir, f"merged-{timestamp}")
+    output_dir = os.path.join(args.parent_dir, f"merged-{timestamp}-ail")
     os.makedirs(output_dir, exist_ok=True)
     merged.to_csv(os.path.join(output_dir, "results.csv"), index=False)
 
