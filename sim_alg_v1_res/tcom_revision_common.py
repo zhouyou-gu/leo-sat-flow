@@ -304,6 +304,7 @@ class SnapshotDualSimulation(Simulation):
         self.best_result = None
         self.dujo_traffic_mode = dujo_traffic_mode
         self.dujo_eval_mode = dujo_eval_mode
+        self._loaded_traffic_seed = None
         super().__init__(ts, sat_array)
         self.current_time = snapshot_time
 
@@ -322,7 +323,11 @@ class SnapshotDualSimulation(Simulation):
         else:
             raise ValueError(f"Unsupported DuJo traffic mode {self.dujo_traffic_mode!r}")
 
-        self.update_solver_traffic_info(seed=traffic_seed)
+        # In fixed mode, the traffic state is identical across DuJo iterations for
+        # the same snapshot and seed, so reloading it every step is unnecessary.
+        if self._loaded_traffic_seed != traffic_seed:
+            self.update_solver_traffic_info(seed=traffic_seed)
+            self._loaded_traffic_seed = traffic_seed
         self.solver.update_step_rates_prices()
         d_o, _ = self.solver.get_dual_objective(with_prices=True)
         p_o, rates, srouting, (costs, lengths, paths_all), connected_sat, connected_lct = (
