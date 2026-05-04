@@ -22,6 +22,10 @@ from sim_mld.ml.e2e_rl.model import rl_model
 
 T0_UTC = datetime(2025, 7, 16, 16, 0, 0)
 DEFAULT_TIME_OFFSETS_MINUTES = [0, 30, 60, 90, 120, 180]
+DEFAULT_ATP_SNAPSHOT_INTERVAL_SEC = 10
+DEFAULT_ATP_TIME_SEC = 50
+DEFAULT_ATP_TIME_SWEEP_SEC = [0, 10, 20, 30]
+DEFAULT_ATP_EVALUATION_SECONDS = 6 * 60
 DEFAULT_ACTIVE_USER_PERCENTAGES = [5e-6, 1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3]
 DEFAULT_DUJO_STEPS = 500
 DEFAULT_TRAFFIC_SEED = 0
@@ -45,6 +49,11 @@ HEURISTIC_METHOD_SPECS = {
 def rand_case_seed(offset_minutes, active_user_percentage, traffic_seed):
     active_user_key = int(round(float(active_user_percentage) * 1e8))
     return int(traffic_seed) + 1009 * int(offset_minutes) + 9173 * active_user_key
+
+
+def rand_case_seed_seconds(offset_seconds, active_user_percentage, traffic_seed):
+    active_user_key = int(round(float(active_user_percentage) * 1e8))
+    return int(traffic_seed) + 1009 * int(offset_seconds) + 9173 * active_user_key
 
 
 def parse_env_int(name, default):
@@ -142,9 +151,24 @@ def snapshot_datetime(offset_minutes):
     return T0_UTC + timedelta(minutes=int(offset_minutes))
 
 
+def snapshot_datetime_seconds(offset_seconds):
+    return T0_UTC + timedelta(seconds=int(offset_seconds))
+
+
 def snapshot_time_scale(ts, offset_minutes):
     dt = snapshot_datetime(offset_minutes)
     return ts.utc(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second)
+
+
+def snapshot_time_scale_seconds(ts, offset_seconds):
+    dt = snapshot_datetime_seconds(offset_seconds)
+    return ts.utc(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second)
+
+
+def snapshot_time_scale_from_offset(ts, offset_minutes, offset_seconds=None):
+    if offset_seconds is None:
+        return snapshot_time_scale(ts, offset_minutes)
+    return snapshot_time_scale_seconds(ts, offset_seconds)
 
 
 def latest_run_dir(parent_dir):
@@ -419,12 +443,14 @@ def evaluate_dujo(
     dujo_steps=DEFAULT_DUJO_STEPS,
     dujo_traffic_mode=DEFAULT_DUJO_TRAFFIC_MODE,
     dujo_eval_mode=DEFAULT_DUJO_EVAL_MODE,
+    offset_seconds=None,
+    include_simulation=False,
 ):
     solver = RevisionLpdSolver()
     simulation = SnapshotDualSimulation(
         ts,
         sat_array,
-        snapshot_time_scale(ts, offset_minutes),
+        snapshot_time_scale_from_offset(ts, offset_minutes, offset_seconds=offset_seconds),
         traffic_seed=traffic_seed,
         dujo_traffic_mode=dujo_traffic_mode,
         dujo_eval_mode=dujo_eval_mode,
@@ -439,6 +465,8 @@ def evaluate_dujo(
     result = collect_dujo_result(simulation, traffic_seed=traffic_seed)
     if result is None:
         raise RuntimeError("DuJo produced no result because no feasible LISLs were found.")
+    if include_simulation:
+        result["_simulation"] = simulation
     return dict(result)
 
 
@@ -449,16 +477,21 @@ def evaluate_heuristic(
     offset_minutes,
     active_user_percentage,
     traffic_seed=DEFAULT_TRAFFIC_SEED,
+    offset_seconds=None,
+    include_simulation=False,
 ):
     spec = HEURISTIC_METHOD_SPECS[method_name]
     matching_seed = int(traffic_seed)
     if method_name == "Rand":
-        matching_seed = rand_case_seed(offset_minutes, active_user_percentage, traffic_seed)
+        if offset_seconds is None:
+            matching_seed = rand_case_seed(offset_minutes, active_user_percentage, traffic_seed)
+        else:
+            matching_seed = rand_case_seed_seconds(offset_seconds, active_user_percentage, traffic_seed)
     solver = mr_solver()
     simulation = SnapshotDualSimulation(
         ts,
         sat_array,
-        snapshot_time_scale(ts, offset_minutes),
+        snapshot_time_scale_from_offset(ts, offset_minutes, offset_seconds=offset_seconds),
         traffic_seed=traffic_seed,
     )
     configure_simulation(simulation, solver, active_user_percentage)
@@ -483,6 +516,8 @@ def evaluate_heuristic(
         "connected_lct": connected_lct,
     }
     result.update(compute_metrics(simulation, method_name, rates, lengths, connected_sat))
+    if include_simulation:
+        result["_simulation"] = simulation
     return result
 
 
@@ -493,6 +528,8 @@ def evaluate_drl(
     active_user_percentage,
     traffic_seed=DEFAULT_TRAFFIC_SEED,
     model_path=None,
+    offset_seconds=None,
+    include_simulation=False,
 ):
     variant = current_paper_drl_variant()
     model_path = resolve_drl_model_path(model_path=model_path, variant=variant)
@@ -500,7 +537,7 @@ def evaluate_drl(
     simulation = SnapshotDualSimulation(
         ts,
         sat_array,
-        snapshot_time_scale(ts, offset_minutes),
+        snapshot_time_scale_from_offset(ts, offset_minutes, offset_seconds=offset_seconds),
         traffic_seed=traffic_seed,
     )
     configure_simulation(simulation, solver, active_user_percentage)
@@ -523,6 +560,8 @@ def evaluate_drl(
         "connected_lct": connected_lct,
     }
     result.update(compute_metrics(simulation, "DRL", rates, lengths, connected_sat))
+    if include_simulation:
+        result["_simulation"] = simulation
     return result
 
 
@@ -536,6 +575,8 @@ def evaluate_method(
     dujo_steps=DEFAULT_DUJO_STEPS,
     dujo_traffic_mode=DEFAULT_DUJO_TRAFFIC_MODE,
     dujo_eval_mode=DEFAULT_DUJO_EVAL_MODE,
+    offset_seconds=None,
+    include_simulation=False,
 ):
     if method_name == "DuJo":
         return evaluate_dujo(
@@ -547,6 +588,8 @@ def evaluate_method(
             dujo_steps=dujo_steps,
             dujo_traffic_mode=dujo_traffic_mode,
             dujo_eval_mode=dujo_eval_mode,
+            offset_seconds=offset_seconds,
+            include_simulation=include_simulation,
         )
     if method_name == "DRL":
         return evaluate_drl(
@@ -555,6 +598,8 @@ def evaluate_method(
             offset_minutes,
             active_user_percentage,
             traffic_seed=traffic_seed,
+            offset_seconds=offset_seconds,
+            include_simulation=include_simulation,
         )
     return evaluate_heuristic(
         method_name,
@@ -563,4 +608,33 @@ def evaluate_method(
         offset_minutes,
         active_user_percentage,
         traffic_seed=traffic_seed,
+        offset_seconds=offset_seconds,
+        include_simulation=include_simulation,
+    )
+
+
+def evaluate_method_seconds(
+    method_name,
+    ts,
+    sat_array,
+    offset_seconds,
+    active_user_percentage,
+    traffic_seed=DEFAULT_TRAFFIC_SEED,
+    dujo_steps=DEFAULT_DUJO_STEPS,
+    dujo_traffic_mode=DEFAULT_DUJO_TRAFFIC_MODE,
+    dujo_eval_mode=DEFAULT_DUJO_EVAL_MODE,
+    include_simulation=False,
+):
+    return evaluate_method(
+        method_name,
+        ts,
+        sat_array,
+        offset_minutes=0,
+        offset_seconds=offset_seconds,
+        active_user_percentage=active_user_percentage,
+        traffic_seed=traffic_seed,
+        dujo_steps=dujo_steps,
+        dujo_traffic_mode=dujo_traffic_mode,
+        dujo_eval_mode=dujo_eval_mode,
+        include_simulation=include_simulation,
     )
