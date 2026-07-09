@@ -7,7 +7,7 @@ import numpy as np
 #create a figure with (2,1) subplots
 FONT_SIZE = 9
 fig_width_px = 400
-fig_height_px = 185
+fig_height_px = 210
 dpi = 100  # Typical screen DPI, adjust if necessary
 fig_width_in = fig_width_px / dpi
 fig_height_in = fig_height_px / dpi
@@ -45,7 +45,10 @@ def force_square(ax, equal_units=True):
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
-data_file =  "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_lemma_1_rand_weights/test_lemma_1_rand_weights-2025-September-15-11-09-58-ail/d_o_component"
+data_file = os.environ.get(
+    "LEO_SAT_FLOW_FIG8_DATA",
+    "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_lemma_1_rand_weights/test_lemma_1_rand_weights-2025-September-15-11-09-58-ail/d_o_component",
+)
 # Plot the data
 fig, axs_list = plt.subplots(1,2,)
 fig.set_size_inches(fig_width_in, fig_height_in)  # 3.5 inches width, height adjusted to maintain aspect ratio
@@ -55,23 +58,22 @@ data = np.genfromtxt(data_file, delimiter=',')
 print(data)
 
 axs = axs_list[0]
-axs.set_position([0.015, 0.275, 0.625, 0.625])
+axs.set_position([0.115, 0.21, 0.34, 0.62])
 
 axs.scatter(-data[:,3], -data[:,5], s=1)
-axs.set_xlabel('Part (a)',
+axs.set_title('(i) Matching term', pad=2)
+axs.set_xlabel(r'Before clipping ($\times 10^4$)',
                 labelpad=5,       # distance from axis
                 loc='center')      # align: 'center', 'top', or 'bottom'
-axs.set_ylabel('Parts (a) with \n  Clipped Multipliers', 
+axs.set_ylabel(r'After clipping ($\times 10^4$)',
               labelpad=5,       # distance from axis
               loc='center')      # align: 'center', 'top', or 'bottom'
 axs.set_xlim(2000,10000)
 axs.set_ylim(2000,10000)
 axs.set_xticks([2000, 4000, 6000, 8000, 10000])
 axs.set_yticks([2000, 4000, 6000, 8000, 10000])
-axs.ticklabel_format(style='sci', axis='x', scilimits=(-2,2), useMathText=True)
-offset = axs.xaxis.get_offset_text()
-offset.set_position((1, -0.1))   # (x, y) relative to axis
-axs.ticklabel_format(style='sci', axis='y', scilimits=(-2,2), useMathText=True)
+axs.set_xticklabels(['0.2', '0.4', '0.6', '0.8', '1.0'])
+axs.set_yticklabels(['0.2', '0.4', '0.6', '0.8', '1.0'])
 axs.plot([2000, 10000], [2000, 10000], color='red', linestyle='--', linewidth=0.5)
 
 axs.grid(True, zorder=0)
@@ -81,13 +83,14 @@ axs.set_aspect('equal', 'box')
 force_square(axs, equal_units=True)
 
 axs = axs_list[1]
-axs.set_position([0.5, 0.275, 0.625, 0.625])
+axs.set_position([0.62, 0.21, 0.34, 0.62])
 
 axs.scatter(data[:,2], data[:,4], s=1)
-axs.set_xlabel('Part (b)(c)',
+axs.set_title('(ii) Routing and rate term', pad=2)
+axs.set_xlabel('Before clipping',
                 labelpad=5,       # distance from axis
                 loc='center')      # align: 'center', 'top', or 'bottom'
-axs.set_ylabel('Parts (b)(c) with \n  Clipped Multipliers', 
+axs.set_ylabel('After clipping',
               labelpad=5,       # distance from axis
               loc='center')      # align: 'center', 'top', or 'bottom'
 axs.set_xlim(-125,-50)
