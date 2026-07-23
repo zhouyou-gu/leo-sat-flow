@@ -74,7 +74,7 @@ for i in range(data.shape[1]):
 axs.set_position([0.175, 0.18, 0.8, 0.625])
 axs.set_xticks(index)
 print(index)
-# axs.set_xticklabels(["500", "750", "1000", "1250", "1500", "1750", "2000", "2500", "3000"])
+axs.set_xticklabels(["500", "750", "1000", "1250", "1500"])
 axs.set_xlabel(r'Number of Satellites, $I$')
 axs.set_ylabel(r'Network Throughput (Gbps)')
 axs.grid(True, zorder=0)
