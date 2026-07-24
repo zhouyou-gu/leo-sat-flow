@@ -31,7 +31,14 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 
 # ldl_path = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_varying_constellation_size/test_ld_starlink_varying_constellation_size-2025-October-23-21-39-03-ail/ldl"
 
-ldl_path = "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_1000_varying_constellation/test_ld_starlink_1000_varying_constellation-2026-January-05-11-24-31-ail/ldl"
+baseline_ldl_path = os.environ.get(
+    "CONSTELLATION_BASELINE_LDL",
+    "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_1000_varying_constellation/test_ld_starlink_1000_varying_constellation-2026-January-05-11-24-31-ail/ldl",
+)
+kuiper_ldl_path = os.environ.get(
+    "CONSTELLATION_KUIPER_LDL",
+    "/home/zhouyou/leo-sat-flow/sim_alg_j1_res/test_ld_starlink_1000_varying_constellation/test_ld_starlink_1000_varying_constellation-2026-July-24-12-58-18-ail/ldl",
+)
 
 
 # Plot the data
@@ -40,37 +47,29 @@ fig.set_size_inches(fig_width_in, fig_height_in)  # 3.5 inches width, height adj
 
 N_POINTS = 2
 
-lml_data = np.genfromtxt(ldl_path, delimiter=',')
-lml_res = -lml_data[:, 4].reshape(-1, N_POINTS)
-lml_res = lml_res.mean(axis=1)
+def extract_method_averages(path):
+    ldl_data = np.genfromtxt(path, delimiter=',')
+    if ldl_data.ndim != 2 or ldl_data.shape[0] % N_POINTS:
+        raise ValueError(f"Unexpected result shape {ldl_data.shape} in {path}")
+    if not np.isfinite(ldl_data).all():
+        raise ValueError(f"Non-finite result in {path}")
+    method_columns = [4, 7, 8, 6, 9]
+    return -ldl_data[:, method_columns].reshape(-1, N_POINTS, len(method_columns)).mean(axis=1)
 
-mwm_res = -lml_data[:, 6].reshape(-1, N_POINTS)
-mwm_res = mwm_res.mean(axis=1)
 
-rnd_res = -lml_data[:, 7].reshape(-1, N_POINTS)
-rnd_res = rnd_res.mean(axis=1)
+baseline_data = extract_method_averages(baseline_ldl_path)
+kuiper_data = extract_method_averages(kuiper_ldl_path)
+if baseline_data.shape[0] < 3 or kuiper_data.shape[0] < 1:
+    raise ValueError("The result files do not contain the required constellation rows")
 
-grd_res = -lml_data[:, 8].reshape(-1, N_POINTS)
-grd_res = grd_res.mean(axis=1)
-
-ste_res = -lml_data[:, 9].reshape(-1, N_POINTS)
-ste_res = ste_res.mean(axis=1)
-
-data = np.concatenate((
-    lml_res.reshape(-1,1),
-    rnd_res.reshape(-1,1),
-    grd_res.reshape(-1,1),
-    mwm_res.reshape(-1,1),
-    ste_res.reshape(-1,1),
-), axis=1)
-data = data[0:5, :]
+# Preserve the published Starlink and OneWeb cases and append the new Kuiper case.
+data = np.vstack((baseline_data[0], baseline_data[2], kuiper_data[-1]))
 bar_width = 0.275
 bars = []
 
 print(data)
 
 data_name_list = [r"DeepLaDu", r"Random", r"+Grid", r"MRate", r"SaTE"]
-data = data[[0,2], :]
 index = np.arange(data.shape[0])*2
 
 for i in range(data.shape[1]):
@@ -79,7 +78,7 @@ for i in range(data.shape[1]):
 axs.set_position([0.175, 0.18, 0.8, 0.7])
 axs.set_xticks(index)
 print(index)
-axs.set_xticklabels(["Starlink", "OneWeb"])
+axs.set_xticklabels(["Starlink", "OneWeb", "Kuiper"])
 axs.set_xlabel(r'Constellation Type')
 axs.set_ylabel(r'Network Throughput (Gbps)')
 axs.grid(True, zorder=0)

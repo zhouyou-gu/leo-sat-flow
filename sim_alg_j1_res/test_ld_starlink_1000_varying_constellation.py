@@ -42,7 +42,7 @@ from sim_alg_j1_res.test_ld_starlink_1000_sg_compare import ldl_sg_compare_solve
 
 class kuiper_simulation(GNNSimulation):
     def get_simulation_time(self):
-        return self.ts.utc(2026, 1, 20, 11, 0, 0)
+        return self.ts.utc(2026, 7, 23, 12, 0, 0)
 
 
 
@@ -54,13 +54,21 @@ if __name__ == "__main__":
     import os
     starlink_tle_file_path = os.path.join(get_working_dir_path(),'starlink_16_jul_2025_1600.tle')
     oneweb_tle_file_path = os.path.join(get_working_dir_path(),'oneweb_16_jul_2025_1600.tle')
-    kuiper_tle_file_path = os.path.join(get_working_dir_path(),'kuiper_20_jan_2026_1100.tle')
+    kuiper_tle_file_path = os.path.join(get_working_dir_path(),'kuiper_23_jul_2026.tle')
+    constellation_names = [
+        name.strip()
+        for name in os.environ.get(
+            "CONSTELLATIONS",
+            "starlink,walker-delta,oneweb,kuiper",
+        ).split(",")
+        if name.strip()
+    ]
 
     LOG_OBJ = STATS_OBJECT()
     LOG_DIR = GET_LOG_PATH_FOR_SIM_SCRIPT(__file__)
 
     LOG_CSV_WRITTER = CSV_WRITER_OBJECT(path=LOG_DIR)
-    for constellation in ["starlink", "walker-delta", "oneweb", "kuiper"]:
+    for constellation in constellation_names:
         for seed in range(N_CONSTELLATION):
             if constellation == "oneweb":
                 ts, valid_satellites, sat_array = load_url_tle_data(oneweb_tle_file_path, reload=True)
