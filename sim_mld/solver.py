@@ -267,6 +267,7 @@ class mr_solver(STATS_OBJECT):
     INIT_PRICES = 0.
     
     BETA = 0.5
+    N_NEAREST_GATEWAY_SATS = 5
     def __init__(self):
         self.ALPHA = 0.1
         
@@ -317,8 +318,11 @@ class mr_solver(STATS_OBJECT):
         df = pd.DataFrame(pairs, columns=['s', 't'])
         df['cost'] = costs
 
-        # For each t, take the K rows with smallest cost
-        K_VALUE = 5
+        # For each t, retain the M gateway-capable sources with the smallest
+        # shortest-path physical distance on the current satellite graph.
+        K_VALUE = int(self.N_NEAREST_GATEWAY_SATS)
+        if K_VALUE < 1:
+            raise ValueError("N_NEAREST_GATEWAY_SATS must be at least 1")
         topk = (
             df
             .groupby('t', group_keys=False)[['s', 't','cost']]       # group by destination t
