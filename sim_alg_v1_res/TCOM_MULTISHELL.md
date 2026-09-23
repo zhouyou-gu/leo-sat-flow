@@ -58,3 +58,17 @@ results in the other selections, remain archived. No experiment was rerun.
 ```sh
 python sim_alg_v1_res/figures/plot_test_tcom_two_shell.py --results sim_alg_v1_res/test_tcom_multishell/revision-ail --output sim_alg_v1_res/figures/plot_test_tcom_two_shell.pdf
 ```
+
+## Publication figure readability
+
+For the fixed RV2 publication figure set, apply the separate vector restyler:
+
+```sh
+python sim_alg_v1_res/figures/restyle_tcom_rv2_figures.py --output sim_alg_v1_res/figures
+```
+
+This reads the immutable `figures/tcom_rv2_sources/` assets, enlarges text in
+Figs. 3–10 and widens bars in Fig. 4. Fig. 8 is regenerated from the
+recovered six-decimal tables with four cases per panel and wider bars. It does not rerun simulations or change
+snapshot aggregation. The pre-readability plotting scripts above still produce
+their original styling; the restyler is the final publication formatting step.

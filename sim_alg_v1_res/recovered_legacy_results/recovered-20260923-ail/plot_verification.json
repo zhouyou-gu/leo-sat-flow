@@ -1,0 +1,22 @@
+[
+  {
+    "table": "mixed_constellation",
+    "bars": 42,
+    "max_bar_height_error_pdf_points": 9.171765450233238e-06
+  },
+  {
+    "table": "lct_failure_rate",
+    "bars": 42,
+    "max_bar_height_error_pdf_points": 1.2898546575712544e-05
+  },
+  {
+    "table": "varying_for",
+    "bars": 42,
+    "max_bar_height_error_pdf_points": 6.4177035881129996e-06
+  },
+  {
+    "table": "different_constellation",
+    "bars": 18,
+    "max_bar_height_error_pdf_points": 6.142175379864057e-06
+  }
+]
