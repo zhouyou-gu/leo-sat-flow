@@ -360,3 +360,52 @@ if __name__ == "__main__":
         
     # print(fetch_valid_sat_from_tle_list(constellation))
     print("test datetime, now:",datetime(2025, 1, 1))
+
+
+def load_tle_valid_at_times(path, times):
+    """Load a historical catalogue, retaining records valid at every supplied epoch.
+
+    Unlike load_url_tle_data, this opt-in loader never filters at wall-clock now.
+    SGP4 uses UTC Julian dates, matching Skyfield's satellite implementation.
+    """
+    from sgp4.api import jday
+    ts = load.timescale(builtin=True)
+    satellites = load.tle_file(str(path), reload=False)
+    dates = [jday(*t.utc) for t in times]
+    jd, fraction = np.asarray(dates, dtype=float).T
+    errors, positions, velocities = SatrecArray([s.model for s in satellites]).sgp4(
+        np.ascontiguousarray(jd), np.ascontiguousarray(fraction))
+    valid = ((errors == 0).all(axis=1)
+             & np.isfinite(positions).all(axis=(1, 2))
+             & np.isfinite(velocities).all(axis=(1, 2)))
+    kept = [s for s, ok in zip(satellites, valid) if ok]
+    ids = [s.model.satnum for s in kept]
+    if len(ids) != len(set(ids)):
+        raise ValueError('Catalogue contains duplicate satellite IDs')
+    return ts, kept, {'catalogue_population': len(satellites),
+                      'valid_population': len(kept),
+                      'excluded_ids': [s.model.satnum for s, ok in zip(satellites, valid) if not ok]}
+
+
+def select_shifted_shell_block(satellites, inclination, mean_motion, n_sat, selection):
+    """Select one of three predetermined circular RAAN blocks in a TLE cluster."""
+    if selection not in (0, 1, 2):
+        raise ValueError('selection must be 0, 1, or 2')
+    inc, motion, raan = _starlink_orbital_features(satellites)
+    members = np.flatnonzero(np.isclose(np.round(inc / .02) * .02, inclination)
+                            & np.isclose(np.round(motion / .003) * .003, mean_motion))
+    if len(members) < n_sat:
+        raise ValueError(f'Cluster {(inclination, mean_motion)} has {len(members)}, needs {n_sat}')
+    order = np.argsort(raan[members])
+    first, _ = _select_circular_contiguous_block(raan[members], n_sat)
+    minimum_start = int(np.flatnonzero(order == first[0])[0])
+    shift = selection * len(members) // 3
+    start = (minimum_start + shift) % len(members)
+    selected = members[order[(start + np.arange(n_sat)) % len(members)]]
+    # Keep the historical selector's final RAAN ordering for reproducibility.
+    selected = selected[np.argsort(raan[selected])]
+    circular = raan[members[order[(start + np.arange(n_sat)) % len(members)]]]
+    return selected, {'inclination_deg': inclination, 'mean_motion_rev_per_day': mean_motion,
+                      'cluster_population': len(members), 'selected_population': n_sat,
+                      'minimum_start_index': minimum_start, 'start_index': start,
+                      'shift': shift, 'raan_span_deg': float((circular[-1] - circular[0]) % 360)}
