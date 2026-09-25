@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
 import csv
+import hashlib
+import json
+import pickle
 import os
 import sys
 import time
@@ -309,11 +312,55 @@ def write_summary(results_path, summary_path):
             )
 
 
+def input_fingerprint(simulation):
+    solver = simulation.solver
+    arrays = [simulation.positions, simulation.velocities,
+              simulation.filtered_lct_pair_expanded, simulation.lct_mask,
+              solver.data_source, solver.data_target, solver.forward_traffic_capacity,
+              solver.forward_traffic_demand, simulation.terrain.ground_station_positions_rotated]
+    h = hashlib.sha256()
+    for value in arrays:
+        a = np.ascontiguousarray(value)
+        assert np.isfinite(a).all()
+        h.update(str((a.shape, a.dtype)).encode())
+        h.update(a.tobytes())
+    return h.hexdigest()
+
+
+def load_recorded_population(metadata_path):
+    """Replay the saved population/order without present-day TLE filtering."""
+    from skyfield.api import load
+    from sgp4.api import SatrecArray
+    from tcom_revision_common import default_starlink_tle_path
+    from datetime import timezone
+    metadata = json.load(open(metadata_path))
+    tle_path = default_starlink_tle_path()
+    ts = load.timescale()
+    satellites = load.tle_file(tle_path)
+    by_name = {sat.name: sat for sat in satellites}
+    names = metadata['selected_satellites']
+    assert len(names) == len(set(names)) == 1000
+    selected = [by_name[name] for name in names]
+    for offset in default_offsets():
+        t = ts.from_datetime(snapshot_datetime_seconds(offset).replace(tzinfo=timezone.utc))
+        for sat in selected:
+            state = sat.at(t)
+            assert state.message is None and np.isfinite(state.position.km).all()
+            assert np.isfinite(state.velocity.km_per_s).all()
+    metadata['tle_path'] = tle_path
+    metadata['tle_sha256'] = hashlib.sha256(open(tle_path, 'rb').read()).hexdigest()
+    metadata['source_population_metadata'] = os.path.abspath(metadata_path)
+    return ts, selected, SatrecArray([sat.model for sat in selected]), metadata
+
+
 def main():
     output_dir = get_output_dir()
     os.makedirs(output_dir, exist_ok=True)
 
-    ts, valid_satellites, sat_array, metadata = load_shell_constellation(n_sat=1000)
+    population_path = os.getenv("TCOM_REVISION_POPULATION_METADATA", "").strip()
+    ts, valid_satellites, sat_array, metadata = (
+        load_recorded_population(population_path) if population_path else load_shell_constellation(n_sat=1000)
+    )
     offsets = parse_env_int_list("TCOM_REVISION_ATP_OFFSETS_SEC", default_offsets())
     atp_times = parse_env_int_list("TCOM_REVISION_ATP_TIMES_SEC", default_atp_times())
     active_user_percentage = parse_env_float_list(
@@ -373,6 +420,8 @@ def main():
         "new_link_fraction",
         "original_evaluation_seconds",
         "atp_reallocation_seconds",
+        "input_sha256",
+        "matching_sha256",
         "evaluation_seconds",
     ]
 
@@ -393,24 +442,36 @@ def main():
             }
             for offset_index, offset_seconds in enumerate(offsets):
                 original_tic = time.perf_counter()
-                result = evaluate_method_seconds(
-                    method,
-                    ts,
-                    sat_array,
-                    offset_seconds=offset_seconds,
-                    active_user_percentage=active_user_percentage,
-                    traffic_seed=DEFAULT_TRAFFIC_SEED,
-                    dujo_steps=dujo_steps,
-                    dujo_traffic_mode=dujo_traffic_mode,
-                    dujo_eval_mode=dujo_eval_mode,
-                    include_simulation=True,
-                )
-                original_elapsed = time.perf_counter() - original_tic
+                cache_dir = os.getenv("TCOM_REVISION_SNAPSHOT_CACHE", "").strip()
+                if cache_dir:
+                    # Cache files are locally generated, trusted experiment artifacts.
+                    with open(os.path.join(cache_dir, f"{method}_{offset_seconds}.pkl"), "rb") as cache_fp:
+                        original_elapsed, result = pickle.load(cache_fp)
+                else:
+                    result = evaluate_method_seconds(
+                        method,
+                        ts,
+                        sat_array,
+                        offset_seconds=offset_seconds,
+                        active_user_percentage=active_user_percentage,
+                        traffic_seed=DEFAULT_TRAFFIC_SEED,
+                        dujo_steps=dujo_steps,
+                        dujo_traffic_mode=dujo_traffic_mode,
+                        dujo_eval_mode=dujo_eval_mode,
+                        include_simulation=True,
+                    )
+                    original_elapsed = time.perf_counter() - original_tic
                 simulation = result.pop("_simulation")
                 current_lct = canonical_link_rows(result["connected_lct"])
                 current_links = rows_to_link_set(current_lct)
                 initialization_snapshot = offset_index == 0
                 matched_links = len(current_links)
+                fingerprint = input_fingerprint(simulation)
+                matching_hash = hashlib.sha256(link_set_to_rows(current_links).tobytes()).hexdigest()
+                audit_dir = os.path.join(output_dir, "snapshots")
+                os.makedirs(audit_dir, exist_ok=True)
+                np.savez_compressed(os.path.join(audit_dir, f"{method}_{offset_seconds}.npz"),
+                                    selected_lct=link_set_to_rows(current_links))
                 for atp_time_seconds in atp_times:
                     atp_time_seconds = int(atp_time_seconds)
                     state = atp_states[atp_time_seconds]
@@ -432,10 +493,15 @@ def main():
                         usable_lct,
                     )
                     atp_elapsed = time.perf_counter() - atp_tic
+                    assert input_fingerprint(simulation) == fingerprint, "ATP replay mutated inputs"
+                    assert usable_links <= current_links
                     metrics = atp_metrics(simulation, atp_rates, atp_lengths)
+                    assert -1e-7 <= metrics["atp_served_throughput_gbps"] <= result["offered_demand_gbps"] + 1e-5
                     usable_link_count = len(usable_links)
                     writer.writerow(
                         {
+                            "input_sha256": fingerprint,
+                            "matching_sha256": matching_hash,
                             "offset_seconds": offset_seconds,
                             "snapshot_utc": snapshot_datetime_seconds(offset_seconds).isoformat(),
                             "initialization_snapshot": int(initialization_snapshot),

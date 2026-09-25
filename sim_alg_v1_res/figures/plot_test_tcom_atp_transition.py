@@ -14,6 +14,7 @@ if PARENT_DIR not in sys.path:
 from legacy_augmented_plot_common import FONT_SIZE, METHOD_COLORS, apply_plot_style
 from tcom_revision_common import (
     DEFAULT_ATP_TIME_SWEEP_SEC,
+    parse_env_int_list,
     HEADLINE_METHODS,
     SUPPORTING_METHODS,
     latest_run_dir,
@@ -30,6 +31,8 @@ TOP_AXIS_BOX = [0.15, 0.55, 0.825, 0.35]
 BOTTOM_AXIS_BOX = [0.15, 0.15, 0.825, 0.35]
 
 apply_plot_style()
+FONT_SIZE = 10
+plt.rcParams.update({"font.size": 10, "axes.labelsize": 10, "xtick.labelsize": 10, "ytick.labelsize": 10, "legend.fontsize": 10})
 
 METHOD_STYLE = {
     "DuJo": {"color": METHOD_COLORS["DuJo"], "marker": "o"},
@@ -43,6 +46,8 @@ METHOD_STYLE = {
 METHOD_ALIASES = {
     "DRL": ["DRL", "LD"],
 }
+
+ATP_PLOT_TIMES = parse_env_int_list("TCOM_REVISION_ATP_TIMES_SEC", DEFAULT_ATP_TIME_SWEEP_SEC)
 
 PLOT_METHOD_SET = set()
 for method in HEADLINE_METHODS:
@@ -91,13 +96,18 @@ else:
 
 df = df[
     df["method"].isin(PLOT_METHOD_SET)
-    & df["atp_time_seconds"].isin(DEFAULT_ATP_TIME_SWEEP_SEC)
+    & df["atp_time_seconds"].isin(ATP_PLOT_TIMES)
 ].copy()
 active_user_filter = os.getenv("TCOM_REVISION_ACTIVE_USER_PERCENTAGE", "").strip()
 if active_user_filter:
     print("Ignoring TCOM_REVISION_ACTIVE_USER_PERCENTAGE for pre-aggregated ATP sweep plot.")
 if df.empty:
     raise ValueError("No ATP transition summary rows are available for plotting after filtering.")
+for method in HEADLINE_METHODS:
+    method_rows = df[df["method"].isin(METHOD_ALIASES.get(method, [method]))]
+    if len(method_rows) != len(ATP_PLOT_TIMES) or set(method_rows["atp_time_seconds"]) != set(ATP_PLOT_TIMES):
+        raise ValueError(f"Incomplete or duplicate ATP sweep for {method}")
+
 df.sort_values(["method", "atp_time_seconds"], inplace=True)
 
 fig, axs = plt.subplots(2, 1)
@@ -145,16 +155,16 @@ axs[0].grid(True, zorder=0, alpha=0.35, linewidth=0.5)
 axs[1].grid(True, zorder=0, alpha=0.35, linewidth=0.5)
 
 for ax in axs:
-    ax.set_xticks(DEFAULT_ATP_TIME_SWEEP_SEC)
-    ax.set_xlim(min(DEFAULT_ATP_TIME_SWEEP_SEC) - 1, max(DEFAULT_ATP_TIME_SWEEP_SEC) + 1)
+    ax.set_xticks(ATP_PLOT_TIMES)
+    ax.set_xlim(min(ATP_PLOT_TIMES) - 1, max(ATP_PLOT_TIMES) + 1)
     for spine in ax.spines.values():
         spine.set_linewidth(0.8)
     ax.tick_params(axis="y", labelsize=FONT_SIZE - 1)
 
 axs[0].tick_params(labelbottom=False)
-axs[0].set_ylim(0.0, 150.0)
+axs[0].set_ylim(0.0, 160.0)
 axs[0].set_yticks([0, 50, 100, 150])
-axs[1].set_ylim(0.0, 1.0)
+axs[1].set_ylim(0.0, 1.05)
 axs[1].set_yticks([0.0, 0.5, 1.0])
 
 axs[0].set_position(TOP_AXIS_BOX)
