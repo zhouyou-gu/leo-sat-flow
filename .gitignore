@@ -115,3 +115,6 @@ venv.bak/
 
 # mkdocs documentation
 /site
+
+# Comment 3.6 experiment outputs
+/sim_alg_v1_res/test_tcom_lct_count/
